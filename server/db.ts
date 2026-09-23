@@ -189,6 +189,20 @@ export async function createContact(input: InsertContact) {
   return result[0];
 }
 
+export async function deleteReference(id: number, ownerUserId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.delete(references).where(and(eq(references.id, id), eq(references.ownerUserId, ownerUserId)));
+  return true;
+}
+
+export async function deleteContact(id: number, ownerUserId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.delete(contacts).where(and(eq(contacts.id, id), eq(contacts.ownerUserId, ownerUserId)));
+  return true;
+}
+
 export async function recordAnalytics(cardId: number, type: "view" | "save", meta?: string) {
   const db = await getDb();
   if (!db) return;

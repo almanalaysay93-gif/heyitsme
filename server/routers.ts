@@ -10,6 +10,8 @@ import {
   createCard,
   createContact,
   deleteCard,
+  deleteContact,
+  deleteReference,
   getCardById,
   getCardByIdForOwner,
   getCardsByOwner,
@@ -58,7 +60,7 @@ export const appRouter = router({
         ...input,
         ownerUserId: ctx.user.id,
         slug,
-        published: true,
+        published: false,
         links: input.links ?? "[]",
         portfolio: input.portfolio ?? "[]",
         channels: input.channels ?? "[]",
@@ -83,6 +85,9 @@ export const appRouter = router({
   }),
   contacts: router({
     list: protectedProcedure.query(({ ctx }) => getContactsByOwner(ctx.user.id)),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(({ ctx, input }) => deleteContact(input.id, ctx.user.id)),
   }),
   references: router({
     list: protectedProcedure.input(z.object({ cardId: z.number().int().positive() })).query(({ ctx, input }) => getReferencesByOwner(input.cardId, ctx.user.id)),
@@ -97,6 +102,9 @@ export const appRouter = router({
       if (!card) throw new Error("Card not found");
       return createReference({ ...input, ownerUserId: ctx.user.id, approved: true });
     }),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(({ ctx, input }) => deleteReference(input.id, ctx.user.id)),
   }),
   media: router({
     upload: protectedProcedure.input(z.object({
