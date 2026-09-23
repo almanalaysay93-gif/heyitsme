@@ -1,6 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { LoopVideo } from "@/components/LoopVideo";
 import { ShareDemo } from "@/components/ShareDemo";
+import { VelocityMarquee } from "@/components/VelocityMarquee";
 import { startGoogleLogin } from "@/const";
 import { landingMedia } from "@/lib/media";
 import { AnimatePresence, motion, useReducedMotion, useScroll, useSpring, useTransform } from "framer-motion";
@@ -45,6 +46,7 @@ const demoCard: CardDraft = {
 };
 
 const channels = ["LinkedIn", "Instagram", "WhatsApp", "Telegram", "Viber", "Signal", "Calendly", "Facebook", "X"];
+const actions = ["Save contact", "Scan the code", "Tap to call", "Book a time", "Send a DM", "Swap details", "Share your page"];
 
 const steps = [
   { icon: PenLine, art: "build", video: landingMedia.stepBuild, title: "Build your page", copy: "Name, role, a little context, a photo. Add work, links, and the channels you actually answer." },
@@ -254,11 +256,12 @@ export default function Landing() {
 
         <section className="lp-marquee" aria-label="Supported channels">
           <span className="lp-marquee-label">Link the places you already talk</span>
-          <div className="lp-marquee-track">
-            <div className="lp-marquee-row">
-              {[...channels, ...channels].map((name, index) => <span key={`${name}-${index}`} aria-hidden={index >= channels.length}>{name}<i /></span>)}
-            </div>
-          </div>
+          <VelocityMarquee speed={3.2}>
+            {channels.map((name) => <span key={name}>{name}<i /></span>)}
+          </VelocityMarquee>
+          <VelocityMarquee speed={-2.4} className="lp-marquee-alt">
+            {actions.map((name) => <span key={name}>{name}<i /></span>)}
+          </VelocityMarquee>
         </section>
 
         <FilmSection />
