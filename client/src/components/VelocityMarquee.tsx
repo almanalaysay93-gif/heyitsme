@@ -26,6 +26,7 @@ type VelocityMarqueeProps = {
 /**
  * Endless row that drifts on its own, speeds up and skews with page scroll velocity,
  * and flips direction when the reader scrolls back up. Hovering slows it to a crawl.
+ * With reduced motion it still drifts at base speed, without scroll effects.
  */
 export function VelocityMarquee({ children, speed = 3, className = "" }: VelocityMarqueeProps) {
   const reduceMotion = useReducedMotion();
@@ -43,8 +44,9 @@ export function VelocityMarquee({ children, speed = 3, className = "" }: Velocit
   const x = useTransform(baseX, (value) => `${wrap(-50, 0, value)}%`);
 
   useAnimationFrame((_, delta) => {
-    if (reduceMotion || !inView) return;
-    const factor = velocityFactor.get();
+    if (!inView) return;
+    // Reduced motion keeps the gentle base drift but drops scroll boost, reversal, and skew.
+    const factor = reduceMotion ? 0 : velocityFactor.get();
     if (factor < 0) direction.current = -1;
     else if (factor > 0) direction.current = 1;
     let moveBy = direction.current * speed * (delta / 1000);
@@ -60,7 +62,7 @@ export function VelocityMarquee({ children, speed = 3, className = "" }: Velocit
       onPointerEnter={() => { hovered.current = true; }}
       onPointerLeave={() => { hovered.current = false; }}
     >
-      <motion.div className="lp-marquee-row" style={reduceMotion ? undefined : { x, skewX }}>
+      <motion.div className="lp-marquee-row" style={reduceMotion ? { x } : { x, skewX }}>
         <div className="lp-marquee-copy">{children}</div>
         <div className="lp-marquee-copy" aria-hidden="true">{children}</div>
       </motion.div>
