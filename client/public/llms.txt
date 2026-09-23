@@ -1,0 +1,25 @@
+# heyitsme
+
+heyitsme is a free digital business card and professional presence web product.
+
+## Core jobs
+
+- Create and edit one or more digital cards.
+- Share a browser-first public card through a link or QR code.
+- Let a recipient save or exchange contact details without installing an app.
+- Keep a personal contact list with search and CSV export.
+- Add a portfolio of images, videos, documents, and project links.
+- Add social and direct communication channels including WhatsApp, Telegram, Viber, Signal, and Calendly.
+- Publish approved comments from past clients as references.
+
+## Phase-one routes
+
+- `/app` — overview workspace.
+- `/app/cards` — card list.
+- `/app/cards/new` — card builder.
+- `/app/contacts` — contact list.
+- `/c/:slug` — public card page.
+
+## Product rules
+
+All implemented features are free for every signed-in user. heyitsme does not expose paid plans, checkout, billing, or upgrade gates. It does not sell NFC hardware and does not claim compliance certifications.
