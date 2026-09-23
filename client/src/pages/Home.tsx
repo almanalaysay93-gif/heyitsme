@@ -441,7 +441,7 @@ export default function Home() {
         </div>
         {undoCard ? <div className="undo-banner"><span><Trash2 size={15} /> “{undoCard.displayName || "Your card"}” deleted</span><button type="button" onClick={() => void restoreDeletedCard(undoCard)} disabled={restoreCardMutation.isPending}><Undo2 size={14} /> {restoreCardMutation.isPending ? "Restoring…" : "Undo"}</button><button type="button" className="undo-dismiss" onClick={() => setUndoCard(null)} aria-label="Dismiss undo message"><X size={14} /></button></div> : null}
       </main>
-      {showShare && activeCard ? <ShareSheet card={activeCard} onClose={() => setShowShare(false)} onCopy={() => copyPublicLink(activeCard)} /> : null}
+      {showShare && activeCard ? <ShareSheet card={activeCard} onClose={() => setShowShare(false)} onCopy={() => copyPublicLink(activeCard)} isAuthenticated={isAuthenticated} onPublish={() => togglePublish(activeCard)} /> : null}
     </div>
   );
 }
@@ -495,15 +495,125 @@ function ReferencesEditor({ onAddReference }: { cardId: number; onAddReference: 
   return <div className="references-editor"><div className="reference-form"><div className="field-grid"><Field label="Client name" value={clientName} onChange={setClientName} placeholder="Mina Park" /><Field label="Role" value={clientRole} onChange={setClientRole} placeholder="Founder" /><Field label="Company" value={company} onChange={setCompany} placeholder="Field Notes" /></div><label className="field-label">Their words<textarea value={quote} onChange={(event) => setQuote(event.target.value)} placeholder="What did they say about working with you?" /></label><button className="outline-button" type="button" onClick={() => void add()}><Quote size={14} /> Add reference</button></div><div className="reference-mini-list">{references.slice(0, 3).map((reference) => <div className="reference-mini" key={reference.id}><Quote size={14} /><div><p>“{reference.quote}”</p><span>{reference.clientName}{reference.company ? ` · ${reference.company}` : ""}</span></div></div>)}</div></div>;
 }
 
-function Field({ label, value, onChange, placeholder, type = "text" }: any) { return <label className="field-label">{label}<input type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} /></label>; }
+function toHref(raw: string): string {
+  const v = (raw || "").trim();
+  if (/^javascript:/i.test(v)) return "#";
+  if (/^[a-z][a-z0-9+.-]*:/i.test(v)) return v;
+  return `https://${v}`;
+}
+
+function buildVCard(card: CardDraft): string {
+  const esc = (v: string) => v.replace(/[\\,;]/g, (m) => `\\${m}`).replace(/\n/g, "\\n");
+  const lines = [
+    "BEGIN:VCARD",
+    "VERSION:3.0",
+    `FN:${esc(card.displayName || "Contact")}`,
+    card.title ? `TITLE:${esc(card.title)}` : null,
+    card.company ? `ORG:${esc(card.company)}` : null,
+    card.email ? `EMAIL;TYPE=INTERNET:${card.email}` : null,
+    card.phone ? `TEL;TYPE=CELL:${card.phone}` : null,
+    `URL:${window.location.href}`,
+    card.bio ? `NOTE:${esc(card.bio)}` : null,
+    "END:VCARD",
+  ].filter(Boolean);
+  return lines.join("\r\n");
+}
+
+function downloadVCard(card: CardDraft) {
+  const vcard = buildVCard(card);
+  const blob = new Blob([vcard], { type: "text/vcard;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${(card.displayName || "contact").replace(/[^a-zA-Z0-9_-]/g, "_")}.vcf`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  URL.revokeObjectURL(url);
+  toast.success("Contact file (.vcf) downloaded.");
+}
+
+function Field({ label, value, onChange, placeholder, type = "text", required = false }: any) {
+  return (
+    <label className="field-label">
+      {label}{required ? " *" : ""}
+      <input
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        required={required}
+      />
+    </label>
+  );
+}
 
 function ContactsView({ contacts, search, setSearch, onExport }: any) {
   return <motion.div className="page-stack" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}><div className="page-heading-row"><div><span className="section-kicker"><UsersRound size={14} /> Your people</span><h1>Keep the<br /><em>good ones close.</em></h1><p>Every saved card becomes a relationship you can return to.</p></div><button className="outline-button" onClick={onExport}><Download size={15} /> Export CSV</button></div><div className="contacts-toolbar glass-panel"><div className="search-field"><AtSign size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search people, companies, notes…" />{search ? <button onClick={() => setSearch("")}><X size={15} /></button> : null}</div><span>{contacts.length} contact{contacts.length === 1 ? "" : "s"}</span></div><div className="contacts-list glass-panel">{contacts.map((contact: ContactRow, index: number) => <motion.div className="contact-row" key={contact.id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.05 }}><div className="contact-avatar">{getInitials(contact.name)}</div><div className="contact-main"><strong>{contact.name}</strong><span>{contact.title || "Contact"}{contact.company ? ` · ${contact.company}` : ""}</span></div><div className="contact-detail"><span>{contact.email || "No email added"}</span><small>{contact.source === "exchange_form" ? "Exchanged details" : "Saved from your card"}</small></div><div className="contact-date">{formatDate(contact.createdAt)}</div><button className="icon-button"><MoreHorizontal size={16} /></button></motion.div>)}{contacts.length === 0 ? <div className="empty-state"><UserRoundPlus size={24} /><strong>No matches yet.</strong><span>Share your card to start collecting warm introductions.</span></div> : null}</div></motion.div>;
 }
 
-function ShareSheet({ card, onClose, onCopy }: { card: CardDraft; onClose: () => void; onCopy: () => void }) {
+function ShareSheet({
+  card,
+  onClose,
+  onCopy,
+  isAuthenticated,
+  onPublish,
+}: {
+  card: CardDraft;
+  onClose: () => void;
+  onCopy: () => void;
+  isAuthenticated?: boolean;
+  onPublish?: () => void;
+}) {
   const url = `${window.location.origin}/c/${card.slug}`;
-  return <motion.div className="sheet-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.div className="share-sheet glass-panel" initial={{ opacity: 0, y: 24, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: "spring", stiffness: 360, damping: 30 }} onClick={(event) => event.stopPropagation()}><div className="sheet-header"><div><span className="mini-label">Share your card</span><h2>Make the handoff easy.</h2></div><button className="icon-button" onClick={onClose}><X size={17} /></button></div><div className="qr-frame"><QRCodeSVG value={url} size={176} bgColor="transparent" fgColor="#10152a" includeMargin /></div><div className="share-link"><Link2 size={15} /><span>{url.replace(window.location.origin, "")}</span><button onClick={onCopy}><Copy size={15} /></button></div><div className="share-actions"><a href={`sms:?body=${encodeURIComponent(`Here’s my heyitsme card: ${url}`)}`}><MessageCircle size={16} /> Text it</a><a href={`mailto:?subject=${encodeURIComponent(`${card.displayName} shared a card`) }&body=${encodeURIComponent(url)}`}><Mail size={16} /> Email it</a><a href={url} target="_blank" rel="noreferrer"><ExternalLink size={16} /> Open page</a></div><p className="sheet-footnote"><span className="status-dot is-live" /> Anyone with the link can view it. No app needed.</p></motion.div></motion.div>;
+  const isReady = Boolean(isAuthenticated && card.id > 0 && card.published);
+  return (
+    <motion.div className="sheet-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+      <motion.div className="share-sheet glass-panel" initial={{ opacity: 0, y: 24, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: "spring", stiffness: 360, damping: 30 }} onClick={(event) => event.stopPropagation()}>
+        <div className="sheet-header">
+          <div>
+            <span className="mini-label">Share your card</span>
+            <h2>Make the handoff easy.</h2>
+          </div>
+          <button className="icon-button" onClick={onClose}><X size={17} /></button>
+        </div>
+        {isReady ? (
+          <>
+            <div className="qr-frame"><QRCodeSVG value={url} size={176} bgColor="transparent" fgColor="#10152a" includeMargin /></div>
+            <div className="share-link"><Link2 size={15} /><span>{url.replace(window.location.origin, "")}</span><button onClick={onCopy}><Copy size={15} /></button></div>
+            <div className="share-actions">
+              <a href={`sms:?body=${encodeURIComponent(`Here’s my heyitsme card: ${url}`)}`}><MessageCircle size={16} /> Text it</a>
+              <a href={`mailto:?subject=${encodeURIComponent(`${card.displayName} shared a card`)}&body=${encodeURIComponent(url)}`}><Mail size={16} /> Email it</a>
+              <a href={url} target="_blank" rel="noreferrer"><ExternalLink size={16} /> Open page</a>
+            </div>
+            <p className="sheet-footnote"><span className="status-dot is-live" /> Anyone with the link can view it. No app needed.</p>
+          </>
+        ) : (
+          <div className="share-sheet-unpublished" style={{ textAlign: "center", padding: "28px 16px" }}>
+            <p style={{ marginBottom: "16px", color: "var(--muted-foreground, #888)", fontSize: "15px" }}>
+              {!isAuthenticated
+                ? "Sign in to publish this card and create a shareable link."
+                : !card.published
+                ? "This card is currently private. Publish it to enable sharing and QR codes."
+                : "Save this card first to generate a shareable link."}
+            </p>
+            {onPublish && isAuthenticated && !card.published ? (
+              <button
+                className="glass-button glass-button-primary"
+                type="button"
+                onClick={() => {
+                  onPublish();
+                  onClose();
+                }}
+              >
+                Publish card
+              </button>
+            ) : null}
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
+  );
 }
 
 function ChannelIcon({ provider }: { provider: string }) {
@@ -516,17 +626,80 @@ function ChannelIcon({ provider }: { provider: string }) {
 
 function PublicPortfolio({ items }: { items: PortfolioItem[] }) {
   if (!items.length) return null;
-  return <section className="public-extra-card public-portfolio"><div className="public-section-heading"><span className="section-kicker"><BriefcaseBusiness size={14} /> Selected work</span><h2>A little proof of <em>the practice.</em></h2></div><div className="public-portfolio-grid">{items.map((item) => <a className="public-portfolio-item" href={item.url} target="_blank" rel="noreferrer" key={item.id}>{item.kind === "image" ? <img src={item.url} alt={item.title} /> : item.kind === "video" ? <video src={item.url} muted playsInline /> : <div className="public-file-card"><span>{item.kind === "file" ? <FileText size={22} /> : <Link2 size={22} />}</span><strong>{item.title}</strong><small>{item.kind === "file" ? "Open file" : "Visit project"}</small></div>}<div className="public-portfolio-caption"><strong>{item.title}</strong><ArrowUpRight size={14} /></div></a>)}</div></section>;
+  return (
+    <section className="public-extra-card public-portfolio">
+      <div className="public-section-heading">
+        <span className="section-kicker"><BriefcaseBusiness size={14} /> Selected work</span>
+        <h2>A little proof of <em>the practice.</em></h2>
+      </div>
+      <div className="public-portfolio-grid">
+        {items.map((item) => (
+          <a className="public-portfolio-item" href={toHref(item.url)} target="_blank" rel="noreferrer" key={item.id}>
+            {item.kind === "image" ? (
+              <img src={item.url} alt={item.title} />
+            ) : item.kind === "video" ? (
+              <video src={item.url} muted playsInline />
+            ) : (
+              <div className="public-file-card">
+                <span>{item.kind === "file" ? <FileText size={22} /> : <Link2 size={22} />}</span>
+                <strong>{item.title}</strong>
+                <small>{item.kind === "file" ? "Open file" : "Visit project"}</small>
+              </div>
+            )}
+            <div className="public-portfolio-caption">
+              <strong>{item.title}</strong>
+              <ArrowUpRight size={14} />
+            </div>
+          </a>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function PublicChannels({ channels }: { channels: ChannelItem[] }) {
   if (!channels.length) return null;
-  return <section className="public-extra-card public-channels"><div className="public-section-heading"><span className="section-kicker"><MessageCircle size={14} /> Stay connected</span><h2>Choose your <em>conversation.</em></h2></div><div className="public-channel-list">{channels.map((channel, index) => <a href={channel.url.startsWith("http") ? channel.url : `https://${channel.url}`} target="_blank" rel="noreferrer" key={`${channel.provider}-${index}`}><ChannelIcon provider={channel.provider} /><span>{channel.label || channel.provider[0].toUpperCase() + channel.provider.slice(1)}</span><ArrowUpRight size={14} /></a>)}</div></section>;
+  return (
+    <section className="public-extra-card public-channels">
+      <div className="public-section-heading">
+        <span className="section-kicker"><MessageCircle size={14} /> Stay connected</span>
+        <h2>Choose your <em>conversation.</em></h2>
+      </div>
+      <div className="public-channel-list">
+        {channels.map((channel, index) => (
+          <a href={toHref(channel.url)} target="_blank" rel="noreferrer" key={`${channel.provider}-${index}`}>
+            <ChannelIcon provider={channel.provider} />
+            <span>{channel.label || channel.provider[0].toUpperCase() + channel.provider.slice(1)}</span>
+            <ArrowUpRight size={14} />
+          </a>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function PublicReferences({ references }: { references: ReferenceRow[] }) {
   if (!references.length) return null;
-  return <section className="public-extra-card public-references"><div className="public-section-heading"><span className="section-kicker"><Quote size={14} /> Kind words</span><h2>What past clients <em>remember.</em></h2></div><div className="public-reference-grid">{references.map((reference) => <article className="public-reference" key={reference.id}><Quote size={19} /><p>“{reference.quote}”</p><footer><span className="reference-avatar">{getInitials(reference.clientName)}</span><span><strong>{reference.clientName}</strong><small>{reference.clientRole || "Client"}{reference.company ? ` · ${reference.company}` : ""}</small></span></footer></article>)}</div></section>;
+  return (
+    <section className="public-extra-card public-references">
+      <div className="public-section-heading">
+        <span className="section-kicker"><Quote size={14} /> Kind words</span>
+        <h2>What past clients <em>remember.</em></h2>
+      </div>
+      <div className="public-reference-grid">
+        {references.map((reference) => (
+          <article className="public-reference" key={reference.id}>
+            <Quote size={19} />
+            <p>“{reference.quote}”</p>
+            <footer>
+              <span className="reference-avatar">{getInitials(reference.clientName)}</span>
+              <span><strong>{reference.clientName}</strong><small>{reference.clientRole || "Client"}{reference.company ? ` · ${reference.company}` : ""}</small></span>
+            </footer>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 export function PublicCardPage() {
@@ -544,8 +717,172 @@ export function PublicCardPage() {
   const portfolio = parsePortfolio(card?.portfolio);
   const channels = parseChannels(card?.channels);
   const references = rawCard?.references ?? [];
-  if (cardQuery.isLoading) return <div className="public-loading"><div className="loading-orb" /><span>Opening a little context…</span></div>;
-  if (!card) return <div className="public-loading"><div className="not-found-mark">?</div><h1>This card moved.</h1><p>Ask for an updated link or head back to heyitsme.</p><a href="/">Visit heyitsme</a></div>;
-  const submit = async (event: React.FormEvent) => { event.preventDefault(); try { if (card.id > 0) await exchange.mutateAsync({ cardId: card.id, ...form, email: form.email || null, phone: form.phone || null, company: form.company || null, title: form.title || null, notes: form.notes || null }); setSent(true); toast.success("Details exchanged."); } catch (error: any) { toast.error(error?.message ?? "Could not send your details."); } };
-  return <div className={`public-card-page theme-${card.theme}`}><div className="public-orb orb-a" /><div className="public-orb orb-b" /><header className="public-nav"><a className="brand-lockup" href="/"><span className="brand-mark"><span /></span><span>heyitsme</span></a><span className="public-note">a better handoff</span></header><main className="public-card-layout"><motion.div className="public-card-copy" initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }}><span className="section-kicker">{card.published ? <><span className="status-dot is-live" /> Digital card</> : "Digital card"}</span><h1>{card.displayName}</h1><p className="public-title">{card.title}{card.company ? ` · ${card.company}` : ""}</p><p className="public-bio">{card.bio || "Nice to meet you. Let’s keep the conversation going."}</p><div className="public-details">{card.email ? <a href={`mailto:${card.email}`}><Mail size={16} />{card.email}</a> : null}{card.phone ? <a href={`tel:${card.phone}`}><Phone size={16} />{card.phone}</a> : null}{card.location ? <span><Globe2 size={16} />{card.location}</span> : null}</div><div className="public-links">{links.map((link: string) => <a key={link} href={link.startsWith("http") ? link : `https://${link}`} target="_blank" rel="noreferrer"><Link2 size={15} />{link}<ArrowUpRight size={14} /></a>)}</div><div className="public-cta-row"><GlassButton onClick={() => { setShowForm(true); setSent(false); }}><UserRoundPlus size={16} /> Exchange details</GlassButton><button className="text-button" onClick={() => navigator.clipboard?.writeText(window.location.href).then(() => toast.success("Card link copied."))}><Copy size={16} /> Copy link</button></div></motion.div><motion.div className="public-card-stage" initial={{ opacity: 0, scale: 0.95, rotate: 2 }} animate={{ opacity: 1, scale: 1, rotate: 0 }} transition={{ type: "spring", stiffness: 180, damping: 22 }}><CardVisual card={card} /><div className="scan-hint"><QrCode size={16} /><span>Scan to save this card</span></div></motion.div></main><div className="public-extra-grid"><PublicPortfolio items={portfolio} /><PublicChannels channels={channels} /><PublicReferences references={references} /></div><footer className="public-footer"><span>Made with heyitsme</span><span>Free for everyone</span></footer>{showForm ? <motion.div className="sheet-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} onClick={() => setShowForm(false)}><motion.div className="exchange-sheet glass-panel" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} onClick={(event) => event.stopPropagation()}>{sent ? <div className="success-state"><div className="success-check"><Check size={25} /></div><h2>Nice. You’re in.</h2><p>Your details were sent to {card.displayName}. Keep the good conversation going.</p><button className="outline-button" onClick={() => setShowForm(false)}>Close</button></div> : <form onSubmit={submit}><div className="sheet-header"><div><span className="mini-label">Exchange details</span><h2>Make it easy to find you too.</h2></div><button type="button" className="icon-button" onClick={() => setShowForm(false)}><X size={17} /></button></div><div className="field-grid"><Field label="Your name" value={form.name} onChange={(value: string) => setForm({ ...form, name: value })} placeholder="Jordan Lee" /><Field label="Email" type="email" value={form.email} onChange={(value: string) => setForm({ ...form, email: value })} placeholder="you@example.com" /><Field label="Company" value={form.company} onChange={(value: string) => setForm({ ...form, company: value })} placeholder="Your company" /><Field label="Role / title" value={form.title} onChange={(value: string) => setForm({ ...form, title: value })} placeholder="What you do" /></div><label className="field-label">A note <textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} placeholder="Where did we meet?" /></label><button className="glass-button glass-button-primary full-width" disabled={exchange.isPending}>{exchange.isPending ? "Sending…" : <><Send size={16} /> Exchange details</>}</button><p className="privacy-note">Your details are shared only with {card.displayName}. No app download required.</p></form>}</motion.div></motion.div> : null}</div>;
+
+  if (cardQuery.isLoading) {
+    return (
+      <div className="public-loading">
+        <div className="loading-orb" />
+        <span>Opening a little context…</span>
+      </div>
+    );
+  }
+  if (cardQuery.isError) {
+    return (
+      <div className="public-loading">
+        <div className="not-found-mark">!</div>
+        <h1>Could not load this card.</h1>
+        <p>Something went wrong loading this card. Please try again.</p>
+        <button className="outline-button" onClick={() => void cardQuery.refetch()}>Try again</button>
+        <a href="/">Visit heyitsme</a>
+      </div>
+    );
+  }
+  if (!card) {
+    return (
+      <div className="public-loading">
+        <div className="not-found-mark">?</div>
+        <h1>This card moved.</h1>
+        <p>Ask for an updated link or head back to heyitsme.</p>
+        <a href="/">Visit heyitsme</a>
+      </div>
+    );
+  }
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const trimmedName = form.name.trim();
+    if (!trimmedName) {
+      toast.error("Please add your name.");
+      return;
+    }
+    if (card.id <= 0) {
+      toast.error("Cannot exchange details on a preview card.");
+      return;
+    }
+    try {
+      await exchange.mutateAsync({
+        cardId: card.id,
+        name: trimmedName,
+        email: form.email.trim() || null,
+        phone: form.phone.trim() || null,
+        company: form.company.trim() || null,
+        title: form.title.trim() || null,
+        notes: form.notes.trim() || null,
+      });
+      setSent(true);
+      toast.success("Details exchanged.");
+    } catch (error: any) {
+      toast.error(error?.message ?? "Could not send your details.");
+    }
+  };
+
+  return (
+    <div className={`public-card-page theme-${card.theme}`}>
+      <div className="public-orb orb-a" />
+      <div className="public-orb orb-b" />
+      <header className="public-nav">
+        <a className="brand-lockup" href="/"><span className="brand-mark"><span /></span><span>heyitsme</span></a>
+        <span className="public-note">a better handoff</span>
+      </header>
+      <main className="public-card-layout">
+        <motion.div className="public-card-copy" initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }}>
+          <span className="section-kicker">
+            {card.published ? <><span className="status-dot is-live" /> Digital card</> : "Digital card"}
+          </span>
+          <h1>{card.displayName}</h1>
+          <p className="public-title">{card.title}{card.company ? ` · ${card.company}` : ""}</p>
+          <p className="public-bio">{card.bio || "Nice to meet you. Let’s keep the conversation going."}</p>
+          <div className="public-details">
+            {card.email ? <a href={`mailto:${card.email}`}><Mail size={16} />{card.email}</a> : null}
+            {card.phone ? <a href={`tel:${card.phone}`}><Phone size={16} />{card.phone}</a> : null}
+            {card.location ? <span><Globe2 size={16} />{card.location}</span> : null}
+          </div>
+          <div className="public-links">
+            {links.map((link: string) => (
+              <a key={link} href={toHref(link)} target="_blank" rel="noreferrer">
+                <Link2 size={15} />{link}<ArrowUpRight size={14} />
+              </a>
+            ))}
+          </div>
+          <div className="public-cta-row">
+            {card.id > 0 ? (
+              <GlassButton onClick={() => { setShowForm(true); setSent(false); }}>
+                <UserRoundPlus size={16} /> Exchange details
+              </GlassButton>
+            ) : null}
+            <button
+              className="text-button"
+              onClick={() => navigator.clipboard?.writeText(window.location.href).then(() => toast.success("Card link copied."))}
+            >
+              <Copy size={16} /> Copy link
+            </button>
+          </div>
+        </motion.div>
+        <motion.div
+          className="public-card-stage"
+          initial={{ opacity: 0, scale: 0.95, rotate: 2 }}
+          animate={{ opacity: 1, scale: 1, rotate: 0 }}
+          transition={{ type: "spring", stiffness: 180, damping: 22 }}
+        >
+          <CardVisual card={card} />
+          <div className="public-card-actions" style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "16px", width: "100%", maxWidth: "340px" }}>
+            <GlassButton onClick={() => downloadVCard(card)} className="full-width">
+              <Download size={16} /> Save contact (.vcf)
+            </GlassButton>
+            <div className="scan-hint" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", color: "var(--muted-foreground, #666)", fontSize: "13px" }}>
+              <QrCode size={16} />
+              <span>Scan or share to save</span>
+            </div>
+          </div>
+        </motion.div>
+      </main>
+      <div className="public-extra-grid">
+        <PublicPortfolio items={portfolio} />
+        <PublicChannels channels={channels} />
+        <PublicReferences references={references} />
+      </div>
+      <footer className="public-footer">
+        <span>Made with heyitsme</span>
+        <span>Free for everyone</span>
+      </footer>
+      {showForm ? (
+        <motion.div className="sheet-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} onClick={() => setShowForm(false)}>
+          <motion.div className="exchange-sheet glass-panel" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} onClick={(event) => event.stopPropagation()}>
+            {sent ? (
+              <div className="success-state">
+                <div className="success-check"><Check size={25} /></div>
+                <h2>Nice. You’re in.</h2>
+                <p>Your details were sent to {card.displayName}. Keep the good conversation going.</p>
+                <button className="outline-button" onClick={() => setShowForm(false)}>Close</button>
+              </div>
+            ) : (
+              <form onSubmit={submit}>
+                <div className="sheet-header">
+                  <div>
+                    <span className="mini-label">Exchange details</span>
+                    <h2>Make it easy to find you too.</h2>
+                  </div>
+                  <button type="button" className="icon-button" onClick={() => setShowForm(false)}><X size={17} /></button>
+                </div>
+                <div className="field-grid">
+                  <Field label="Your name" value={form.name} onChange={(value: string) => setForm({ ...form, name: value })} placeholder="Jordan Lee" required />
+                  <Field label="Email" type="email" value={form.email} onChange={(value: string) => setForm({ ...form, email: value })} placeholder="you@example.com" />
+                  <Field label="Company" value={form.company} onChange={(value: string) => setForm({ ...form, company: value })} placeholder="Your company" />
+                  <Field label="Role / title" value={form.title} onChange={(value: string) => setForm({ ...form, title: value })} placeholder="What you do" />
+                </div>
+                <label className="field-label">
+                  A note <textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} placeholder="Where did we meet?" />
+                </label>
+                <button className="glass-button glass-button-primary full-width" disabled={exchange.isPending}>
+                  {exchange.isPending ? "Sending…" : <><Send size={16} /> Exchange details</>}
+                </button>
+                <p className="privacy-note">Your details are shared only with {card.displayName}. No app download required.</p>
+              </form>
+            )}
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </div>
+  );
 }
+
