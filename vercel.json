@@ -1,0 +1,12 @@
+{
+  "buildCommand": "vite build && esbuild server/_core/vercel-entry.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/server/app.mjs --alias:@shared=./shared --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\"",
+  "outputDirectory": "dist/public",
+  "functions": {
+    "api/index.js": { "includeFiles": "dist/server/**" }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api" },
+    { "source": "/storage/(.*)", "destination": "/api" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
