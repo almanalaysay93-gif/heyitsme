@@ -15,6 +15,17 @@ import {
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _schemaReady: Promise<void> | null = null;
+
+// Deploys have no migration step, so add the nullable columns from drizzle/0001 when they are missing.
+async function ensureCardMediaColumns(client: postgres.Sql) {
+  const existing = await client<{ column_name: string }[]>`
+    select column_name from information_schema.columns
+    where table_schema = current_schema() and table_name = 'cards' and column_name in ('avatarUrl', 'coverUrl')`;
+  if (existing.length === 2) return;
+  await client`alter table "cards" add column if not exists "avatarUrl" text`;
+  await client`alter table "cards" add column if not exists "coverUrl" text`;
+}
 
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
@@ -30,11 +41,15 @@ export async function getDb() {
         connect_timeout: 15,
       });
       _db = drizzle(client);
+      _schemaReady = ensureCardMediaColumns(client).catch((error) => {
+        console.warn("[Database] Could not add card media columns:", error);
+      });
     } catch (error) {
       console.warn("[Database] Failed to connect PostgreSQL:", error);
       _db = null;
     }
   }
+  if (_schemaReady) await _schemaReady;
   return _db;
 }
 

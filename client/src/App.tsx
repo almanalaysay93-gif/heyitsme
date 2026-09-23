@@ -5,11 +5,12 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home, { PublicCardPage } from "./pages/Home";
+import Landing from "./pages/Landing";
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
+      <Route path="/" component={Landing} />
       <Route path="/app" component={Home} />
       <Route path="/app/cards" component={Home} />
       <Route path="/app/cards/new" component={Home} />

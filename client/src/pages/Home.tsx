@@ -1,8 +1,9 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startGoogleLogin, startLogin } from "@/const";
+import { LoopVideo, isVideoUrl } from "@/components/LoopVideo";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion, useMotionTemplate, useMotionValue, useReducedMotion, useScroll, useSpring, useTransform } from "framer-motion";
 import {
   ArrowUpRight,
   AtSign,
@@ -23,6 +24,7 @@ import {
   Linkedin,
   LogOut,
   Mail,
+  MapPin,
   Menu,
   MessageCircle,
   MoreHorizontal,
@@ -48,7 +50,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
-type CardDraft = {
+export type CardDraft = {
   id: number;
   displayName: string;
   title: string;
@@ -61,6 +63,8 @@ type CardDraft = {
   portfolio: string;
   channels: string;
   theme: string;
+  avatarUrl: string;
+  coverUrl: string;
   slug: string;
   published: boolean;
   deletedAt?: string | Date | null;
@@ -97,12 +101,14 @@ const emptyCard: CardDraft = {
   portfolio: "[]",
   channels: "[]",
   theme: "midnight",
+  avatarUrl: "",
+  coverUrl: "",
   slug: "new-card",
   published: false,
   updatedAt: new Date(),
 };
 
-const themeOptions = [
+export const themeOptions = [
   { id: "midnight", label: "Midnight", colors: ["#11152b", "#6b5cff", "#c2b7ff"] },
   { id: "tide", label: "Tide", colors: ["#062c31", "#28c2b3", "#b9fff5"] },
   { id: "sunset", label: "Sunset", colors: ["#301d34", "#f4816b", "#ffd5a7"] },
@@ -199,6 +205,8 @@ function toDraft(card: any): CardDraft {
     portfolio: card.portfolio ?? "[]",
     channels: card.channels ?? "[]",
     theme: card.theme ?? "midnight",
+    avatarUrl: card.avatarUrl ?? "",
+    coverUrl: card.coverUrl ?? "",
     slug: card.slug ?? "new-card",
     published: Boolean(card.published),
     deletedAt: card.deletedAt ?? null,
@@ -223,7 +231,7 @@ function GlassButton({ children, onClick, variant = "primary", type = "button", 
   );
 }
 
-function CardVisual({ card, compact = false, onClick }: { card: CardDraft; compact?: boolean; onClick?: () => void }) {
+export function CardVisual({ card, compact = false, onClick }: { card: CardDraft; compact?: boolean; onClick?: () => void }) {
   const theme = themeOptions.find((item) => item.id === card.theme) ?? themeOptions[0];
   const links = parseLinks(card.links);
   return (
@@ -237,7 +245,7 @@ function CardVisual({ card, compact = false, onClick }: { card: CardDraft; compa
     >
       <span className="card-glow" />
       <span className="card-topline"><span className="eyebrow">heyitsme</span><span className={`status-dot ${card.published ? "is-live" : ""}`} /></span>
-      <span className="card-avatar">{getInitials(card.displayName)}</span>
+      <span className="card-avatar">{card.avatarUrl ? <img src={card.avatarUrl} alt="" /> : getInitials(card.displayName)}</span>
       <span className="card-name">{card.displayName || "Your name"}</span>
       <span className="card-role">{card.title || "Your title"}{card.company ? ` · ${card.company}` : ""}</span>
       {!compact && <span className="card-bio">{card.bio || "A little context makes a great introduction."}</span>}
@@ -344,6 +352,8 @@ export default function Home() {
       portfolio: JSON.stringify(parsePortfolio(draft.portfolio)),
       channels: JSON.stringify(parseChannels(draft.channels)),
       theme: draft.theme,
+      avatarUrl: draft.avatarUrl || null,
+      coverUrl: draft.coverUrl || null,
     };
     const shouldRedirect = options?.redirect ?? true;
 
@@ -774,7 +784,40 @@ function CardsView({ cards, onNew, onEdit, onShare, onPublish, onDelete, onResto
 
 function BuilderView({ draft, setDraft, onSave, onPublishAndCopy, onCancel, saving, onUpload, onAddReference, onDeleteReference, isAuthenticated }: any) {
   const update = (key: keyof CardDraft, value: string) => setDraft((current: CardDraft) => ({ ...current, [key]: value }));
-  return <motion.div className="builder-page" initial={{ opacity: 0 }} animate={{ opacity: 1 }}><div className="page-heading-row builder-heading"><div><button className="back-button" onClick={onCancel}>← Back to cards</button><span className="section-kicker"><Sparkles size={14} /> Card builder</span><h1>Make it<br /><em>unmistakably you.</em></h1></div><div className="builder-save-actions"><button className="text-button" onClick={onCancel}>Discard</button><button className="publish-copy-button" onClick={onPublishAndCopy} disabled={saving}><Share2 size={15} /> {saving ? "Publishing…" : "Publish & copy link"}</button><GlassButton onClick={onSave} disabled={saving}>{saving ? "Saving…" : <><Check size={16} /> Save card</>}</GlassButton></div></div><div className="builder-layout"><div className="builder-form glass-panel"><div className="form-section"><div className="form-section-heading"><span>01</span><div><h2>The essentials</h2><p>Enough context to make the hello feel natural.</p></div></div><div className="field-grid"><Field label="Your name" value={draft.displayName} onChange={(value: string) => update("displayName", value)} placeholder="Alex Morgan" /><Field label="Role / title" value={draft.title} onChange={(value: string) => update("title", value)} placeholder="Creative director" /><Field label="Company" value={draft.company} onChange={(value: string) => update("company", value)} placeholder="Studio North" /><Field label="Location" value={draft.location} onChange={(value: string) => update("location", value)} placeholder="San Francisco, CA" /><Field label="Email" value={draft.email} onChange={(value: string) => update("email", value)} placeholder="hello@you.co" type="email" /><Field label="Phone" value={draft.phone} onChange={(value: string) => update("phone", value)} placeholder="+1 415 555 0183" /></div><label className="field-label">A little context<textarea value={draft.bio} onChange={(event) => update("bio", event.target.value)} placeholder="What do you want people to remember about you?" /></label></div><div className="form-section"><div className="form-section-heading"><span>02</span><div><h2>Your links</h2><p>Add a few places for the conversation to continue.</p></div></div><label className="field-label">Links <input value={parseLinks(draft.links).join(", ")} onChange={(event) => update("links", JSON.stringify(event.target.value.split(",").map((item) => item.trim()).filter(Boolean)))} placeholder="yourwebsite.com, linkedin.com/in/you" /></label></div><div className="form-section"><div className="form-section-heading"><span>03</span><div><h2>Portfolio, in motion</h2><p>Add images, videos, files, or a project link. Uploads are served from secure storage.</p></div></div><PortfolioEditor raw={draft.portfolio} onChange={(value: string) => update("portfolio", value)} onUpload={onUpload} /></div><div className="form-section"><div className="form-section-heading"><span>04</span><div><h2>Make it easy to reach you</h2><p>Add social profiles and direct channels — Viber, WhatsApp, Telegram, and more.</p></div></div><ChannelsEditor raw={draft.channels} onChange={(value: string) => update("channels", value)} /></div><div className="form-section"><div className="form-section-heading"><span>05</span><div><h2>Client references</h2><p>Show the thoughtful words people remember after the work is done.</p></div></div><ReferencesEditor cardId={draft.id} onAddReference={onAddReference} onDeleteReference={onDeleteReference} isAuthenticated={isAuthenticated} /></div><div className="form-section"><div className="form-section-heading"><span>06</span><div><h2>Set the tone</h2><p>Choose a palette that feels like your current chapter.</p></div></div><div className="theme-picker">{themeOptions.map((theme) => <button type="button" key={theme.id} onClick={() => update("theme", theme.id)} className={`theme-swatch theme-${theme.id} ${draft.theme === theme.id ? "is-selected" : ""}`}><span className="swatch-colors"><i style={{ background: theme.colors[0] }} /><i style={{ background: theme.colors[1] }} /><i style={{ background: theme.colors[2] }} /></span><span>{theme.label}</span>{draft.theme === theme.id ? <Check size={14} /> : null}</button>)}</div></div></div><div className="builder-preview-column"><div className="preview-sticky"><div className="preview-label"><span>Live preview</span><span><span className="status-dot" /> updates as you type</span></div><CardVisual card={{ ...draft, displayName: draft.displayName || "Your name", title: draft.title || "Your title" }} /><div className="preview-tip"><Sparkles size={15} /><span>Keep it light. Your card can do the talking.</span></div></div></div></div></motion.div>;
+  return <motion.div className="builder-page" initial={{ opacity: 0 }} animate={{ opacity: 1 }}><div className="page-heading-row builder-heading"><div><button className="back-button" onClick={onCancel}>← Back to cards</button><span className="section-kicker"><Sparkles size={14} /> Card builder</span><h1>Make it<br /><em>unmistakably you.</em></h1></div><div className="builder-save-actions"><button className="text-button" onClick={onCancel}>Discard</button><button className="publish-copy-button" onClick={onPublishAndCopy} disabled={saving}><Share2 size={15} /> {saving ? "Publishing…" : "Publish & copy link"}</button><GlassButton onClick={onSave} disabled={saving}>{saving ? "Saving…" : <><Check size={16} /> Save card</>}</GlassButton></div></div><div className="builder-layout"><div className="builder-form glass-panel"><div className="form-section"><div className="form-section-heading"><span>01</span><div><h2>The essentials</h2><p>Enough context to make the hello feel natural.</p></div></div><div className="media-picker-row"><ImagePicker label="Profile photo" hint="Square works best" shape="round" value={draft.avatarUrl} onChange={(value) => update("avatarUrl", value)} onUpload={onUpload} /><ImagePicker label="Cover" hint="Wide image, or a muted video loop up to 3MB" shape="wide" allowVideo value={draft.coverUrl} onChange={(value) => update("coverUrl", value)} onUpload={onUpload} /></div><div className="field-grid"><Field label="Your name" value={draft.displayName} onChange={(value: string) => update("displayName", value)} placeholder="Alex Morgan" /><Field label="Role / title" value={draft.title} onChange={(value: string) => update("title", value)} placeholder="Creative director" /><Field label="Company" value={draft.company} onChange={(value: string) => update("company", value)} placeholder="Studio North" /><Field label="Location" value={draft.location} onChange={(value: string) => update("location", value)} placeholder="San Francisco, CA" /><Field label="Email" value={draft.email} onChange={(value: string) => update("email", value)} placeholder="hello@you.co" type="email" /><Field label="Phone" value={draft.phone} onChange={(value: string) => update("phone", value)} placeholder="+1 415 555 0183" /></div><label className="field-label">A little context<textarea value={draft.bio} onChange={(event) => update("bio", event.target.value)} placeholder="What do you want people to remember about you?" /></label></div><div className="form-section"><div className="form-section-heading"><span>02</span><div><h2>Your links</h2><p>Add a few places for the conversation to continue.</p></div></div><label className="field-label">Links <input value={parseLinks(draft.links).join(", ")} onChange={(event) => update("links", JSON.stringify(event.target.value.split(",").map((item) => item.trim()).filter(Boolean)))} placeholder="yourwebsite.com, linkedin.com/in/you" /></label></div><div className="form-section"><div className="form-section-heading"><span>03</span><div><h2>Portfolio, in motion</h2><p>Add images, videos, files, or a project link. Uploads are served from secure storage.</p></div></div><PortfolioEditor raw={draft.portfolio} onChange={(value: string) => update("portfolio", value)} onUpload={onUpload} /></div><div className="form-section"><div className="form-section-heading"><span>04</span><div><h2>Make it easy to reach you</h2><p>Add social profiles and direct channels — Viber, WhatsApp, Telegram, and more.</p></div></div><ChannelsEditor raw={draft.channels} onChange={(value: string) => update("channels", value)} /></div><div className="form-section"><div className="form-section-heading"><span>05</span><div><h2>Client references</h2><p>Show the thoughtful words people remember after the work is done.</p></div></div><ReferencesEditor cardId={draft.id} onAddReference={onAddReference} onDeleteReference={onDeleteReference} isAuthenticated={isAuthenticated} /></div><div className="form-section"><div className="form-section-heading"><span>06</span><div><h2>Set the tone</h2><p>Choose a palette that feels like your current chapter.</p></div></div><div className="theme-picker">{themeOptions.map((theme) => <button type="button" key={theme.id} onClick={() => update("theme", theme.id)} className={`theme-swatch theme-${theme.id} ${draft.theme === theme.id ? "is-selected" : ""}`}><span className="swatch-colors"><i style={{ background: theme.colors[0] }} /><i style={{ background: theme.colors[1] }} /><i style={{ background: theme.colors[2] }} /></span><span>{theme.label}</span>{draft.theme === theme.id ? <Check size={14} /> : null}</button>)}</div></div></div><div className="builder-preview-column"><div className="preview-sticky"><div className="preview-label"><span>Live preview</span><span><span className="status-dot" /> updates as you type</span></div><CardVisual card={{ ...draft, displayName: draft.displayName || "Your name", title: draft.title || "Your title" }} /><div className="preview-tip"><Sparkles size={15} /><span>Keep it light. Your card can do the talking.</span></div></div></div></div></motion.div>;
+}
+
+function ImagePicker({ label, hint, shape, value, onChange, onUpload, allowVideo = false }: { label: string; hint: string; shape: "round" | "wide"; value: string; onChange: (value: string) => void; onUpload: (file: File) => Promise<string>; allowVideo?: boolean }) {
+  const [busy, setBusy] = useState(false);
+  const handleFile = async (file: File) => {
+    const isVideo = file.type.startsWith("video/");
+    if (!file.type.startsWith("image/") && !(allowVideo && isVideo)) {
+      toast.error(allowVideo ? "Choose an image or a video file." : "Choose an image file.");
+      return;
+    }
+    setBusy(true);
+    try {
+      onChange(await onUpload(file));
+    } catch (error: any) {
+      toast.error(error?.message ?? "Could not upload that image.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className={`image-picker image-picker-${shape}`}>
+      <label className="image-picker-drop">
+        {value ? (isVideoUrl(value) ? <video src={value} muted loop autoPlay playsInline /> : <img src={value} alt="" />) : <span className="image-picker-empty"><ImageIcon size={18} /></span>}
+        <input type="file" accept={allowVideo ? "image/*,video/mp4,video/webm,video/quicktime" : "image/*"} disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFile(file); event.currentTarget.value = ""; }} />
+        <span className="sr-only">{value ? `Replace ${label.toLowerCase()}` : `Upload ${label.toLowerCase()}`}</span>
+      </label>
+      <div className="image-picker-copy">
+        <strong>{label}</strong>
+        <span>{busy ? "Uploading…" : hint}</span>
+        {value ? <button type="button" className="link-button" onClick={() => onChange("")}><Trash2 size={12} /> Remove</button> : null}
+      </div>
+    </div>
+  );
 }
 
 function PortfolioEditor({ raw, onChange, onUpload }: { raw: string; onChange: (value: string) => void; onUpload: (file: File) => Promise<string> }) {
@@ -928,6 +971,10 @@ function toHref(raw: string): string {
 
 function buildVCard(card: CardDraft): string {
   const esc = (v: string) => v.replace(/[\\,;]/g, (m) => `\\${m}`).replace(/\n/g, "\\n");
+  // Only hosted photos — preview data: URLs would bloat the file and many contact apps reject them.
+  const photoUrl = /^https?:\/\//i.test(card.avatarUrl)
+    ? card.avatarUrl
+    : card.avatarUrl.startsWith("/") && !card.avatarUrl.startsWith("//") ? `${window.location.origin}${card.avatarUrl}` : "";
   const lines = [
     "BEGIN:VCARD",
     "VERSION:3.0",
@@ -938,6 +985,7 @@ function buildVCard(card: CardDraft): string {
     card.phone ? `TEL;TYPE=CELL:${card.phone}` : null,
     `URL:${window.location.href}`,
     card.bio ? `NOTE:${esc(card.bio)}` : null,
+    photoUrl ? `PHOTO;VALUE=URI:${photoUrl}` : null,
     "END:VCARD",
   ].filter(Boolean);
   return lines.join("\r\n");
@@ -1148,81 +1196,119 @@ function ChannelIcon({ provider }: { provider: string }) {
   return <Link2 size={16} />;
 }
 
-function PublicPortfolio({ items }: { items: PortfolioItem[] }) {
-  if (!items.length) return null;
+const revealUp = {
+  hidden: { opacity: 0, y: 26 },
+  show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 140, damping: 20 } },
+};
+
+const staggerChildren = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.07, delayChildren: 0.12 } },
+};
+
+function PublicSection({ kicker, icon: Icon, title, emphasis, className = "", children }: any) {
   return (
-    <section className="public-extra-card public-portfolio">
-      <div className="public-section-heading">
-        <span className="section-kicker"><BriefcaseBusiness size={14} /> Selected work</span>
-        <h2>A little proof of <em>the practice.</em></h2>
-      </div>
-      <div className="public-portfolio-grid">
-        {items.map((item) => (
-          <a className="public-portfolio-item" href={toHref(item.url)} target="_blank" rel="noreferrer" key={item.id}>
-            {item.kind === "image" ? (
-              <img src={item.url} alt={item.title} />
-            ) : item.kind === "video" ? (
-              <video src={item.url} muted playsInline />
-            ) : (
-              <div className="public-file-card">
-                <span>{item.kind === "file" ? <FileText size={22} /> : <Link2 size={22} />}</span>
-                <strong>{item.title}</strong>
-                <small>{item.kind === "file" ? "Open file" : "Visit project"}</small>
-              </div>
-            )}
-            <div className="public-portfolio-caption">
-              <strong>{item.title}</strong>
-              <ArrowUpRight size={14} />
-            </div>
-          </a>
-        ))}
-      </div>
-    </section>
+    <motion.section
+      className={`pl-section ${className}`}
+      initial="hidden"
+      whileInView="show"
+      viewport={{ once: true, margin: "-80px" }}
+      variants={staggerChildren}
+    >
+      <motion.div className="pl-section-heading" variants={revealUp}>
+        <span className="section-kicker"><Icon size={13} /> {kicker}</span>
+        <h2>{title} <em>{emphasis}</em></h2>
+      </motion.div>
+      {children}
+    </motion.section>
   );
 }
 
-function PublicChannels({ channels }: { channels: ChannelItem[] }) {
-  if (!channels.length) return null;
+function PublicPortfolio({ items }: { items: PortfolioItem[] }) {
+  if (!items.length) return null;
   return (
-    <section className="public-extra-card public-channels">
-      <div className="public-section-heading">
-        <span className="section-kicker"><MessageCircle size={14} /> Stay connected</span>
-        <h2>Choose your <em>conversation.</em></h2>
-      </div>
-      <div className="public-channel-list">
-        {channels.map((channel, index) => (
-          <a href={toHref(channel.url)} target="_blank" rel="noreferrer" key={`${channel.provider}-${index}`}>
-            <ChannelIcon provider={channel.provider} />
-            <span>{channel.label || channel.provider[0].toUpperCase() + channel.provider.slice(1)}</span>
-            <ArrowUpRight size={14} />
-          </a>
+    <PublicSection kicker="Selected work" icon={BriefcaseBusiness} title="A little proof of" emphasis="the practice." className="pl-portfolio">
+      <div className="pl-portfolio-grid">
+        {items.map((item, index) => (
+          <motion.a
+            variants={revealUp}
+            whileHover={{ y: -6 }}
+            className={`pl-work ${index === 0 && items.length > 2 ? "is-featured" : ""}`}
+            href={toHref(item.url)}
+            target="_blank"
+            rel="noreferrer"
+            key={item.id}
+          >
+            {item.kind === "image" ? (
+              <img src={item.url} alt={item.title} loading="lazy" />
+            ) : item.kind === "video" ? (
+              <video src={item.url} muted playsInline loop preload="metadata" onMouseEnter={(event) => void event.currentTarget.play().catch(() => undefined)} onMouseLeave={(event) => event.currentTarget.pause()} />
+            ) : (
+              <div className="pl-work-file">
+                <span>{item.kind === "file" ? <FileText size={22} /> : <Globe2 size={22} />}</span>
+                <small>{item.kind === "file" ? "Document" : "Website"}</small>
+              </div>
+            )}
+            <div className="pl-work-caption">
+              <strong>{item.title}</strong>
+              <span className="pl-work-arrow"><ArrowUpRight size={15} /></span>
+            </div>
+          </motion.a>
         ))}
       </div>
-    </section>
+    </PublicSection>
   );
 }
 
 function PublicReferences({ references }: { references: ReferenceRow[] }) {
   if (!references.length) return null;
   return (
-    <section className="public-extra-card public-references">
-      <div className="public-section-heading">
-        <span className="section-kicker"><Quote size={14} /> Kind words</span>
-        <h2>What past clients <em>remember.</em></h2>
-      </div>
-      <div className="public-reference-grid">
+    <PublicSection kicker="Kind words" icon={Quote} title="What past clients" emphasis="remember." className="pl-references">
+      <div className="pl-reference-grid">
         {references.map((reference) => (
-          <article className="public-reference" key={reference.id}>
-            <Quote size={19} />
-            <p>“{reference.quote}”</p>
-            <footer>
+          <motion.figure variants={revealUp} className="pl-reference" key={reference.id}>
+            <span className="pl-quote-mark" aria-hidden="true">“</span>
+            <blockquote>{reference.quote}</blockquote>
+            <figcaption>
               <span className="reference-avatar">{getInitials(reference.clientName)}</span>
               <span><strong>{reference.clientName}</strong><small>{reference.clientRole || "Client"}{reference.company ? ` · ${reference.company}` : ""}</small></span>
-            </footer>
-          </article>
+            </figcaption>
+          </motion.figure>
         ))}
       </div>
-    </section>
+    </PublicSection>
+  );
+}
+
+function channelLabel(channel: ChannelItem) {
+  return channel.label || (channel.provider === "x" ? "X" : channel.provider[0].toUpperCase() + channel.provider.slice(1));
+}
+
+// Pointer-follow 3D tilt. Collapses to a static card under reduced motion.
+export function TiltCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  const reduceMotion = useReducedMotion();
+  const px = useMotionValue(0.5);
+  const py = useMotionValue(0.5);
+  const rotateX = useSpring(useTransform(py, [0, 1], [10, -10]), { stiffness: 160, damping: 18 });
+  const rotateY = useSpring(useTransform(px, [0, 1], [-12, 12]), { stiffness: 160, damping: 18 });
+  const glareX = useTransform(px, [0, 1], ["0%", "100%"]);
+  const glareY = useTransform(py, [0, 1], ["0%", "100%"]);
+  const glare = useMotionTemplate`radial-gradient(circle at ${glareX} ${glareY}, rgba(255,255,255,.28), transparent 45%)`;
+  if (reduceMotion) return <div className={`tilt-card ${className}`}>{children}</div>;
+  return (
+    <motion.div
+      className={`tilt-card ${className}`}
+      style={{ rotateX, rotateY, transformPerspective: 900 }}
+      onPointerMove={(event) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        px.set((event.clientX - rect.left) / rect.width);
+        py.set((event.clientY - rect.top) / rect.height);
+      }}
+      onPointerLeave={() => { px.set(0.5); py.set(0.5); }}
+    >
+      {children}
+      <motion.span className="tilt-glare" style={{ background: glare }} aria-hidden="true" />
+    </motion.div>
   );
 }
 
@@ -1234,6 +1320,11 @@ export function PublicCardPage() {
   const [showForm, setShowForm] = useState(false);
   const [sent, setSent] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", phone: "", company: "", title: "", notes: "", website: "" });
+  const reduceMotion = useReducedMotion();
+  const { scrollY } = useScroll();
+  const coverY = useTransform(scrollY, [0, 500], [0, reduceMotion ? 0 : 160]);
+  const coverScale = useTransform(scrollY, [0, 500], [1, reduceMotion ? 1 : 1.12]);
+  const coverFade = useTransform(scrollY, [0, 420], [1, 0.35]);
   const rawCard = cardQuery.data as any;
   const previewCard = !rawCard && slug === "new-card" ? readPreviewCard() : null;
   const card = rawCard ? toDraft(rawCard) : previewCard;
@@ -1241,6 +1332,17 @@ export function PublicCardPage() {
   const portfolio = parsePortfolio(card?.portfolio);
   const channels = parseChannels(card?.channels);
   const references = rawCard?.references ?? [];
+
+  useEffect(() => {
+    if (!showForm) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setShowForm(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showForm]);
+
+  useEffect(() => {
+    if (card?.displayName) document.title = `${card.displayName}${card.title ? ` · ${card.title}` : ""} — heyitsme`;
+  }, [card?.displayName, card?.title]);
 
   if (cardQuery.isLoading) {
     return (
@@ -1271,6 +1373,29 @@ export function PublicCardPage() {
       </div>
     );
   }
+
+  const theme = themeOptions.find((item) => item.id === card.theme) ?? themeOptions[0];
+  const firstName = card.displayName.split(" ")[0] || card.displayName;
+  const canExchange = card.id > 0;
+
+  const copyLink = async () => {
+    if (await copyToClipboard(window.location.href)) toast.success("Link copied.");
+    else toast.info(window.location.href);
+  };
+
+  const shareLink = async () => {
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: card.displayName, url: window.location.href });
+        return;
+      } catch (error: any) {
+        if (error?.name === "AbortError") return;
+      }
+    }
+    await copyLink();
+  };
+
+  const openForm = () => { setShowForm(true); setSent(false); };
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -1306,127 +1431,202 @@ export function PublicCardPage() {
     }
   };
 
+  const contactRows = [
+    card.email ? { key: "email", icon: Mail, label: "Email", value: card.email, href: `mailto:${card.email}` } : null,
+    card.phone ? { key: "phone", icon: Phone, label: "Call or text", value: card.phone, href: `tel:${card.phone.replace(/\s+/g, "")}` } : null,
+    ...links.map((link: string) => ({ key: `link-${link}`, icon: Globe2, label: "Website", value: link.replace(/^https?:\/\//, "").replace(/\/$/, ""), href: toHref(link), external: true })),
+  ].filter(Boolean) as { key: string; icon: any; label: string; value: string; href: string; external?: boolean }[];
+
   return (
-    <div className={`public-card-page theme-${card.theme}`}>
-      <div className="public-orb orb-a" />
-      <div className="public-orb orb-b" />
-      <header className="public-nav">
-        <a className="brand-lockup" href="/"><span className="brand-mark"><span /></span><span>heyitsme</span></a>
-        <span className="public-note">a better handoff</span>
-      </header>
-      <main className="public-card-layout">
-        <motion.div className="public-card-copy" initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }}>
-          <span className="section-kicker">
-            {card.published ? <><span className="status-dot is-live" /> Digital card</> : "Digital card"}
-          </span>
-          <h1>{card.displayName}</h1>
-          <p className="public-title">{card.title}{card.company ? ` · ${card.company}` : ""}</p>
-          <p className="public-bio">{card.bio || "Nice to meet you. Let’s keep the conversation going."}</p>
-          <div className="public-details">
-            {card.email ? <a href={`mailto:${card.email}`}><Mail size={16} />{card.email}</a> : null}
-            {card.phone ? <a href={`tel:${card.phone}`}><Phone size={16} />{card.phone}</a> : null}
-            {card.location ? <span><Globe2 size={16} />{card.location}</span> : null}
-          </div>
-          <div className="public-links">
-            {links.map((link: string) => (
-              <a key={link} href={toHref(link)} target="_blank" rel="noreferrer">
-                <Link2 size={15} />{link}<ArrowUpRight size={14} />
-              </a>
-            ))}
-          </div>
-          <div className="public-cta-row">
-            {card.id > 0 ? (
-              <GlassButton onClick={() => { setShowForm(true); setSent(false); }}>
-                <UserRoundPlus size={16} /> Exchange details
-              </GlassButton>
-            ) : null}
-            <button
-              className="text-button"
-              onClick={async () => {
-                if (await copyToClipboard(window.location.href)) toast.success("Card link copied.");
-                else toast.info(window.location.href);
-              }}
-            >
-              <Copy size={16} /> Copy link
-            </button>
-          </div>
+    <div
+      className={`pl-page theme-${theme.id}`}
+      style={{ ["--pl-a" as string]: theme.colors[0], ["--pl-b" as string]: theme.colors[1], ["--pl-c" as string]: theme.colors[2] }}
+    >
+      <div className="pl-cover-wrap" aria-hidden="true">
+        <motion.div className="pl-cover" style={{ y: coverY, scale: coverScale, opacity: coverFade }}>
+          {isVideoUrl(card.coverUrl) ? (
+            <LoopVideo className="pl-cover-video" src={card.coverUrl} lazy={false} fallback={<div className="pl-cover-mesh"><i /><i /><i /></div>} />
+          ) : card.coverUrl ? <img src={card.coverUrl} alt="" /> : <div className="pl-cover-mesh"><i /><i /><i /></div>}
         </motion.div>
-        <motion.div
-          className="public-card-stage"
-          initial={{ opacity: 0, scale: 0.95, rotate: 2 }}
-          animate={{ opacity: 1, scale: 1, rotate: 0 }}
-          transition={{ type: "spring", stiffness: 180, damping: 22 }}
-        >
-          <CardVisual card={card} />
-          <div className="public-card-actions" style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "16px", width: "100%", maxWidth: "340px" }}>
-            <GlassButton onClick={() => downloadVCard(card)} className="full-width">
-              <Download size={16} /> Save contact (.vcf)
-            </GlassButton>
-            {card.id > 0 ? (
-              <div className="scan-hint" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", color: "var(--muted-foreground, #666)", fontSize: "13px" }}>
-                <QRCodeSVG value={window.location.href} size={132} bgColor="transparent" fgColor="#10152a" includeMargin />
-                <span><QrCode size={14} style={{ verticalAlign: "-2px" }} /> Scan to open this card on another phone</span>
-              </div>
-            ) : null}
-          </div>
-        </motion.div>
-      </main>
-      <div className="public-extra-grid">
-        <PublicPortfolio items={portfolio} />
-        <PublicChannels channels={channels} />
-        <PublicReferences references={references} />
       </div>
-      <footer className="public-footer">
-        <span>Made with heyitsme</span>
-        <span>Free for everyone</span>
-      </footer>
-      {showForm ? (
-        <motion.div className="sheet-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} onClick={() => setShowForm(false)}>
-          <motion.div className="exchange-sheet glass-panel" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} onClick={(event) => event.stopPropagation()}>
-            {sent ? (
-              <div className="success-state">
-                <div className="success-check"><Check size={25} /></div>
-                <h2>Nice. You’re in.</h2>
-                <p>Your details were sent to {card.displayName}. Keep the good conversation going.</p>
-                <button className="outline-button" onClick={() => setShowForm(false)}>Close</button>
-              </div>
-            ) : (
-              <form onSubmit={submit}>
-                <div className="sheet-header">
-                  <div>
-                    <span className="mini-label">Exchange details</span>
-                    <h2>Make it easy to find you too.</h2>
-                  </div>
-                  <button type="button" className="icon-button" onClick={() => setShowForm(false)}><X size={17} /></button>
-                </div>
-                <div className="field-grid">
-                  <Field label="Your name" value={form.name} onChange={(value: string) => setForm({ ...form, name: value })} placeholder="Jordan Lee" required />
-                  <Field label="Email" type="email" value={form.email} onChange={(value: string) => setForm({ ...form, email: value })} placeholder="you@example.com" />
-                  <Field label="Company" value={form.company} onChange={(value: string) => setForm({ ...form, company: value })} placeholder="Your company" />
-                  <Field label="Role / title" value={form.title} onChange={(value: string) => setForm({ ...form, title: value })} placeholder="What you do" />
-                </div>
-                <input
-                  type="text"
-                  name="website"
-                  value={form.website}
-                  onChange={(e) => setForm({ ...form, website: e.target.value })}
-                  style={{ display: "none" }}
-                  tabIndex={-1}
-                  autoComplete="off"
-                />
-                <label className="field-label">
-                  A note <textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} placeholder="Where did we meet?" />
-                </label>
-                <button className="glass-button glass-button-primary full-width" disabled={exchange.isPending}>
-                  {exchange.isPending ? "Sending…" : <><Send size={16} /> Exchange details</>}
-                </button>
-                <p className="privacy-note">Your details are shared only with {card.displayName}. No app download required.</p>
-              </form>
-            )}
+
+      <header className="pl-nav">
+        <a className="brand-lockup" href="/"><span className="brand-mark"><span /></span><span>heyitsme</span></a>
+        <motion.button whileTap={{ scale: 0.94 }} type="button" className="pl-nav-share" onClick={() => void shareLink()}>
+          <Share2 size={15} /> Share
+        </motion.button>
+      </header>
+
+      <main className="pl-main">
+        <motion.section className="pl-hero" initial="hidden" animate="show" variants={staggerChildren}>
+          <motion.div
+            className="pl-avatar"
+            initial={{ opacity: 0, scale: 0.6, rotate: -8 }}
+            animate={{ opacity: 1, scale: 1, rotate: 0 }}
+            transition={{ type: "spring", stiffness: 220, damping: 16, delay: 0.05 }}
+          >
+            {card.avatarUrl ? <img src={card.avatarUrl} alt={card.displayName} /> : <span>{getInitials(card.displayName)}</span>}
+            {card.published ? <span className="pl-avatar-live" title="Live card" /> : null}
           </motion.div>
-        </motion.div>
-      ) : null}
+          <motion.span className="pl-hello" variants={revealUp}>Hey, it’s</motion.span>
+          <motion.h1 variants={revealUp}>{card.displayName}</motion.h1>
+          <motion.p className="pl-role" variants={revealUp}>
+            {card.title}
+            {card.company ? <> <span>at</span> {card.company}</> : null}
+          </motion.p>
+          {card.location ? <motion.p className="pl-location" variants={revealUp}><MapPin size={14} /> {card.location}</motion.p> : null}
+          <motion.p className="pl-bio" variants={revealUp}>{card.bio || "Nice to meet you. Let’s keep the conversation going."}</motion.p>
+
+          <motion.div className="pl-actions" variants={revealUp}>
+            <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }} type="button" className="pl-btn pl-btn-primary" onClick={() => downloadVCard(card)}>
+              <Download size={16} /> Save contact
+            </motion.button>
+            {canExchange ? (
+              <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }} type="button" className="pl-btn pl-btn-ghost" onClick={openForm}>
+                <UserRoundPlus size={16} /> Exchange details
+              </motion.button>
+            ) : null}
+            <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.92 }} type="button" className="pl-btn pl-btn-icon" onClick={() => void copyLink()} aria-label="Copy link to this page">
+              <Copy size={16} />
+            </motion.button>
+          </motion.div>
+
+          {channels.length ? (
+            <motion.div className="pl-socials" variants={staggerChildren}>
+              {channels.map((channel, index) => (
+                <motion.a
+                  variants={revealUp}
+                  whileHover={{ y: -4, rotate: -4 }}
+                  whileTap={{ scale: 0.9 }}
+                  href={toHref(channel.url)}
+                  target="_blank"
+                  rel="noreferrer"
+                  key={`${channel.provider}-${index}`}
+                  aria-label={channelLabel(channel)}
+                  title={channelLabel(channel)}
+                >
+                  <ChannelIcon provider={channel.provider} />
+                </motion.a>
+              ))}
+            </motion.div>
+          ) : null}
+        </motion.section>
+
+        <div className="pl-body">
+          <div className="pl-column">
+            {contactRows.length || channels.length ? (
+              <PublicSection kicker="Reach me" icon={MessageCircle} title="Pick the easiest" emphasis="way in." className="pl-links">
+                <div className="pl-link-list">
+                  {contactRows.map((row) => (
+                    <motion.a variants={revealUp} whileTap={{ scale: 0.98 }} className="pl-link" href={row.href} key={row.key} {...(row.external ? { target: "_blank", rel: "noreferrer" } : {})}>
+                      <span className="pl-link-icon"><row.icon size={17} /></span>
+                      <span className="pl-link-copy"><small>{row.label}</small><strong>{row.value}</strong></span>
+                      <ArrowUpRight size={16} className="pl-link-arrow" />
+                    </motion.a>
+                  ))}
+                  {channels.map((channel, index) => (
+                    <motion.a variants={revealUp} whileTap={{ scale: 0.98 }} className="pl-link" href={toHref(channel.url)} target="_blank" rel="noreferrer" key={`row-${channel.provider}-${index}`}>
+                      <span className="pl-link-icon"><ChannelIcon provider={channel.provider} /></span>
+                      <span className="pl-link-copy"><small>{channel.provider === "calendly" ? "Book time" : "Message"}</small><strong>{channelLabel(channel)}</strong></span>
+                      <ArrowUpRight size={16} className="pl-link-arrow" />
+                    </motion.a>
+                  ))}
+                </div>
+              </PublicSection>
+            ) : null}
+            <PublicPortfolio items={portfolio} />
+            <PublicReferences references={references} />
+          </div>
+
+          <aside className="pl-aside">
+            <motion.div
+              className="pl-card-stage"
+              initial={{ opacity: 0, y: 40, rotate: 4 }}
+              animate={{ opacity: 1, y: 0, rotate: 0 }}
+              transition={{ type: "spring", stiffness: 120, damping: 16, delay: 0.35 }}
+            >
+              <span className="section-kicker">Take my card</span>
+              <TiltCard><CardVisual card={card} onClick={() => downloadVCard(card)} /></TiltCard>
+              {canExchange ? (
+                <div className="pl-qr">
+                  <QRCodeSVG value={window.location.href} size={104} bgColor="transparent" fgColor="#10152a" />
+                  <p><QrCode size={14} /> Scan to open this page on another phone.</p>
+                </div>
+              ) : null}
+            </motion.div>
+          </aside>
+        </div>
+      </main>
+
+      <footer className="pl-footer">
+        <span>{firstName}’s page on heyitsme</span>
+        <a href="/">Make yours — it’s free <ArrowUpRight size={13} /></a>
+      </footer>
+
+      <div className="pl-dock" role="toolbar" aria-label="Quick actions">
+        <button type="button" className="pl-btn pl-btn-primary" onClick={() => downloadVCard(card)}><Download size={16} /> Save contact</button>
+        {canExchange ? <button type="button" className="pl-btn pl-btn-ghost" onClick={openForm} aria-label="Exchange details"><UserRoundPlus size={16} /></button> : null}
+        <button type="button" className="pl-btn pl-btn-ghost" onClick={() => void shareLink()} aria-label="Share this page"><Share2 size={16} /></button>
+      </div>
+
+      <AnimatePresence>
+        {showForm ? (
+          <motion.div className="sheet-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowForm(false)}>
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Exchange details with ${card.displayName}`}
+              className="exchange-sheet glass-panel"
+              initial={{ opacity: 0, y: 40, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 30, scale: 0.98 }}
+              transition={{ type: "spring", stiffness: 260, damping: 24 }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              {sent ? (
+                <div className="success-state">
+                  <div className="success-check"><Check size={25} /></div>
+                  <h2>Nice. You’re in.</h2>
+                  <p>Your details were sent to {card.displayName}. Keep the good conversation going.</p>
+                  <button className="outline-button" onClick={() => setShowForm(false)}>Close</button>
+                </div>
+              ) : (
+                <form onSubmit={submit}>
+                  <div className="sheet-header">
+                    <div>
+                      <span className="mini-label">Exchange details</span>
+                      <h2>Make it easy to find you too.</h2>
+                    </div>
+                    <button type="button" className="icon-button" onClick={() => setShowForm(false)} aria-label="Close"><X size={17} /></button>
+                  </div>
+                  <div className="field-grid">
+                    <Field label="Your name" value={form.name} onChange={(value: string) => setForm({ ...form, name: value })} placeholder="Jordan Lee" required />
+                    <Field label="Email" type="email" value={form.email} onChange={(value: string) => setForm({ ...form, email: value })} placeholder="you@example.com" />
+                    <Field label="Company" value={form.company} onChange={(value: string) => setForm({ ...form, company: value })} placeholder="Your company" />
+                    <Field label="Role / title" value={form.title} onChange={(value: string) => setForm({ ...form, title: value })} placeholder="What you do" />
+                  </div>
+                  <input
+                    type="text"
+                    name="website"
+                    value={form.website}
+                    onChange={(e) => setForm({ ...form, website: e.target.value })}
+                    style={{ display: "none" }}
+                    tabIndex={-1}
+                    autoComplete="off"
+                  />
+                  <label className="field-label">
+                    A note <textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} placeholder="Where did we meet?" />
+                  </label>
+                  <button className="glass-button glass-button-primary full-width" disabled={exchange.isPending}>
+                    {exchange.isPending ? "Sending…" : <><Send size={16} /> Exchange details</>}
+                  </button>
+                  <p className="privacy-note">Your details are shared only with {card.displayName}. No app download required.</p>
+                </form>
+              )}
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 }
-

@@ -14,11 +14,12 @@ heyitsme is a free digital business card and professional presence web product.
 
 ## Phase-one routes
 
+- `/` — marketing landing page.
 - `/app` — overview workspace.
 - `/app/cards` — card list.
 - `/app/cards/new` — card builder.
 - `/app/contacts` — contact list.
-- `/c/:slug` — public card page.
+- `/c/:slug` — public card, presented as a personal landing page (photo, image or looping video cover, links, work, references, QR).
 
 ## Product rules
 

@@ -24,6 +24,14 @@ import {
   updateCard,
 } from "./db";
 
+// Rendered as <img src>, so only http(s) or same-origin storage paths — never data:/javascript:.
+const imageUrl = z
+  .string()
+  .max(600)
+  .refine((value) => /^(https?:\/\/|\/(?!\/))/i.test(value), "Image must be an https link or an uploaded file")
+  .optional()
+  .nullable();
+
 const cardFields = {
   displayName: z.string().min(1).max(160),
   title: z.string().min(1).max(160),
@@ -37,6 +45,8 @@ const cardFields = {
   channels: z.string().max(6000).optional().nullable(),
   theme: z.string().max(80).optional().nullable(),
   logoUrl: z.string().max(600).optional().nullable(),
+  avatarUrl: imageUrl,
+  coverUrl: imageUrl,
 };
 
 export const appRouter = router({

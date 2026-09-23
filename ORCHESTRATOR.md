@@ -52,3 +52,16 @@ User brief → original-brand / anti-slop rules → cited implementation princip
 - Design/copy/motion/accessibility/audit agents write independent recommendations.
 - Parent agent integrates recommendations into the fullstack project.
 - Quality gates run after the first end-to-end implementation.
+
+## Run: landing page + personal card page
+
+- Grill answers: landing at `/` (dashboard stays at `/app/*`, OAuth returns to `/app`); avatar + cover images on cards; keep glass + lilac, refined; high-energy motion.
+- Schema: `cards.avatarUrl`, `cards.coverUrl` (migration `drizzle/0001_concerned_devos.sql`). Server accepts only http(s) or same-origin paths for both.
+- Gates run: `tsc --noEmit`, `vite build`, `vitest run`, copy scan for invented claims. Visual browser pass still pending.
+
+## Run: video, animation and motion graphics
+
+- Grill answers: videos from Google Flow plus code-made motion; users can upload a video cover.
+- Flow cannot be driven from this environment, so the slots ship with code-made fallbacks and `docs/flow-shots.md` holds prompts plus ffmpeg export settings. Drop clips into `client/public/media/` under the listed names.
+- New: `client/src/components/LoopVideo.tsx`, `client/src/components/ShareDemo.tsx`, `client/src/lib/media.ts`. `ImagePicker` takes `allowVideo` for the cover. No schema change: `coverUrl` holds the video URL, and the file extension selects video rendering.
+- Gates run: `tsc --noEmit`, `vite build`, `vitest run`. Visual browser pass still pending.
