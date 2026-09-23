@@ -19,9 +19,13 @@ let _db: ReturnType<typeof drizzle> | null = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
+      const isLocal =
+        process.env.DATABASE_URL.includes("localhost") ||
+        process.env.DATABASE_URL.includes("127.0.0.1");
       const client = postgres(process.env.DATABASE_URL, {
         max: 5,
         prepare: false,
+        ssl: isLocal ? false : "require",
         idle_timeout: 20,
         connect_timeout: 15,
       });
