@@ -21,6 +21,7 @@ import {
   LayoutGrid,
   Link2,
   Linkedin,
+  LogOut,
   Mail,
   Menu,
   MessageCircle,
@@ -312,14 +313,14 @@ export default function Home() {
       if (found && draft.id !== editId) {
         setSelectedId(found.id);
         setDraft(found);
-      } else if (!cardsQuery.isLoading && cards.length > 0 && !found) {
+      } else if (!found && (!isAuthenticated || cardsQuery.isFetched)) {
         toast.error("Card not found.");
         navigate("/app/cards");
       }
     } else if (activeCard && !isBuilder) {
       setDraft(activeCard);
     }
-  }, [editId, cards, activeCard?.id, isBuilder, cardsQuery.isLoading]);
+  }, [editId, cards, activeCard?.id, isBuilder, isAuthenticated, cardsQuery.isFetched]);
 
   const openBuilder = (card?: CardDraft) => {
     const next = card ?? { ...emptyCard, updatedAt: new Date() };
@@ -432,14 +433,18 @@ export default function Home() {
 
   const togglePublish = async (card: CardDraft) => {
     const published = !card.published;
-    if (isAuthenticated && card.id > 0) {
-      await publishCard.mutateAsync({ id: card.id, published });
-      await utils.cards.list.invalidate();
-    } else {
-      setLocalCards((current) => current.map((item) => item.id === card.id ? { ...item, published } : item));
-      if (draft.id === card.id) setDraft({ ...draft, published });
+    try {
+      if (isAuthenticated && card.id > 0) {
+        await publishCard.mutateAsync({ id: card.id, published });
+        await utils.cards.list.invalidate();
+      } else {
+        setLocalCards((current) => current.map((item) => item.id === card.id ? { ...item, published } : item));
+        if (draft.id === card.id) setDraft({ ...draft, published });
+      }
+      toast.success(published ? "Your card is live." : "Your card is hidden.");
+    } catch (error: any) {
+      toast.error(error?.message ?? "Could not update that card.");
     }
-    toast.success(published ? "Your card is live." : "Your card is hidden.");
   };
 
   const removeCard = async (card: CardDraft) => {
@@ -495,6 +500,10 @@ export default function Home() {
   };
 
   const addMediaFile = async (file: File) => {
+    // Base64 inflates ~33% and Vercel rejects request bodies over ~4.5 MB.
+    if (isAuthenticated && file.size > 3_000_000) {
+      throw new Error("File is larger than 3MB. Upload a smaller file or add it as a link.");
+    }
     if (!isAuthenticated) {
       if (file.size > 1_000_000) {
         toast.error("File is larger than 1MB. Sign in to upload larger files.");
@@ -525,20 +534,22 @@ export default function Home() {
       <aside className={`app-sidebar ${mobileNavOpen ? "is-open" : ""}`}>
         <div className="brand-lockup"><span className="brand-mark"><span /></span><span>heyitsme</span></div>
         <div className="sidebar-profile" style={{ position: "relative" }}>
-          <div className="profile-orb">{getInitials(user?.name ?? (isAuthenticated ? "Alex Morgan" : "Guest"))}</div>
+          <div className="profile-orb">{getInitials(user?.name || (isAuthenticated ? "You" : "Guest"))}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <strong>{user?.name ?? (isAuthenticated ? "Alex Morgan" : "Guest")}</strong>
+            <strong>{user?.name || (isAuthenticated ? "You" : "Guest")}</strong>
             <span>{isAuthenticated ? "All access · free" : "Preview mode"}</span>
           </div>
           {isAuthenticated && (
             <button
               className="icon-button"
               type="button"
-              onClick={() => void logout()}
+              onClick={() => {
+                if (window.confirm("Sign out of heyitsme?")) void logout();
+              }}
               title="Sign out"
               aria-label="Sign out"
             >
-              <MoreHorizontal size={17} />
+              <LogOut size={17} />
             </button>
           )}
         </div>
@@ -592,7 +603,7 @@ export default function Home() {
                 }}
                 title="Click to sign out"
               >
-                {getInitials(user?.name ?? "Alex Morgan")}
+                {getInitials(user?.name || "You")}
               </button>
             ) : (
               <button className="topbar-avatar" onClick={startGoogleLogin} title="Click to sign in with Google">
@@ -614,14 +625,23 @@ export default function Home() {
               isAuthenticated={isAuthenticated}
               onAddReference={async (reference: Omit<ReferenceRow, "id">) => {
                 if (isAuthenticated && draft.id > 0) {
-                  await createReference.mutateAsync({ cardId: draft.id, ...reference });
-                  toast.success("Reference added to your card.");
+                  try {
+                    await createReference.mutateAsync({ cardId: draft.id, ...reference });
+                    toast.success("Reference added to your card.");
+                  } catch (error: any) {
+                    toast.error(error?.message ?? "Could not add that reference.");
+                    throw error;
+                  }
                 }
               }}
               onDeleteReference={async (id: number) => {
                 if (isAuthenticated && draft.id > 0) {
-                  await deleteReferenceMutation.mutateAsync({ id });
-                  toast.success("Reference removed.");
+                  try {
+                    await deleteReferenceMutation.mutateAsync({ id });
+                    toast.success("Reference removed.");
+                  } catch (error: any) {
+                    toast.error(error?.message ?? "Could not remove that reference.");
+                  }
                 }
               }}
             />
@@ -634,13 +654,17 @@ export default function Home() {
               setSearch={setSearch}
               onExport={exportContacts}
               onDeleteContact={async (id: number) => {
-                if (isAuthenticated) {
-                  await deleteContactMutation.mutateAsync({ id });
-                  await utils.contacts.list.invalidate();
-                } else {
-                  setLocalContacts((current) => current.filter((c) => c.id !== id));
+                try {
+                  if (isAuthenticated) {
+                    await deleteContactMutation.mutateAsync({ id });
+                    await utils.contacts.list.invalidate();
+                  } else {
+                    setLocalContacts((current) => current.filter((c) => c.id !== id));
+                  }
+                  toast.success("Contact deleted.");
+                } catch (error: any) {
+                  toast.error(error?.message ?? "Could not delete that contact.");
                 }
-                toast.success("Contact deleted.");
               }}
             />
           ) : mode === "cards" ? (
@@ -892,8 +916,13 @@ function ReferencesEditor({
 
 function toHref(raw: string): string {
   const v = (raw || "").trim();
-  if (/^javascript:/i.test(v)) return "#";
-  if (/^[a-z][a-z0-9+.-]*:/i.test(v)) return v;
+  if (!v) return "#";
+  // Browsers ignore whitespace/control chars inside schemes, so strip them before checking.
+  const scheme = v.replace(/[\u0000- ]/g, "").match(/^([a-z][a-z0-9+.-]*):/i)?.[1]?.toLowerCase();
+  if (scheme === "javascript" || scheme === "vbscript" || scheme === "data") return "#";
+  if (scheme) return v;
+  // Same-origin paths such as uploaded files served from /storage/...
+  if (v.startsWith("/")) return v;
   return `https://${v}`;
 }
 
@@ -946,14 +975,14 @@ function Field({ label, value, onChange, placeholder, type = "text", required = 
 function ContactsView({ contacts, search, setSearch, onExport, onDeleteContact }: any) {
   const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
 
-  const handleCopyEmail = (email?: string | null) => {
+  const handleCopyEmail = async (email?: string | null) => {
     if (!email) {
       toast.error("No email for this contact.");
       return;
     }
-    void navigator.clipboard?.writeText(email);
-    toast.success("Email copied.");
     setActiveMenuId(null);
+    if (await copyToClipboard(email)) toast.success("Email copied.");
+    else toast.info(email);
   };
 
   return (
@@ -1250,6 +1279,11 @@ export function PublicCardPage() {
       toast.error("Please add your name.");
       return;
     }
+    const trimmedEmail = form.email.trim();
+    if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      toast.error("That email doesn't look right.");
+      return;
+    }
     if (card.id <= 0) {
       toast.error("Cannot exchange details on a preview card.");
       return;
@@ -1308,7 +1342,10 @@ export function PublicCardPage() {
             ) : null}
             <button
               className="text-button"
-              onClick={() => navigator.clipboard?.writeText(window.location.href).then(() => toast.success("Card link copied."))}
+              onClick={async () => {
+                if (await copyToClipboard(window.location.href)) toast.success("Card link copied.");
+                else toast.info(window.location.href);
+              }}
             >
               <Copy size={16} /> Copy link
             </button>
@@ -1325,10 +1362,12 @@ export function PublicCardPage() {
             <GlassButton onClick={() => downloadVCard(card)} className="full-width">
               <Download size={16} /> Save contact (.vcf)
             </GlassButton>
-            <div className="scan-hint" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", color: "var(--muted-foreground, #666)", fontSize: "13px" }}>
-              <QrCode size={16} />
-              <span>Scan or share to save</span>
-            </div>
+            {card.id > 0 ? (
+              <div className="scan-hint" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", color: "var(--muted-foreground, #666)", fontSize: "13px" }}>
+                <QRCodeSVG value={window.location.href} size={132} bgColor="transparent" fgColor="#10152a" includeMargin />
+                <span><QrCode size={14} style={{ verticalAlign: "-2px" }} /> Scan to open this card on another phone</span>
+              </div>
+            ) : null}
           </div>
         </motion.div>
       </main>

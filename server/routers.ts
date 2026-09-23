@@ -115,7 +115,8 @@ export const appRouter = router({
       dataBase64: z.string().min(1).max(20_000_000),
     })).mutation(async ({ ctx, input }) => {
       const safeName = input.fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
-      const result = await storagePut(`${ctx.user.id}-portfolio/${safeName}`, Buffer.from(input.dataBase64, "base64"), input.contentType);
+      // Unique prefix so re-uploading "photo.jpg" never overwrites a file another card still uses.
+      const result = await storagePut(`${ctx.user.id}-portfolio/${nanoid(8)}-${safeName}`, Buffer.from(input.dataBase64, "base64"), input.contentType);
       return result;
     }),
   }),
