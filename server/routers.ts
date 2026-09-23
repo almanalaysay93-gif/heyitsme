@@ -132,8 +132,13 @@ export const appRouter = router({
         company: z.string().max(160).optional().nullable(),
         title: z.string().max(160).optional().nullable(),
         notes: z.string().max(1000).optional().nullable(),
+        website: z.string().max(200).optional().nullable(), // Honeypot field
       }))
       .mutation(async ({ input }) => {
+        // If honeypot is filled by bot, drop silently
+        if (input.website) {
+          return { id: 0, name: input.name, source: "exchange_form" };
+        }
         const card = await getCardById(input.cardId);
         if (!card || !card.published) throw new Error("Card not found");
         await recordAnalytics(input.cardId, "save", "exchange_form");

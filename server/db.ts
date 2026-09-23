@@ -115,8 +115,7 @@ export async function getPublicCardBySlug(slug: string) {
 export async function createCard(input: InsertCard) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  await db.insert(cards).values(input);
-  const created = await db.select().from(cards).where(eq(cards.slug, input.slug)).limit(1);
+  const created = await db.insert(cards).values(input).returning();
   return created[0];
 }
 
@@ -163,10 +162,7 @@ export async function getReferencesByOwner(cardId: number, ownerUserId: number) 
 export async function createReference(input: InsertReference) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  await db.insert(references).values(input);
-  const result = await db.select().from(references)
-    .where(and(eq(references.cardId, input.cardId), eq(references.clientName, input.clientName)))
-    .orderBy(desc(references.createdAt)).limit(1);
+  const result = await db.insert(references).values(input).returning();
   return result[0];
 }
 
@@ -179,13 +175,7 @@ export async function getContactsByOwner(ownerUserId: number) {
 export async function createContact(input: InsertContact) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  await db.insert(contacts).values(input);
-  const result = await db
-    .select()
-    .from(contacts)
-    .where(and(eq(contacts.ownerUserId, input.ownerUserId), eq(contacts.name, input.name)))
-    .orderBy(desc(contacts.createdAt))
-    .limit(1);
+  const result = await db.insert(contacts).values(input).returning();
   return result[0];
 }
 

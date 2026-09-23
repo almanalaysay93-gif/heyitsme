@@ -1134,7 +1134,7 @@ export function PublicCardPage() {
   const exchange = trpc.publicCard.exchange.useMutation();
   const [showForm, setShowForm] = useState(false);
   const [sent, setSent] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", phone: "", company: "", title: "", notes: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", company: "", title: "", notes: "", website: "" });
   const rawCard = cardQuery.data as any;
   const previewCard = !rawCard && slug === "new-card" ? readPreviewCard() : null;
   const card = rawCard ? toDraft(rawCard) : previewCard;
@@ -1193,6 +1193,7 @@ export function PublicCardPage() {
         company: form.company.trim() || null,
         title: form.title.trim() || null,
         notes: form.notes.trim() || null,
+        website: form.website || null,
       });
       setSent(true);
       toast.success("Details exchanged.");
@@ -1295,6 +1296,15 @@ export function PublicCardPage() {
                   <Field label="Company" value={form.company} onChange={(value: string) => setForm({ ...form, company: value })} placeholder="Your company" />
                   <Field label="Role / title" value={form.title} onChange={(value: string) => setForm({ ...form, title: value })} placeholder="What you do" />
                 </div>
+                <input
+                  type="text"
+                  name="website"
+                  value={form.website}
+                  onChange={(e) => setForm({ ...form, website: e.target.value })}
+                  style={{ display: "none" }}
+                  tabIndex={-1}
+                  autoComplete="off"
+                />
                 <label className="field-label">
                   A note <textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} placeholder="Where did we meet?" />
                 </label>
