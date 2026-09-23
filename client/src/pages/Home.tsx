@@ -107,6 +107,42 @@ const themeOptions = [
   { id: "sunset", label: "Sunset", colors: ["#301d34", "#f4816b", "#ffd5a7"] },
 ];
 
+async function copyToClipboard(text: string): Promise<boolean> {
+  if (!text) return false;
+  try {
+    if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (err) {
+    // Clipboard API denied or unavailable, fall through to execCommand
+  }
+
+  try {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.top = "0";
+    textArea.style.left = "0";
+    textArea.style.width = "2em";
+    textArea.style.height = "2em";
+    textArea.style.padding = "0";
+    textArea.style.border = "none";
+    textArea.style.outline = "none";
+    textArea.style.boxShadow = "none";
+    textArea.style.background = "transparent";
+    textArea.setAttribute("readonly", "");
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    const successful = document.execCommand("copy");
+    document.body.removeChild(textArea);
+    return successful;
+  } catch (err) {
+    return false;
+  }
+}
+
 function parseLinks(raw: string | null | undefined) {
   try {
     const parsed = JSON.parse(raw || "[]");
@@ -238,6 +274,7 @@ export default function Home() {
   const [draft, setDraft] = useState<CardDraft>(() => readPreviewCard() ?? emptyCard);
   const [search, setSearch] = useState("");
   const [showShare, setShowShare] = useState(false);
+  const [sharingCard, setSharingCard] = useState<CardDraft | null>(null);
   const [undoCard, setUndoCard] = useState<CardDraft | null>(null);
 
   const cardsQuery = trpc.cards.list.useQuery(undefined, { enabled: isAuthenticated, retry: false });
@@ -291,12 +328,14 @@ export default function Home() {
     navigate(card ? `/app/cards/${card.id}/edit` : "/app/cards/new");
   };
 
-  const saveDraft = async (options?: { publish?: boolean }) => {
+  const saveDraft = async (options?: { publish?: boolean; redirect?: boolean }) => {
+    const rawEmail = draft.email.trim();
+    const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail);
     const payload = {
       displayName: draft.displayName.trim() || "Untitled card",
       title: draft.title.trim() || "Professional",
       company: draft.company.trim() || null,
-      email: draft.email.trim() || null,
+      email: isValidEmail ? rawEmail : null,
       phone: draft.phone.trim() || null,
       location: draft.location.trim() || null,
       bio: draft.bio.trim() || null,
@@ -305,6 +344,8 @@ export default function Home() {
       channels: JSON.stringify(parseChannels(draft.channels)),
       theme: draft.theme,
     };
+    const shouldRedirect = options?.redirect ?? true;
+
     if (isAuthenticated) {
       try {
         let savedCard: CardDraft | null = null;
@@ -314,25 +355,25 @@ export default function Home() {
             ...payload,
             ...(options?.publish !== undefined ? { published: options.publish } : {}),
           });
-          savedCard = updated ? toDraft(updated) : { ...draft, ...payload } as CardDraft;
+          savedCard = updated ? toDraft(updated) : ({ ...draft, ...payload } as CardDraft);
           setDraft(savedCard);
-        }
-        else {
-          const created = await createCard.mutateAsync(payload);
+        } else {
+          const created = await createCard.mutateAsync({
+            ...payload,
+            ...(options?.publish !== undefined ? { published: options.publish } : {}),
+          });
           if (created) {
-            let next = toDraft(created);
-            if (options?.publish) {
-              const publishedCard = await publishCard.mutateAsync({ id: next.id, published: true });
-              if (publishedCard) next = toDraft(publishedCard);
-            }
+            const next = toDraft(created);
             savedCard = next;
             setSelectedId(next.id);
             setDraft(next);
           }
         }
         await utils.cards.list.invalidate();
-        toast.success("Your card is in sync.");
-        navigate("/app/cards");
+        toast.success(options?.publish ? "Your card is live." : "Your card is in sync.");
+        if (shouldRedirect) {
+          navigate("/app/cards");
+        }
         return savedCard;
       } catch (error: any) {
         toast.error(error?.message ?? "Could not save that card.");
@@ -346,18 +387,47 @@ export default function Home() {
       updatedAt: new Date(),
       id: draft.id || Date.now(),
     } as CardDraft;
-    setLocalCards((current) => current.some((item) => item.id === draft.id) ? current.map((item) => item.id === draft.id ? next : item) : [next, ...current]);
+    setLocalCards((current) =>
+      current.some((item) => item.id === draft.id)
+        ? current.map((item) => (item.id === draft.id ? next : item))
+        : [next, ...current]
+    );
     window.localStorage.setItem(PREVIEW_CARD_STORAGE_KEY, JSON.stringify(next));
     setSelectedId(next.id);
     setDraft(next);
     toast.success("Saved in preview mode — sign in to sync it.");
-    navigate("/app/cards");
+    if (shouldRedirect) {
+      navigate("/app/cards");
+    }
     return next;
   };
 
+  const copyPublicLink = async (card = activeCard): Promise<boolean> => {
+    if (!card) return false;
+    if (!isAuthenticated || card.id <= 0 || card.slug === "new-card") {
+      toast.error("Sign in to publish this card and get a shareable link.");
+      return false;
+    }
+    if (!card.published) {
+      toast.error("Publish this card before copying its public link.");
+      return false;
+    }
+    const url = `${window.location.origin}/c/${card.slug}`;
+    const copied = await copyToClipboard(url);
+    if (copied) {
+      toast.success("Public link copied to clipboard!");
+    } else {
+      toast.info(`Public link: ${url}`);
+    }
+    return copied;
+  };
+
   const saveAndCopyLink = async () => {
-    const saved = await saveDraft({ publish: true });
-    if (saved) await copyPublicLink(saved);
+    const saved = await saveDraft({ publish: true, redirect: false });
+    if (saved) {
+      await copyPublicLink(saved);
+      navigate("/app/cards");
+    }
   };
 
   const togglePublish = async (card: CardDraft) => {
@@ -410,21 +480,6 @@ export default function Home() {
     } catch (error: any) {
       toast.error(error?.message ?? "Could not restore that card.");
     }
-  };
-
-  const copyPublicLink = async (card = activeCard) => {
-    if (!card) return;
-    if (!isAuthenticated || card.id <= 0 || card.slug === "new-card") {
-      toast.error("Sign in to publish this card and get a shareable link.");
-      return;
-    }
-    if (!card.published) {
-      toast.error("Publish this card before copying its public link.");
-      return;
-    }
-    const url = `${window.location.origin}/c/${card.slug}`;
-    await navigator.clipboard?.writeText(url);
-    toast.success("Public link copied.");
   };
 
   const exportContacts = () => {
@@ -596,6 +651,7 @@ export default function Home() {
               onShare={(card: CardDraft) => {
                 setSelectedId(card.id);
                 setDraft(card);
+                setSharingCard(card);
                 setShowShare(true);
               }}
               onPublish={togglePublish}
@@ -609,14 +665,28 @@ export default function Home() {
               activeCard={activeCard}
               onNew={() => openBuilder()}
               onEdit={() => openBuilder(activeCard)}
-              onShare={() => setShowShare(true)}
+              onShare={() => {
+                setSharingCard(activeCard);
+                setShowShare(true);
+              }}
               onCopy={() => copyPublicLink(activeCard)}
             />
           )}
         </div>
         {undoCard ? <div className="undo-banner"><span><Trash2 size={15} /> “{undoCard.displayName || "Your card"}” deleted</span><button type="button" onClick={() => void restoreDeletedCard(undoCard)} disabled={restoreCardMutation.isPending}><Undo2 size={14} /> {restoreCardMutation.isPending ? "Restoring…" : "Undo"}</button><button type="button" className="undo-dismiss" onClick={() => setUndoCard(null)} aria-label="Dismiss undo message"><X size={14} /></button></div> : null}
       </main>
-      {showShare && activeCard ? <ShareSheet card={activeCard} onClose={() => setShowShare(false)} onCopy={() => copyPublicLink(activeCard)} isAuthenticated={isAuthenticated} onPublish={() => togglePublish(activeCard)} /> : null}
+      {showShare && (sharingCard || activeCard) ? (
+        <ShareSheet
+          card={sharingCard ?? activeCard}
+          onClose={() => {
+            setShowShare(false);
+            setSharingCard(null);
+          }}
+          onCopy={() => copyPublicLink(sharingCard ?? activeCard)}
+          isAuthenticated={isAuthenticated}
+          onPublish={() => togglePublish(sharingCard ?? activeCard)}
+        />
+      ) : null}
     </div>
   );
 }

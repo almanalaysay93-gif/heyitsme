@@ -54,19 +54,21 @@ export const appRouter = router({
     get: protectedProcedure.input(z.object({ id: z.number().int().positive() })).query(({ ctx, input }) =>
       getCardByIdForOwner(input.id, ctx.user.id),
     ),
-    create: protectedProcedure.input(z.object(cardFields)).mutation(({ ctx, input }) => {
-      const slug = `${input.displayName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "card"}-${nanoid(6).toLowerCase()}`;
-      return createCard({
-        ...input,
-        ownerUserId: ctx.user.id,
-        slug,
-        published: false,
-        links: input.links ?? "[]",
-        portfolio: input.portfolio ?? "[]",
-        channels: input.channels ?? "[]",
-        theme: input.theme ?? "midnight",
-      });
-    }),
+    create: protectedProcedure
+      .input(z.object({ ...cardFields, published: z.boolean().optional() }))
+      .mutation(({ ctx, input }) => {
+        const slug = `${input.displayName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "card"}-${nanoid(6).toLowerCase()}`;
+        return createCard({
+          ...input,
+          ownerUserId: ctx.user.id,
+          slug,
+          published: input.published ?? false,
+          links: input.links ?? "[]",
+          portfolio: input.portfolio ?? "[]",
+          channels: input.channels ?? "[]",
+          theme: input.theme ?? "midnight",
+        });
+      }),
     update: protectedProcedure
       .input(z.object({ id: z.number().int().positive(), ...cardFields, published: z.boolean().optional() }))
       .mutation(({ ctx, input }) => {
