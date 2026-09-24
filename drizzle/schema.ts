@@ -19,7 +19,7 @@ export const users = pgTable("users", {
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn", { mode: "date" }).defaultNow().notNull(),
-});
+}).enableRLS();
 
 export const cards = pgTable("cards", {
   id: serial("id").primaryKey(),
@@ -43,7 +43,7 @@ export const cards = pgTable("cards", {
   deletedAt: timestamp("deletedAt", { mode: "date" }),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
-}, (table) => [index("cards_owner_updated_idx").on(table.ownerUserId, table.updatedAt)]);
+}, (table) => [index("cards_owner_updated_idx").on(table.ownerUserId, table.updatedAt)]).enableRLS();
 
 export const contacts = pgTable("contacts", {
   id: serial("id").primaryKey(),
@@ -60,7 +60,7 @@ export const contacts = pgTable("contacts", {
   followedUp: boolean("followedUp").default(false).notNull(),
   seenAt: timestamp("seenAt", { mode: "date" }),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
-}, (table) => [index("contacts_owner_id_idx").on(table.ownerUserId, table.id)]);
+}, (table) => [index("contacts_owner_id_idx").on(table.ownerUserId, table.id)]).enableRLS();
 
 export const analyticsEvents = pgTable("analyticsEvents", {
   id: serial("id").primaryKey(),
@@ -68,7 +68,7 @@ export const analyticsEvents = pgTable("analyticsEvents", {
   type: varchar("type", { length: 32 }).notNull(),
   meta: text("meta"),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
-}, (table) => [index("analytics_card_created_idx").on(table.cardId, table.createdAt)]);
+}, (table) => [index("analytics_card_created_idx").on(table.cardId, table.createdAt)]).enableRLS();
 
 export const references = pgTable("references", {
   id: serial("id").primaryKey(),
@@ -81,7 +81,7 @@ export const references = pgTable("references", {
   avatarUrl: text("avatarUrl"),
   approved: boolean("approved").default(true).notNull(),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
-}, (table) => [index("references_card_created_idx").on(table.cardId, table.createdAt)]);
+}, (table) => [index("references_card_created_idx").on(table.cardId, table.createdAt)]).enableRLS();
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;

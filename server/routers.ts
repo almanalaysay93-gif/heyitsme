@@ -86,6 +86,42 @@ export function resolveUploadType(fileName: string, contentType: string): string
   return extension ? UPLOAD_TYPES[extension] ?? null : null;
 }
 
+const startsWith = (bytes: Buffer, signature: number[] | string, offset = 0) => {
+  const expected = typeof signature === "string" ? Buffer.from(signature, "latin1") : Buffer.from(signature);
+  return bytes.subarray(offset, offset + expected.length).equals(expected);
+};
+
+// The first bytes of each format an upload may be. Containers cover several types: a .docx is a zip, and MP4, MOV
+// and AVIF are all ISO media files. Checked in order, so the loose PDF check goes last.
+const FILE_FORMATS: { types: string[]; matches: (bytes: Buffer) => boolean }[] = [
+  { types: ["image/jpeg"], matches: (b) => startsWith(b, [0xff, 0xd8, 0xff]) },
+  { types: ["image/png"], matches: (b) => startsWith(b, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]) },
+  { types: ["image/gif"], matches: (b) => startsWith(b, "GIF8") },
+  { types: ["image/webp"], matches: (b) => startsWith(b, "RIFF") && startsWith(b, "WEBP", 8) },
+  { types: ["image/avif", "video/mp4", "video/quicktime"], matches: (b) => startsWith(b, "ftyp", 4) },
+  // QuickTime files from older cameras can open with another atom instead of `ftyp`.
+  { types: ["video/quicktime"], matches: (b) => ["moov", "mdat", "wide", "free", "skip", "pnot"].some((atom) => startsWith(b, atom, 4)) },
+  { types: ["video/webm"], matches: (b) => startsWith(b, [0x1a, 0x45, 0xdf, 0xa3]) },
+  { types: ["application/msword"], matches: (b) => startsWith(b, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]) },
+  {
+    types: [UPLOAD_TYPES.docx, "application/zip", "application/x-zip-compressed"],
+    matches: (b) => startsWith(b, [0x50, 0x4b, 0x03, 0x04]) || startsWith(b, [0x50, 0x4b, 0x05, 0x06]),
+  },
+  { types: ["application/pdf"], matches: (b) => b.subarray(0, 1024).includes("%PDF-") },
+];
+const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
+
+// The declared type and extension are the uploader's say-so; the bytes are what visitors get. Returns the type to store
+// the file under, or null when the bytes aren't that kind of file.
+export function confirmUploadType(bytes: Buffer, contentType: string): string | null {
+  const format = FILE_FORMATS.find(({ matches }) => matches(bytes));
+  if (!format) return null;
+  if (format.types.includes(contentType)) return contentType;
+  // A photo saved under the wrong image extension is still a photo: store it under its real type.
+  if (PHOTO_TYPES.has(contentType) && PHOTO_TYPES.has(format.types[0])) return format.types[0];
+  return null;
+}
+
 async function enforceRateLimit(scope: string, identity: string, limit: number, windowMs: number) {
   const result = await rateLimit(`${scope}:${hashIdentifier(identity)}`, limit, windowMs);
   if (!result.allowed) {
@@ -207,14 +243,19 @@ export const appRouter = router({
       dataBase64: z.string().min(1).max(MAX_UPLOAD_BASE64, "File is larger than 3MB. Upload a smaller file or add it as a link."),
     })).mutation(async ({ ctx, input }) => {
       await enforceRateLimit("upload", `user:${ctx.user.id}`, 30, 10 * MINUTE);
-      const contentType = resolveUploadType(input.fileName, input.contentType);
-      if (!contentType) {
+      const resolvedType = resolveUploadType(input.fileName, input.contentType);
+      if (!resolvedType) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "That file type isn't supported. Use JPG, PNG, WebP, GIF, MP4, WebM, MOV, PDF, Word, or ZIP." });
+      }
+      const bytes = Buffer.from(input.dataBase64, "base64");
+      const contentType = confirmUploadType(bytes, resolvedType);
+      if (!contentType) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "That file looks damaged, or isn't the type its name says. Try saving or exporting it again." });
       }
       const safeName = input.fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
       // Unique prefix so re-uploading "photo.jpg" never overwrites a file another card still uses.
       try {
-        return await storagePut(`${ctx.user.id}-portfolio/${nanoid(8)}-${safeName}`, Buffer.from(input.dataBase64, "base64"), contentType);
+        return await storagePut(`${ctx.user.id}-portfolio/${nanoid(8)}-${safeName}`, bytes, contentType);
       } catch (error) {
         // Storage errors ("fetch failed", bucket names) mean nothing to the person uploading.
         console.error("[Upload] storage failed:", error);

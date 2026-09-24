@@ -1,10 +1,11 @@
-import { COOKIE_NAME, ONE_YEAR_MS, decodeOAuthState } from "@shared/const";
+import { COOKIE_NAME, SESSION_MAX_AGE_MS, SESSION_REFRESH_AFTER_MS, decodeOAuthState } from "@shared/const";
 import { ForbiddenError } from "@shared/_core/errors";
 import { parse as parseCookieHeader } from "cookie";
-import type { Request } from "express";
+import type { Request, Response } from "express";
 import { SignJWT, jwtVerify } from "jose";
 import type { User } from "../../drizzle/schema";
 import * as db from "../db";
+import { getSessionCookieOptions } from "./cookies";
 import { ENV } from "./env";
 import type {
   ExchangeTokenResponse,
@@ -26,6 +27,8 @@ export type SessionPayload = {
   name: string;
   email?: string | null;
   loginMethod?: string | null;
+  // The token's `iat` in seconds. Tokens signed before sessions started sliding have none.
+  issuedAt?: number | null;
 };
 
 class GoogleOAuthService {
@@ -166,7 +169,7 @@ class SDKServer {
     options: { expiresInMs?: number } = {}
   ): Promise<string> {
     const issuedAt = Date.now();
-    const expiresInMs = options.expiresInMs ?? ONE_YEAR_MS;
+    const expiresInMs = options.expiresInMs ?? SESSION_MAX_AGE_MS;
     const expirationSeconds = Math.floor((issuedAt + expiresInMs) / 1000);
     const secretKey = this.getSessionSecret();
 
@@ -177,6 +180,7 @@ class SDKServer {
       loginMethod: payload.loginMethod ?? "google",
     })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+      .setIssuedAt(Math.floor(issuedAt / 1000))
       .setExpirationTime(expirationSeconds)
       .sign(secretKey);
   }
@@ -194,7 +198,7 @@ class SDKServer {
       const { payload } = await jwtVerify(cookieValue, secretKey, {
         algorithms: ["HS256"],
       });
-      const { openId, name, email, loginMethod } = payload as Record<
+      const { openId, name, email, loginMethod, iat } = payload as Record<
         string,
         unknown
       >;
@@ -209,6 +213,7 @@ class SDKServer {
         name: typeof name === "string" ? name : "",
         email: typeof email === "string" ? email : null,
         loginMethod: typeof loginMethod === "string" ? loginMethod : "google",
+        issuedAt: typeof iat === "number" ? iat : null,
       };
     } catch (error) {
       console.warn("[Auth] Session verification failed", String(error));
@@ -233,9 +238,11 @@ class SDKServer {
     };
   }
 
-  async authenticateRequest(req: Request): Promise<AuthenticatedUser> {
+  // Pass `res` to keep a cookie session sliding. Bearer tokens are left as they are.
+  async authenticateRequest(req: Request, res?: Response): Promise<AuthenticatedUser> {
     const cookies = this.parseCookies(req.headers.cookie);
     let sessionToken = cookies.get(COOKIE_NAME);
+    const fromCookie = Boolean(sessionToken);
 
     if (!sessionToken) {
       const authHeader = req.headers.authorization;
@@ -279,7 +286,16 @@ class SDKServer {
       lastSignedIn: signedInAt,
     });
 
+    if (res && fromCookie) await this.refreshSessionCookie(req, res, session);
+
     return user;
+  }
+
+  async refreshSessionCookie(req: Request, res: Response, session: SessionPayload) {
+    const issuedAtMs = (session.issuedAt ?? 0) * 1000;
+    if (Date.now() - issuedAtMs < SESSION_REFRESH_AFTER_MS) return;
+    const token = await this.signSession(session);
+    res.cookie(COOKIE_NAME, token, { ...getSessionCookieOptions(req), maxAge: SESSION_MAX_AGE_MS });
   }
 }
 

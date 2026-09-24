@@ -1,6 +1,6 @@
 import { OAUTH_STATE_COOKIE, encodeOAuthState } from "@shared/const";
 
-export { COOKIE_NAME, ONE_YEAR_MS, STORAGE_PREFIX } from "@shared/const";
+export { COOKIE_NAME, SESSION_MAX_AGE_MS, STORAGE_PREFIX } from "@shared/const";
 
 // Public support address for the legal pages and footers. Set VITE_SUPPORT_EMAIL at build time.
 export const SUPPORT_EMAIL = ((import.meta.env.VITE_SUPPORT_EMAIL as string | undefined) ?? "").trim();
