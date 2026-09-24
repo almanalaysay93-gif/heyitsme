@@ -16,13 +16,17 @@ import {
   getCardByIdForOwner,
   getCardsByOwner,
   getContactsByOwner,
+  getInsightsRows,
   getReferencesByCard,
   getReferencesByOwner,
   getPublicCardBySlug,
+  markContactsSeen,
   recordAnalytics,
   restoreCard,
   updateCard,
+  updateContact,
 } from "./db";
+import { buildInsights, INSIGHTS_RANGES, insightsSince } from "./insights";
 
 // Rendered as <img src>, so only http(s) or same-origin storage paths — never data:/javascript:.
 const imageUrl = z
@@ -97,9 +101,38 @@ export const appRouter = router({
   }),
   contacts: router({
     list: protectedProcedure.query(({ ctx }) => getContactsByOwner(ctx.user.id)),
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number().int().positive(),
+        tags: z.array(z.string().trim().min(1).max(40)).max(12).optional(),
+        notes: z.string().max(1000).optional().nullable(),
+        followedUp: z.boolean().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const updated = await updateContact(input.id, ctx.user.id, {
+          ...(input.tags ? { tags: JSON.stringify(Array.from(new Set(input.tags))) } : {}),
+          ...(input.notes !== undefined ? { notes: input.notes || null } : {}),
+          ...(input.followedUp !== undefined ? { followedUp: input.followedUp } : {}),
+        });
+        if (!updated) throw new Error("Contact not found");
+        return updated;
+      }),
+    markSeen: protectedProcedure.mutation(({ ctx }) => markContactsSeen(ctx.user.id)),
     delete: protectedProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .mutation(({ ctx, input }) => deleteContact(input.id, ctx.user.id)),
+  }),
+  insights: router({
+    summary: protectedProcedure
+      .input(z.object({ days: z.union([z.literal(7), z.literal(30), z.literal(90)]).default(INSIGHTS_RANGES[0]) }))
+      .query(async ({ ctx, input }) => {
+        const now = new Date();
+        const [rows, cards] = await Promise.all([
+          getInsightsRows(ctx.user.id, insightsSince(input.days, now)),
+          getCardsByOwner(ctx.user.id),
+        ]);
+        return buildInsights(rows, cards, input.days, now);
+      }),
   }),
   references: router({
     list: protectedProcedure.input(z.object({ cardId: z.number().int().positive() })).query(({ ctx, input }) => getReferencesByOwner(input.cardId, ctx.user.id)),
@@ -167,6 +200,19 @@ export const appRouter = router({
           tags: "[]",
           source: "exchange_form",
         });
+      }),
+    // Fire-and-forget visitor actions for the owner's Insights. Public, like views, so counts are best-effort.
+    track: publicProcedure
+      .input(z.object({
+        cardId: z.number().int().positive(),
+        type: z.enum(["vcard", "link", "share"]),
+        target: z.string().trim().max(80).optional().nullable(),
+      }))
+      .mutation(async ({ input }) => {
+        const card = await getCardById(input.cardId);
+        if (!card || !card.published || card.deletedAt) return { ok: false };
+        await recordAnalytics(card.id, input.type, input.target || undefined);
+        return { ok: true };
       }),
   }),
 });

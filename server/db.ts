@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import {
@@ -17,14 +17,18 @@ import { ENV } from "./_core/env";
 let _db: ReturnType<typeof drizzle> | null = null;
 let _schemaReady: Promise<void> | null = null;
 
-// Deploys have no migration step, so add the nullable columns from drizzle/0001 when they are missing.
+// Deploys have no migration step, so add columns added after drizzle/0000 when they are missing.
 async function ensureCardMediaColumns(client: postgres.Sql) {
-  const existing = await client<{ column_name: string }[]>`
-    select column_name from information_schema.columns
-    where table_schema = current_schema() and table_name = 'cards' and column_name in ('avatarUrl', 'coverUrl')`;
-  if (existing.length === 2) return;
+  const existing = await client<{ table_name: string; column_name: string }[]>`
+    select table_name, column_name from information_schema.columns
+    where table_schema = current_schema()
+      and ((table_name = 'cards' and column_name in ('avatarUrl', 'coverUrl'))
+        or (table_name = 'contacts' and column_name in ('followedUp', 'seenAt')))`;
+  if (existing.length === 4) return;
   await client`alter table "cards" add column if not exists "avatarUrl" text`;
   await client`alter table "cards" add column if not exists "coverUrl" text`;
+  await client`alter table "contacts" add column if not exists "followedUp" boolean default false not null`;
+  await client`alter table "contacts" add column if not exists "seenAt" timestamp`;
 }
 
 export async function getDb() {
@@ -208,8 +212,56 @@ export async function deleteContact(id: number, ownerUserId: number) {
   return true;
 }
 
-export async function recordAnalytics(cardId: number, type: "view" | "save", meta?: string) {
+export async function updateContact(
+  id: number,
+  ownerUserId: number,
+  input: Partial<Pick<InsertContact, "tags" | "notes" | "followedUp">>,
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const result = await db
+    .update(contacts)
+    .set(input)
+    .where(and(eq(contacts.id, id), eq(contacts.ownerUserId, ownerUserId)))
+    .returning();
+  return result[0];
+}
+
+export async function markContactsSeen(ownerUserId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+  const result = await db
+    .update(contacts)
+    .set({ seenAt: new Date() })
+    .where(and(eq(contacts.ownerUserId, ownerUserId), isNull(contacts.seenAt)))
+    .returning({ id: contacts.id });
+  return result.length;
+}
+
+export type AnalyticsType = "view" | "save" | "vcard" | "link" | "share";
+
+export async function recordAnalytics(cardId: number, type: AnalyticsType, meta?: string) {
   const db = await getDb();
   if (!db) return;
   await db.insert(analyticsEvents).values({ cardId, type, meta });
+}
+
+/** Event counts per card, type, meta, and UTC day for every card the owner has, since `since`. */
+export async function getInsightsRows(ownerUserId: number, since: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  const day = sql<string>`to_char(date_trunc('day', ${analyticsEvents.createdAt}), 'YYYY-MM-DD')`;
+  const rows = await db
+    .select({
+      cardId: analyticsEvents.cardId,
+      type: analyticsEvents.type,
+      meta: analyticsEvents.meta,
+      day,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(analyticsEvents)
+    .innerJoin(cards, eq(cards.id, analyticsEvents.cardId))
+    .where(and(eq(cards.ownerUserId, ownerUserId), gte(analyticsEvents.createdAt, since)))
+    .groupBy(analyticsEvents.cardId, analyticsEvents.type, analyticsEvents.meta, day);
+  return rows.map((row) => ({ ...row, count: Number(row.count) }));
 }

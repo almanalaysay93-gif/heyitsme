@@ -56,6 +56,8 @@ export const contacts = pgTable("contacts", {
   tags: text("tags"),
   notes: text("notes"),
   source: varchar("source", { length: 32 }).default("exchange_form").notNull(),
+  followedUp: boolean("followedUp").default(false).notNull(),
+  seenAt: timestamp("seenAt", { mode: "date" }),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
 });
 
