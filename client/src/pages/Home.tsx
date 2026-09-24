@@ -811,6 +811,8 @@ function PortfolioEditor({ raw, onChange, onUpload }: { raw: string; onChange: (
   const [url, setUrl] = useState("");
   const [kind, setKind] = useState<PortfolioItem["kind"]>("image");
   const [busy, setBusy] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const addItem = (item: PortfolioItem) => onChange(JSON.stringify([...items, item]));
 
@@ -819,7 +821,7 @@ function PortfolioEditor({ raw, onChange, onUpload }: { raw: string; onChange: (
     addItem({
       id: crypto.randomUUID(),
       kind,
-      title: title.trim() || url.trim(),
+      title: kind === "image" ? "" : (title.trim() || url.trim()),
       url: url.trim(),
       description: description.trim() || undefined,
     });
@@ -828,26 +830,57 @@ function PortfolioEditor({ raw, onChange, onUpload }: { raw: string; onChange: (
     setDescription("");
   };
 
-  const handleFile = async (file: File) => {
+  const handleFiles = async (fileList: FileList | File[]) => {
+    const files = Array.from(fileList);
+    if (!files.length) return;
+
     setBusy(true);
-    try {
-      const uploadedUrl = await onUpload(file);
-      const fileKind = file.type.startsWith("image/") ? "image" : file.type.startsWith("video/") ? "video" : "file";
-      addItem({
-        id: crypto.randomUUID(),
-        kind: fileKind,
-        title: title.trim() || file.name,
-        url: uploadedUrl,
-        description: description.trim() || undefined,
-        mimeType: file.type,
-      });
-      setTitle("");
-      setDescription("");
-    } catch (error: any) {
-      toast.error(error?.message ?? "Could not upload that file.");
-    } finally {
-      setBusy(false);
+    const newItems: PortfolioItem[] = [];
+    let successCount = 0;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      setUploadProgress(
+        files.length > 1
+          ? `Uploading ${i + 1} of ${files.length} (${file.name})…`
+          : `Uploading ${file.name}…`
+      );
+
+      try {
+        const uploadedUrl = await onUpload(file);
+        const fileKind: PortfolioItem["kind"] = file.type.startsWith("image/")
+          ? "image"
+          : file.type.startsWith("video/")
+          ? "video"
+          : "file";
+
+        newItems.push({
+          id: crypto.randomUUID(),
+          kind: fileKind,
+          title: fileKind === "image" ? "" : file.name.replace(/\.[^/.]+$/, ""),
+          url: uploadedUrl,
+          description: description.trim() && (files.length === 1 || i === 0) ? description.trim() : undefined,
+          mimeType: file.type,
+        });
+        successCount++;
+      } catch (error: any) {
+        toast.error(`Failed to upload ${file.name}: ${error?.message || "Upload error"}`);
+      }
     }
+
+    if (newItems.length > 0) {
+      onChange(JSON.stringify([...items, ...newItems]));
+      if (successCount > 1) {
+        toast.success(`Uploaded ${successCount} photos! Add descriptions below.`);
+      } else {
+        toast.success("Photo uploaded.");
+      }
+      setDescription("");
+      setTitle("");
+    }
+
+    setUploadProgress(null);
+    setBusy(false);
   };
 
   const updateItem = (index: number, patch: Partial<PortfolioItem>) => {
@@ -874,15 +907,17 @@ function PortfolioEditor({ raw, onChange, onUpload }: { raw: string; onChange: (
             <option value="video">Video URL</option>
             <option value="file">Document URL</option>
           </select>
-          <input
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder={kind === "image" ? "Photo title / caption" : "Project title"}
-          />
+          {kind !== "image" && (
+            <input
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder="Project title"
+            />
+          )}
           <input
             value={url}
             onChange={(event) => setUrl(event.target.value)}
-            placeholder={kind === "image" ? "https://… (or upload below)" : "https://…"}
+            placeholder={kind === "image" ? "Photo URL https://… (or upload below)" : "https://…"}
           />
           <button className="outline-button" type="button" onClick={addUrlItem} disabled={!url.trim()}>
             <Plus size={14} /> Add
@@ -893,20 +928,42 @@ function PortfolioEditor({ raw, onChange, onUpload }: { raw: string; onChange: (
           className="portfolio-add-desc"
           value={description}
           onChange={(event) => setDescription(event.target.value)}
-          placeholder="Image description or project context (optional, shown in carousel & lightbox gallery)..."
+          placeholder={kind === "image" ? "Photo description (optional, shown in carousel & lightbox gallery)..." : "Project description or context (optional)..."}
           rows={2}
         />
 
-        <label className="upload-drop">
+        <label
+          className={`upload-drop ${isDragging ? "is-dragover" : ""}`}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsDragging(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsDragging(false);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsDragging(false);
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+              void handleFiles(e.dataTransfer.files);
+            }
+          }}
+        >
           <Upload size={17} />
-          <span>{busy ? "Uploading photo / file…" : "Or click / drag photo to upload with above description"}</span>
+          <span>{busy ? (uploadProgress || "Uploading photos…") : "Upload photos (click to select or drag & drop multiple images)"}</span>
           <input
             type="file"
+            multiple
             accept="image/*,video/*,.pdf,.doc,.docx,.zip"
             disabled={busy}
             onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) void handleFile(file);
+              if (event.target.files && event.target.files.length > 0) {
+                void handleFiles(event.target.files);
+              }
               event.currentTarget.value = "";
             }}
           />
@@ -930,12 +987,18 @@ function PortfolioEditor({ raw, onChange, onUpload }: { raw: string; onChange: (
               </div>
 
               <div className="portfolio-item-info">
-                <input
-                  className="portfolio-item-title-input"
-                  value={item.title}
-                  onChange={(e) => updateItem(index, { title: e.target.value })}
-                  placeholder="Title"
-                />
+                {item.kind === "image" ? (
+                  <span className="portfolio-item-label">
+                    Photo {items.slice(0, index + 1).filter((it) => it.kind === "image").length}
+                  </span>
+                ) : (
+                  <input
+                    className="portfolio-item-title-input"
+                    value={item.title}
+                    onChange={(e) => updateItem(index, { title: e.target.value })}
+                    placeholder="Title"
+                  />
+                )}
                 <span className="portfolio-item-meta">
                   {item.kind} · {item.url.replace(/^https?:\/\//, "").slice(0, 36)}
                 </span>
@@ -966,7 +1029,7 @@ function PortfolioEditor({ raw, onChange, onUpload }: { raw: string; onChange: (
                   className="icon-button"
                   type="button"
                   onClick={() => onChange(JSON.stringify(items.filter((c) => c.id !== item.id)))}
-                  aria-label={`Remove ${item.title}`}
+                  aria-label={item.kind === "image" ? `Remove photo ${index + 1}` : `Remove ${item.title}`}
                   title="Remove"
                 >
                   <Trash2 size={14} />
@@ -978,7 +1041,7 @@ function PortfolioEditor({ raw, onChange, onUpload }: { raw: string; onChange: (
               className="portfolio-item-desc-input"
               value={item.description ?? ""}
               onChange={(e) => updateItem(index, { description: e.target.value })}
-              placeholder="Add description for carousel / gallery lightbox..."
+              placeholder={item.kind === "image" ? "Photo description (shown on carousel & lightbox)..." : "Description (optional)..."}
               rows={2}
             />
           </div>

@@ -904,36 +904,34 @@ main[tabindex="-1"]:focus { outline: 0; }
   position: absolute;
   inset: auto 0 0;
   padding: 16px 18px;
-  background: linear-gradient(to top, rgba(12, 14, 30, 0.92) 0%, rgba(12, 14, 30, 0.5) 65%, transparent 100%);
+  background: linear-gradient(to top, rgba(12, 14, 30, 0.92) 0%, rgba(12, 14, 30, 0.55) 65%, transparent 100%);
   color: #fff;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 14px;
 }
+.photo-carousel-card-overlay-minimal {
+  background: transparent;
+  padding: 12px;
+  justify-content: flex-end;
+  pointer-events: none;
+}
 .photo-carousel-card-text {
   min-width: 0;
   flex: 1;
 }
-.photo-carousel-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: #fff;
-  margin-bottom: 4px;
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .photo-carousel-desc {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.84);
-  line-height: 1.4;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  line-height: 1.45;
   margin: 0;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.75);
 }
 .photo-carousel-expand-btn {
   flex: none;
@@ -946,6 +944,13 @@ main[tabindex="-1"]:focus { outline: 0; }
   color: #fff;
   backdrop-filter: blur(10px);
   transition: background 0.2s, transform 0.2s;
+}
+.photo-carousel-expand-btn-lone {
+  opacity: 0;
+  transition: opacity 0.2s, background 0.2s, transform 0.2s;
+}
+.photo-carousel-slide:hover .photo-carousel-expand-btn-lone {
+  opacity: 1;
 }
 .photo-carousel-slide:hover .photo-carousel-expand-btn {
   background: #fff;
@@ -1218,6 +1223,17 @@ main[tabindex="-1"]:focus { outline: 0; }
 .portfolio-item-title-input:focus {
   background: #fff;
   border-color: rgba(24, 30, 60, 0.14);
+}
+.portfolio-item-label {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--primary, #6b5cff);
+  padding: 2px 0;
+  letter-spacing: -0.01em;
+}
+.upload-drop.is-dragover {
+  border-color: var(--primary, #6b5cff) !important;
+  background: rgba(107, 92, 255, 0.12) !important;
 }
 .portfolio-item-meta {
   font-size: 10px;

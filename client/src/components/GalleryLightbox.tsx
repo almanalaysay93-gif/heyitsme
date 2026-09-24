@@ -53,7 +53,7 @@ export function GalleryLightbox({
           transition={{ duration: 0.2 }}
           role="dialog"
           aria-modal="true"
-          aria-label={currentItem.title || "Photo detail"}
+          aria-label={currentItem.description ? currentItem.description.slice(0, 50) : "Photo detail"}
           onClick={(e) => {
             if (e.target === e.currentTarget) onClose();
           }}
@@ -88,24 +88,19 @@ export function GalleryLightbox({
               <div className="gallery-lightbox-image-wrap">
                 <img
                   src={currentItem.url}
-                  alt={currentItem.title || "Gallery image"}
+                  alt={currentItem.description || "Gallery image"}
                   className="gallery-lightbox-image"
                 />
               </div>
 
-              {(currentItem.title || currentItem.description) && (
+              {currentItem.description && (
                 <motion.div
                   className="gallery-lightbox-caption"
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   key={currentItem.id || currentIndex}
                 >
-                  {currentItem.title && (
-                    <h3 className="gallery-lightbox-title">{currentItem.title}</h3>
-                  )}
-                  {currentItem.description && (
-                    <p className="gallery-lightbox-desc">{currentItem.description}</p>
-                  )}
+                  <p className="gallery-lightbox-desc">{currentItem.description}</p>
                 </motion.div>
               )}
             </div>

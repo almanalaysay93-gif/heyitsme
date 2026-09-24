@@ -83,26 +83,31 @@ export function PhotoCarousel({ items, onSelectPhoto }: PhotoCarouselProps) {
                   onSelectPhoto(index);
                 }
               }}
-              aria-label={`View photo: ${item.title || "Untitled"}`}
+              aria-label={item.description ? `View photo: ${item.description.slice(0, 50)}` : `View photo ${index + 1}`}
             >
               <div className="photo-carousel-card">
                 <img
                   src={item.url}
-                  alt={item.title || "Photo"}
+                  alt={item.description || "Photo"}
                   loading="lazy"
                   className="photo-carousel-img"
                 />
-                <div className="photo-carousel-card-overlay">
-                  <div className="photo-carousel-card-text">
-                    <strong className="photo-carousel-title">{item.title}</strong>
-                    {item.description && (
+                {item.description ? (
+                  <div className="photo-carousel-card-overlay">
+                    <div className="photo-carousel-card-text">
                       <p className="photo-carousel-desc">{item.description}</p>
-                    )}
+                    </div>
+                    <span className="photo-carousel-expand-btn" aria-hidden="true">
+                      <Maximize2 size={16} />
+                    </span>
                   </div>
-                  <span className="photo-carousel-expand-btn" aria-hidden="true">
-                    <Maximize2 size={16} />
-                  </span>
-                </div>
+                ) : (
+                  <div className="photo-carousel-card-overlay photo-carousel-card-overlay-minimal">
+                    <span className="photo-carousel-expand-btn photo-carousel-expand-btn-lone" aria-hidden="true">
+                      <Maximize2 size={16} />
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           ))}
