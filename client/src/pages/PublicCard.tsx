@@ -1,6 +1,8 @@
 import { CardVisual, Field, TiltCard } from "@/components/CardVisual";
+import { GalleryLightbox } from "@/components/GalleryLightbox";
 import { LegalLinks } from "@/components/LegalLinks";
 import { LoopVideo, isVideoUrl } from "@/components/LoopVideo";
+import { PhotoCarousel } from "@/components/PhotoCarousel";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import {
   buildVCard,
@@ -121,44 +123,92 @@ function WebsiteShot({ request, title }: { request: string; title: string }) {
 }
 
 function PublicPortfolio({ items, onOpen }: { items: PortfolioItem[]; onOpen?: (item: PortfolioItem) => void }) {
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   if (!items.length) return null;
+
+  const photoItems = items.filter((item) => item.kind === "image");
+  const otherItems = items.filter((item) => item.kind !== "image");
+
   return (
-    <PublicSection kicker="Selected work" icon={BriefcaseBusiness} title="A little proof of" emphasis="the practice." className="pl-portfolio">
-      <div className="pl-portfolio-grid">
-        {items.map((item, index) => {
-          // Preview uploads are data: URLs that toHref blanks to "#", so they show without a link.
-          const href = toHref(item.url);
-          const linkProps = href === "#" ? {} : { href, target: "_blank", rel: "noreferrer", onClick: () => onOpen?.(item) };
-          const shot = item.kind === "link" ? websiteShotRequest(item.url) : null;
-          return (
-            <motion.a
-              variants={revealUp}
-              whileHover={{ y: -6 }}
-              className={`pl-work ${index === 0 && items.length > 2 ? "is-featured" : ""}`}
-              key={item.id}
-              {...linkProps}
-            >
-              {item.kind === "image" ? (
-                <img src={item.url} alt={item.title} loading="lazy" />
-              ) : item.kind === "video" ? (
-                <video src={item.url} muted playsInline loop preload="metadata" onMouseEnter={(event) => void event.currentTarget.play().catch(() => undefined)} onMouseLeave={(event) => event.currentTarget.pause()} />
-              ) : shot ? (
-                <WebsiteShot request={shot} title={item.title} />
-              ) : (
-                <div className="pl-work-file">
-                  <span>{item.kind === "file" ? <FileText size={22} /> : <Globe2 size={22} />}</span>
-                  <small>{item.kind === "file" ? "Document" : "Website"}</small>
-                </div>
-              )}
-              <div className="pl-work-caption">
-                <strong>{item.title}</strong>
-                <span className="pl-work-arrow"><ArrowUpRight size={15} /></span>
-              </div>
-            </motion.a>
-          );
-        })}
-      </div>
-    </PublicSection>
+    <>
+      {photoItems.length > 0 && (
+        <PublicSection
+          kicker="Visual Gallery"
+          icon={BriefcaseBusiness}
+          title="Moments & work in"
+          emphasis="focus."
+          className="pl-portfolio-gallery-section"
+        >
+          <PhotoCarousel
+            items={photoItems}
+            onSelectPhoto={(index) => {
+              setLightboxIndex(index);
+              onOpen?.(photoItems[index]);
+            }}
+          />
+        </PublicSection>
+      )}
+
+      {otherItems.length > 0 && (
+        <PublicSection
+          kicker="Selected work"
+          icon={BriefcaseBusiness}
+          title="A little proof of"
+          emphasis="the practice."
+          className="pl-portfolio"
+        >
+          <div className="pl-portfolio-grid">
+            {otherItems.map((item, index) => {
+              const href = toHref(item.url);
+              const linkProps = href === "#" ? {} : { href, target: "_blank", rel: "noreferrer", onClick: () => onOpen?.(item) };
+              const shot = item.kind === "link" ? websiteShotRequest(item.url) : null;
+              return (
+                <motion.a
+                  variants={revealUp}
+                  whileHover={{ y: -6 }}
+                  className={`pl-work ${index === 0 && otherItems.length > 2 ? "is-featured" : ""}`}
+                  key={item.id}
+                  {...linkProps}
+                >
+                  {item.kind === "video" ? (
+                    <video
+                      src={item.url}
+                      muted
+                      playsInline
+                      loop
+                      preload="metadata"
+                      onMouseEnter={(event) => void event.currentTarget.play().catch(() => undefined)}
+                      onMouseLeave={(event) => event.currentTarget.pause()}
+                    />
+                  ) : shot ? (
+                    <WebsiteShot request={shot} title={item.title} />
+                  ) : (
+                    <div className="pl-work-file">
+                      <span>{item.kind === "file" ? <FileText size={22} /> : <Globe2 size={22} />}</span>
+                      <small>{item.kind === "file" ? "Document" : "Website"}</small>
+                    </div>
+                  )}
+                  <div className="pl-work-caption">
+                    <div>
+                      <strong>{item.title}</strong>
+                      {item.description && <small className="pl-work-desc">{item.description}</small>}
+                    </div>
+                    <span className="pl-work-arrow"><ArrowUpRight size={15} /></span>
+                  </div>
+                </motion.a>
+              );
+            })}
+          </div>
+        </PublicSection>
+      )}
+
+      <GalleryLightbox
+        items={photoItems}
+        currentIndex={lightboxIndex}
+        onClose={() => setLightboxIndex(null)}
+        onNavigate={(index) => setLightboxIndex(index)}
+      />
+    </>
   );
 }
 

@@ -145,3 +145,18 @@ describe("uploadInlineMedia", () => {
     expect(parsePortfolio(result.portfolio).map((item) => item.url)).toEqual(["/storage/Deck", "https://ada.design"]);
   });
 });
+
+describe("parsePortfolio", () => {
+  it("parses gallery items including title, url, kind, and description", () => {
+    const raw = JSON.stringify([
+      { id: "1", kind: "image", title: "Sunset at Shore", url: "https://example.com/sunset.jpg", description: "Golden hour photo taken with Leica Q2" },
+      { id: "2", kind: "image", title: "Architecture", url: "https://example.com/arch.jpg" },
+      { id: "3", kind: "link", title: "Portfolio site", url: "https://example.com" },
+    ]);
+    const parsed = parsePortfolio(raw);
+    expect(parsed).toHaveLength(3);
+    expect(parsed[0].description).toBe("Golden hour photo taken with Leica Q2");
+    expect(parsed[0].kind).toBe("image");
+    expect(parsed[1].description).toBeUndefined();
+  });
+});

@@ -32,7 +32,9 @@ import {
   ArrowUpRight,
   BarChart3,
   Check,
+  ChevronDown,
   ChevronRight,
+  ChevronUp,
   CircleUserRound,
   Copy,
   FileText,
@@ -805,13 +807,188 @@ function ImagePicker({ label, hint, shape, value, onChange, onUpload, allowVideo
 function PortfolioEditor({ raw, onChange, onUpload }: { raw: string; onChange: (value: string) => void; onUpload: (file: File) => Promise<string> }) {
   const items = parsePortfolio(raw);
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [url, setUrl] = useState("");
-  const [kind, setKind] = useState<PortfolioItem["kind"]>("link");
+  const [kind, setKind] = useState<PortfolioItem["kind"]>("image");
   const [busy, setBusy] = useState(false);
+
   const addItem = (item: PortfolioItem) => onChange(JSON.stringify([...items, item]));
-  const addLink = () => { if (!url.trim()) return; addItem({ id: crypto.randomUUID(), kind, title: title.trim() || url.trim(), url: url.trim() }); setTitle(""); setUrl(""); };
-  const handleFile = async (file: File) => { setBusy(true); try { const uploadedUrl = await onUpload(file); const fileKind = file.type.startsWith("image/") ? "image" : file.type.startsWith("video/") ? "video" : "file"; addItem({ id: crypto.randomUUID(), kind: fileKind, title: title.trim() || file.name, url: uploadedUrl, mimeType: file.type }); setTitle(""); } catch (error: any) { toast.error(error?.message ?? "Could not upload that file."); } finally { setBusy(false); } };
-  return <div className="portfolio-editor"><div className="portfolio-add-row"><select value={kind} onChange={(event) => setKind(event.target.value as PortfolioItem["kind"])}><option value="link">Website link</option><option value="video">Video URL</option><option value="file">Document URL</option></select><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Project title" /><input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://…" /><button className="outline-button" type="button" onClick={addLink}><Plus size={14} /> Add</button></div><label className="upload-drop"><Upload size={17} /><span>{busy ? "Uploading…" : "Upload image, video, PDF, or other file"}</span><input type="file" accept="image/*,video/*,.pdf,.doc,.docx,.zip" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFile(file); event.currentTarget.value = ""; }} /></label><div className="portfolio-list">{items.map((item) => <div className="portfolio-item" key={item.id}>{item.kind === "image" ? <img src={item.url} alt="" /> : item.kind === "video" ? <span className="portfolio-item-icon"><Play size={15} /></span> : item.kind === "file" ? <span className="portfolio-item-icon"><FileText size={15} /></span> : <span className="portfolio-item-icon"><Link2 size={15} /></span>}<div><strong>{item.title}</strong><span>{item.kind} · {item.url.replace(/^https?:\/\//, "").slice(0, 42)}</span></div><button className="icon-button" type="button" onClick={() => onChange(JSON.stringify(items.filter((candidate) => candidate.id !== item.id)))} aria-label={`Remove ${item.title}`} title="Remove"><Trash2 size={14} /></button></div>)}{items.length === 0 ? <p className="editor-empty">Your work will appear here as a visual, a link, or a downloadable file.</p> : null}</div></div>;
+
+  const addUrlItem = () => {
+    if (!url.trim()) return;
+    addItem({
+      id: crypto.randomUUID(),
+      kind,
+      title: title.trim() || url.trim(),
+      url: url.trim(),
+      description: description.trim() || undefined,
+    });
+    setTitle("");
+    setUrl("");
+    setDescription("");
+  };
+
+  const handleFile = async (file: File) => {
+    setBusy(true);
+    try {
+      const uploadedUrl = await onUpload(file);
+      const fileKind = file.type.startsWith("image/") ? "image" : file.type.startsWith("video/") ? "video" : "file";
+      addItem({
+        id: crypto.randomUUID(),
+        kind: fileKind,
+        title: title.trim() || file.name,
+        url: uploadedUrl,
+        description: description.trim() || undefined,
+        mimeType: file.type,
+      });
+      setTitle("");
+      setDescription("");
+    } catch (error: any) {
+      toast.error(error?.message ?? "Could not upload that file.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const updateItem = (index: number, patch: Partial<PortfolioItem>) => {
+    const next = items.map((item, i) => (i === index ? { ...item, ...patch } : item));
+    onChange(JSON.stringify(next));
+  };
+
+  const moveItem = (index: number, direction: "up" | "down") => {
+    const target = direction === "up" ? index - 1 : index + 1;
+    if (target < 0 || target >= items.length) return;
+    const reordered = [...items];
+    const [moved] = reordered.splice(index, 1);
+    reordered.splice(target, 0, moved);
+    onChange(JSON.stringify(reordered));
+  };
+
+  return (
+    <div className="portfolio-editor">
+      <div className="portfolio-add-box">
+        <div className="portfolio-add-row">
+          <select value={kind} onChange={(event) => setKind(event.target.value as PortfolioItem["kind"])}>
+            <option value="image">Photo / Image</option>
+            <option value="link">Website link</option>
+            <option value="video">Video URL</option>
+            <option value="file">Document URL</option>
+          </select>
+          <input
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder={kind === "image" ? "Photo title / caption" : "Project title"}
+          />
+          <input
+            value={url}
+            onChange={(event) => setUrl(event.target.value)}
+            placeholder={kind === "image" ? "https://… (or upload below)" : "https://…"}
+          />
+          <button className="outline-button" type="button" onClick={addUrlItem} disabled={!url.trim()}>
+            <Plus size={14} /> Add
+          </button>
+        </div>
+
+        <textarea
+          className="portfolio-add-desc"
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          placeholder="Image description or project context (optional, shown in carousel & lightbox gallery)..."
+          rows={2}
+        />
+
+        <label className="upload-drop">
+          <Upload size={17} />
+          <span>{busy ? "Uploading photo / file…" : "Or click / drag photo to upload with above description"}</span>
+          <input
+            type="file"
+            accept="image/*,video/*,.pdf,.doc,.docx,.zip"
+            disabled={busy}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void handleFile(file);
+              event.currentTarget.value = "";
+            }}
+          />
+        </label>
+      </div>
+
+      <div className="portfolio-list">
+        {items.map((item, index) => (
+          <div className="portfolio-item-card" key={item.id}>
+            <div className="portfolio-item-top">
+              <div className="portfolio-item-thumb">
+                {item.kind === "image" ? (
+                  <img src={item.url} alt="" />
+                ) : item.kind === "video" ? (
+                  <span className="portfolio-item-icon"><Play size={15} /></span>
+                ) : item.kind === "file" ? (
+                  <span className="portfolio-item-icon"><FileText size={15} /></span>
+                ) : (
+                  <span className="portfolio-item-icon"><Link2 size={15} /></span>
+                )}
+              </div>
+
+              <div className="portfolio-item-info">
+                <input
+                  className="portfolio-item-title-input"
+                  value={item.title}
+                  onChange={(e) => updateItem(index, { title: e.target.value })}
+                  placeholder="Title"
+                />
+                <span className="portfolio-item-meta">
+                  {item.kind} · {item.url.replace(/^https?:\/\//, "").slice(0, 36)}
+                </span>
+              </div>
+
+              <div className="portfolio-item-actions">
+                <button
+                  type="button"
+                  className="icon-button"
+                  onClick={() => moveItem(index, "up")}
+                  disabled={index === 0}
+                  title="Move slide up / earlier"
+                  aria-label="Move slide up"
+                >
+                  <ChevronUp size={14} />
+                </button>
+                <button
+                  type="button"
+                  className="icon-button"
+                  onClick={() => moveItem(index, "down")}
+                  disabled={index === items.length - 1}
+                  title="Move slide down / later"
+                  aria-label="Move slide down"
+                >
+                  <ChevronDown size={14} />
+                </button>
+                <button
+                  className="icon-button"
+                  type="button"
+                  onClick={() => onChange(JSON.stringify(items.filter((c) => c.id !== item.id)))}
+                  aria-label={`Remove ${item.title}`}
+                  title="Remove"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+
+            <textarea
+              className="portfolio-item-desc-input"
+              value={item.description ?? ""}
+              onChange={(e) => updateItem(index, { description: e.target.value })}
+              placeholder="Add description for carousel / gallery lightbox..."
+              rows={2}
+            />
+          </div>
+        ))}
+        {items.length === 0 ? (
+          <p className="editor-empty">Add photos, documents, or website links. Photos will automatically form an interactive swipeable carousel with descriptions on your card.</p>
+        ) : null}
+      </div>
+    </div>
+  );
 }
 
 function ChannelsEditor({ raw, onChange }: { raw: string; onChange: (value: string) => void }) {

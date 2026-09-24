@@ -86,3 +86,17 @@ User brief → original-brand / anti-slop rules → cited implementation princip
 - Removed unused scaffolding: LLM, image generation, voice, maps, and data API helpers plus their client components; `@anthropic-ai/sdk`, `streamdown`, `@types/google.maps`.
 - Gates run: `tsc --noEmit`, `vitest run` (39 tests, new: `meta`, `rateLimit`, `uploadTypes`, `card`), `pnpm build`. Local production-mode browser pass without a database: landing, legal, 404, app shell, skip link, security headers, robots, sitemap, health, body limit; no console or CSP errors. `/c/:slug` server rendering was not exercised against a live database.
 - Follow-ups for the owner: set `SITE_URL`, `VITE_SUPPORT_EMAIL`, and Upstash env vars in Vercel; remove `ANTHROPIC_API_KEY`; point an uptime monitor at `/api/health`; run a Supabase restore drill; add privacy and homepage URLs to the Google OAuth consent screen; review the legal text; decide on the name clash with heyitsme.app, on listing published cards in the sitemap, and on an account-deletion feature.
+
+## Run: photo carousel & description gallery
+
+- Grill answers: swipeable interactive photo carousel with expandable lightbox showing full image and rich descriptions; both card builder editor and public `/c/:slug` cards supported; stored in existing `cards.portfolio` JSON payload; powered by `embla-carousel-react`.
+- Components created:
+  - `client/src/components/PhotoCarousel.tsx`: touch/swipe carousel, dot indicators, prev/next navigation, keyboard accessibility.
+  - `client/src/components/GalleryLightbox.tsx`: full-screen modal lightbox, image containment, title and full description view, keyboard shortcuts (`Esc`, `ArrowLeft`, `ArrowRight`), slide counter.
+- Updates:
+  - `client/src/pages/PublicCard.tsx`: enhanced `PublicPortfolio` to filter photo items into `PhotoCarousel` with click-to-expand lightbox, while preserving non-image work items in the grid.
+  - `client/src/pages/Home.tsx`: upgraded `PortfolioEditor` to support photo descriptions, inline description editing, and slide reordering (Move Up / Move Down).
+  - `client/src/index.css`: tactile glassmorphic styling, responsive layout (mobile to desktop), fluid transitions, and reduced motion compliance.
+  - `client/src/lib/card.test.ts`: added test suite for gallery items with descriptions.
+  - `client/public/llms.txt`: updated AI discoverability content.
+- Gates run: `tsc --noEmit`, `vitest run` (64/64 tests passed), `pnpm run build` (clean Vite + esbuild).

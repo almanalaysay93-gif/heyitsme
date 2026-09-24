@@ -8,6 +8,7 @@ heyitsme is a free digital business card and professional presence web product.
 - Share a browser-first public card through a link or QR code.
 - Let a recipient save or exchange contact details without installing an app.
 - Keep a personal contact list with search and CSV export.
+- Add an interactive photo carousel and visual gallery with expandable full-screen lightbox and image descriptions.
 - Add a portfolio of images, videos, documents, and project links.
 - Add social and direct communication channels including WhatsApp, Telegram, Viber, Signal, and Calendly.
 - Publish approved comments from past clients as references.
