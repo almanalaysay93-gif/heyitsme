@@ -13,6 +13,8 @@ import {
   themeOptions,
   toDraft,
   toHref,
+  websiteShotFrom,
+  websiteShotRequest,
   type CardDraft,
   type PortfolioItem,
   type ReferenceRow,
@@ -89,6 +91,35 @@ function PublicSection({ kicker, icon: Icon, title, emphasis, className = "", ch
   );
 }
 
+/** A website tile: the plain tile until a screenshot of the site loads, and for good if the site can't be shown. */
+function WebsiteShot({ request, title }: { request: string; title: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let active = true;
+    fetch(request)
+      .then((response) => response.json())
+      .then((answer) => { if (active) setSrc(websiteShotFrom(answer)); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [request]);
+  return (
+    <div className="pl-work-file pl-work-site">
+      <span><Globe2 size={22} /></span>
+      <small>Website</small>
+      {src ? (
+        <img
+          src={src}
+          alt={`Screenshot of ${title}`}
+          className={ready ? "is-ready" : undefined}
+          onLoad={() => setReady(true)}
+          onError={() => setSrc(null)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 function PublicPortfolio({ items, onOpen }: { items: PortfolioItem[]; onOpen?: (item: PortfolioItem) => void }) {
   if (!items.length) return null;
   return (
@@ -98,6 +129,7 @@ function PublicPortfolio({ items, onOpen }: { items: PortfolioItem[]; onOpen?: (
           // Preview uploads are data: URLs that toHref blanks to "#", so they show without a link.
           const href = toHref(item.url);
           const linkProps = href === "#" ? {} : { href, target: "_blank", rel: "noreferrer", onClick: () => onOpen?.(item) };
+          const shot = item.kind === "link" ? websiteShotRequest(item.url) : null;
           return (
             <motion.a
               variants={revealUp}
@@ -110,6 +142,8 @@ function PublicPortfolio({ items, onOpen }: { items: PortfolioItem[]; onOpen?: (
                 <img src={item.url} alt={item.title} loading="lazy" />
               ) : item.kind === "video" ? (
                 <video src={item.url} muted playsInline loop preload="metadata" onMouseEnter={(event) => void event.currentTarget.play().catch(() => undefined)} onMouseLeave={(event) => event.currentTarget.pause()} />
+              ) : shot ? (
+                <WebsiteShot request={shot} title={item.title} />
               ) : (
                 <div className="pl-work-file">
                   <span>{item.kind === "file" ? <FileText size={22} /> : <Globe2 size={22} />}</span>

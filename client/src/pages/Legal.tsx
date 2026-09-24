@@ -104,6 +104,7 @@ export function PrivacyPage() {
         <li><strong>Google</strong> handles sign-in.</li>
         <li><strong>Vercel</strong> hosts the site and API.</li>
         <li><strong>Supabase</strong> hosts the database with accounts, cards, contacts, and activity.</li>
+        <li><strong>Microlink</strong> takes the screenshots shown for website links on cards. Browsers load them from Microlink.</li>
         <li><strong>S3-compatible object storage</strong> holds the images and files you upload.</li>
       </ul>
       <p>They may process data in countries other than yours.</p>

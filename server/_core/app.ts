@@ -15,7 +15,8 @@ export const CONTENT_SECURITY_POLICY = [
   "img-src 'self' data: blob: https:",
   "media-src 'self' data: blob: https:",
   "font-src 'self' data:",
-  "connect-src 'self'",
+  // Website tiles on cards ask Microlink for a screenshot of the site.
+  "connect-src 'self' https://api.microlink.io",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

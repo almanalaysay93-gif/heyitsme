@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildVCard, cardPayload, channelHref, emptyCard, parseChannels, parseLinks, parsePortfolio, toHref, uploadInlineMedia } from "./card";
+import { buildVCard, cardPayload, channelHref, emptyCard, parseChannels, parseLinks, parsePortfolio, toHref, uploadInlineMedia, websiteShotFrom, websiteShotRequest } from "./card";
 
 describe("toHref", () => {
   it("blocks script-capable schemes, including obfuscated ones", () => {
@@ -16,6 +16,29 @@ describe("toHref", () => {
     expect(toHref("/storage/file.pdf")).toBe("/storage/file.pdf");
     expect(toHref("ada.design")).toBe("https://ada.design");
     expect(toHref("   ")).toBe("#");
+  });
+});
+
+describe("website screenshots", () => {
+  it("asks for a screenshot of web pages only", () => {
+    const request = new URL(websiteShotRequest("paddlebase.org")!);
+    expect(request.origin).toBe("https://api.microlink.io");
+    expect(request.searchParams.get("url")).toBe("https://paddlebase.org");
+    expect(request.searchParams.get("screenshot")).toBe("true");
+    expect(websiteShotRequest("/storage/7-portfolio/deck.pdf")).toBeNull();
+    expect(websiteShotRequest("mailto:ada@example.com")).toBeNull();
+    expect(websiteShotRequest("javascript:alert(1)")).toBeNull();
+  });
+
+  it("uses the screenshot only when the site loaded", () => {
+    const shot = { url: "https://iad.microlink.io/abc.jpeg" };
+    expect(websiteShotFrom({ status: "success", statusCode: 200, data: { screenshot: shot } })).toBe(shot.url);
+    expect(websiteShotFrom({ status: "success", statusCode: 304, data: { screenshot: shot } })).toBe(shot.url);
+    // A domain that doesn't resolve comes back with no status code and a picture of the browser's error page.
+    expect(websiteShotFrom({ status: "success", statusCode: null, data: { screenshot: shot } })).toBeNull();
+    expect(websiteShotFrom({ status: "success", statusCode: 404, data: { screenshot: shot } })).toBeNull();
+    expect(websiteShotFrom({ status: "fail", code: "ERATE" })).toBeNull();
+    expect(websiteShotFrom({ status: "success", statusCode: 200, data: { screenshot: { url: "javascript:x" } } })).toBeNull();
   });
 });
 

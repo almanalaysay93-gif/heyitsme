@@ -169,6 +169,34 @@ export function toHref(raw: string): string {
   return `https://${v}`;
 }
 
+/**
+ * Where to ask Microlink for a screenshot of a website link. Its CDN keeps each answer for a day, and those
+ * cached answers don't count against its free daily limit. Null for anything that is not a web page.
+ */
+export function websiteShotRequest(url: string): string | null {
+  const href = toHref(url);
+  if (!/^https?:\/\//i.test(href)) return null;
+  const params = new URLSearchParams({
+    url: href,
+    screenshot: "true",
+    "viewport.width": "1280",
+    "viewport.height": "960",
+    "viewport.deviceScaleFactor": "1",
+    "screenshot.type": "jpeg",
+    // Sites that draw themselves with JavaScript are still blank when the page first loads.
+    waitForTimeout: "3000",
+  });
+  return `https://api.microlink.io/?${params}`;
+}
+
+/** The screenshot in a Microlink answer. Null when the site did not load, since a dead link is shot as a browser error page. */
+export function websiteShotFrom(answer: any): string | null {
+  const status = answer?.statusCode;
+  const shot = answer?.data?.screenshot?.url;
+  const loaded = answer?.status === "success" && typeof status === "number" && status < 400;
+  return loaded && typeof shot === "string" && shot.startsWith("https://") ? shot : null;
+}
+
 /** vCard 3.0 text for a card. `pageUrl` is the public page, `origin` resolves same-origin photo paths. */
 export function buildVCard(card: CardDraft, pageUrl: string, origin: string): string {
   const esc = (v: string) => v.replace(/[\\,;]/g, (m) => `\\${m}`).replace(/\r?\n/g, "\\n");

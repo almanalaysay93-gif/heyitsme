@@ -427,6 +427,9 @@ div.card-visual { cursor: default; }
 .pl-work-file { width: 100%; height: 100%; display: grid; place-items: center; align-content: center; gap: 10px; color: var(--pl-b); background: linear-gradient(145deg, color-mix(in srgb, var(--pl-c) 30%, #fff), #fff); }
 .pl-work-file span { width: 56px; height: 56px; display: grid; place-items: center; background: #fff; border-radius: 18px; box-shadow: 0 10px 24px rgba(30,30,90,.08); }
 .pl-work-file small { color: var(--muted-ink); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.pl-work-site { position: relative; }
+.pl-work .pl-work-site img { position: absolute; inset: 0; object-position: top; opacity: 0; transition: opacity .5s ease, transform .7s var(--ease-out); }
+.pl-work .pl-work-site img.is-ready { opacity: 1; }
 .pl-work-caption { position: absolute; inset: auto 10px 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 10px 10px 14px; color: var(--ink); background: rgba(255,255,255,.86); border-radius: 14px; backdrop-filter: blur(12px); }
 .pl-work-caption strong { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
 .pl-work-arrow { flex: none; width: 30px; height: 30px; display: grid; place-items: center; color: #fff; background: var(--ink); border-radius: 50%; transition: transform .3s var(--ease-out), background .2s; }
