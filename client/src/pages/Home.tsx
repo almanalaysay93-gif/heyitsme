@@ -7,6 +7,7 @@ import { isVideoUrl } from "@/components/LoopVideo";
 import { ShareSheet } from "@/components/ShareSheet";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import {
+  cardPayload,
   channelOptions,
   emptyCard,
   channelPlaceholder,
@@ -17,6 +18,7 @@ import {
   readPreviewCard,
   themeOptions,
   toDraft,
+  uploadInlineMedia,
   type CardDraft,
   type ChannelItem,
   type PortfolioItem,
@@ -174,7 +176,7 @@ export default function Home() {
   const markingSeen = useRef(false);
 
   const cards = useMemo(() => {
-    if (isAuthenticated && cardsQuery.data) return cardsQuery.data.map(toDraft);
+    if (isAuthenticated) return cardsQuery.data ? cardsQuery.data.map(toDraft) : [];
     return localCards;
   }, [cardsQuery.data, isAuthenticated, localCards]);
   const contacts = useMemo(() => {
@@ -230,6 +232,33 @@ export default function Home() {
     }
   }, [editId, cards, activeCard?.id, isBuilder, isAuthenticated, cardsQuery.isFetched]);
 
+  // Preview mode promises "sign in to sync it", so the first signed-in visit moves that card into the account.
+  const importingPreview = useRef(false);
+  useEffect(() => {
+    if (!isAuthenticated || !cardsQuery.isSuccess || importingPreview.current) return;
+    const preview = readPreviewCard();
+    if (!preview) return;
+    importingPreview.current = true;
+    void (async () => {
+      try {
+        const uploaded = await uploadInlineMedia(preview, async (file) => (await uploadMedia.mutateAsync(file)).url);
+        const created = await createCard.mutateAsync(cardPayload(uploaded));
+        window.localStorage.removeItem(PREVIEW_CARD_STORAGE_KEY);
+        setLocalCards([]);
+        await utils.cards.list.invalidate();
+        if (created) {
+          const next = toDraft(created);
+          setSelectedId((current) => (current === preview.id ? next.id : current));
+          setDraft((current) => (current.id === preview.id ? next : current));
+        }
+        toast.success("Your preview card is now saved to your account.");
+      } catch (error: any) {
+        // Kept in storage, so the next visit tries again.
+        toast.error(`Could not move your preview card into your account. ${error?.message ?? "Please try again."}`);
+      }
+    })();
+  }, [isAuthenticated, cardsQuery.isSuccess]);
+
   const openBuilder = (card?: CardDraft) => {
     const next = card ?? { ...emptyCard, updatedAt: new Date() };
     setSelectedId(next.id);
@@ -238,29 +267,14 @@ export default function Home() {
   };
 
   const saveDraft = async (options?: { publish?: boolean; redirect?: boolean }) => {
-    const rawEmail = draft.email.trim();
-    const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail);
-    const payload = {
-      displayName: draft.displayName.trim() || "Untitled card",
-      title: draft.title.trim() || "Professional",
-      company: draft.company.trim() || null,
-      email: isValidEmail ? rawEmail : null,
-      phone: draft.phone.trim() || null,
-      location: draft.location.trim() || null,
-      bio: draft.bio.trim() || null,
-      links: JSON.stringify(parseLinks(draft.links)),
-      portfolio: JSON.stringify(parsePortfolio(draft.portfolio)),
-      channels: JSON.stringify(parseChannels(draft.channels)),
-      theme: draft.theme,
-      avatarUrl: draft.avatarUrl || null,
-      coverUrl: draft.coverUrl || null,
-    };
+    const payload = cardPayload(draft);
     const shouldRedirect = options?.redirect ?? true;
 
     if (isAuthenticated) {
       try {
         let savedCard: CardDraft | null = null;
-        if (draft.id > 0) {
+        // A preview card's id is a timestamp, not a row in this account, so it is created, not updated.
+        if (cardsQuery.data?.some((card) => card.id === draft.id)) {
           const updated = await updateCard.mutateAsync({
             id: draft.id,
             ...payload,

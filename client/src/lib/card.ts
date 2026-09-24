@@ -117,6 +117,46 @@ export function toDraft(card: any): CardDraft {
   };
 }
 
+/** What the server stores for a card: trimmed text, empty fields as null, and only well-formed JSON lists. */
+export function cardPayload(card: CardDraft) {
+  const rawEmail = card.email.trim();
+  return {
+    displayName: card.displayName.trim() || "Untitled card",
+    title: card.title.trim() || "Professional",
+    company: card.company.trim() || null,
+    email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail) ? rawEmail : null,
+    phone: card.phone.trim() || null,
+    location: card.location.trim() || null,
+    bio: card.bio.trim() || null,
+    links: JSON.stringify(parseLinks(card.links)),
+    portfolio: JSON.stringify(parsePortfolio(card.portfolio)),
+    channels: JSON.stringify(parseChannels(card.channels)),
+    theme: card.theme,
+    avatarUrl: card.avatarUrl || null,
+    coverUrl: card.coverUrl || null,
+  };
+}
+
+export type InlineUpload = { fileName: string; contentType: string; dataBase64: string };
+
+/** Preview uploads are inline data: URLs, which the server does not store. Upload each one and use its stored URL. */
+export async function uploadInlineMedia(card: CardDraft, upload: (file: InlineUpload) => Promise<string>): Promise<CardDraft> {
+  const store = async (value: string, fileName: string) => {
+    const match = value.match(/^data:([^;,]*);base64,(.*)$/);
+    return match ? upload({ fileName, contentType: match[1] || "application/octet-stream", dataBase64: match[2] }) : value;
+  };
+  const portfolio: PortfolioItem[] = [];
+  for (const item of parsePortfolio(card.portfolio)) {
+    portfolio.push({ ...item, url: await store(item.url, item.title || "portfolio-file") });
+  }
+  return {
+    ...card,
+    avatarUrl: await store(card.avatarUrl, "profile-photo"),
+    coverUrl: await store(card.coverUrl, "cover"),
+    portfolio: JSON.stringify(portfolio),
+  };
+}
+
 export function toHref(raw: string): string {
   const v = (raw || "").trim();
   if (!v) return "#";

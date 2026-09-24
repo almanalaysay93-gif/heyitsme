@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildVCard, channelHref, emptyCard, parseChannels, parseLinks, parsePortfolio, toHref } from "./card";
+import { buildVCard, cardPayload, channelHref, emptyCard, parseChannels, parseLinks, parsePortfolio, toHref, uploadInlineMedia } from "./card";
 
 describe("toHref", () => {
   it("blocks script-capable schemes, including obfuscated ones", () => {
@@ -83,5 +83,42 @@ describe("buildVCard", () => {
     expect(vcard).toContain("FN:Contact");
     expect(vcard).not.toContain("PHOTO");
     expect(vcard).not.toContain("EMAIL");
+  });
+});
+
+describe("cardPayload", () => {
+  it("fills required fields and turns blanks and bad emails into null", () => {
+    const payload = cardPayload({ ...emptyCard, displayName: "  ", email: "not-an-email", company: " Northwind ", links: "a.com, b.com" });
+    expect(payload.displayName).toBe("Untitled card");
+    expect(payload.title).toBe("Professional");
+    expect(payload.email).toBeNull();
+    expect(payload.company).toBe("Northwind");
+    expect(payload.avatarUrl).toBeNull();
+    expect(payload.links).toBe('["a.com","b.com"]');
+  });
+});
+
+describe("uploadInlineMedia", () => {
+  it("uploads data: URLs and keeps links that are already stored", async () => {
+    const uploads: string[] = [];
+    const card = {
+      ...emptyCard,
+      avatarUrl: "data:image/webp;base64,QUJD",
+      coverUrl: "https://cdn.example/cover.jpg",
+      portfolio: JSON.stringify([
+        { id: "1", kind: "file", title: "Deck", url: "data:application/pdf;base64,UERG" },
+        { id: "2", kind: "link", title: "Site", url: "https://ada.design" },
+      ]),
+    };
+
+    const result = await uploadInlineMedia(card, async (file) => {
+      uploads.push(`${file.fileName}|${file.contentType}|${file.dataBase64}`);
+      return `/storage/${file.fileName}`;
+    });
+
+    expect(uploads).toEqual(["Deck|application/pdf|UERG", "profile-photo|image/webp|QUJD"]);
+    expect(result.avatarUrl).toBe("/storage/profile-photo");
+    expect(result.coverUrl).toBe("https://cdn.example/cover.jpg");
+    expect(parsePortfolio(result.portfolio).map((item) => item.url)).toEqual(["/storage/Deck", "https://ada.design"]);
   });
 });
