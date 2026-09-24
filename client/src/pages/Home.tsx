@@ -273,8 +273,10 @@ export default function Home() {
     if (isAuthenticated) {
       try {
         let savedCard: CardDraft | null = null;
-        // A preview card's id is a timestamp, not a row in this account, so it is created, not updated.
-        if (cardsQuery.data?.some((card) => card.id === draft.id)) {
+        // A preview card lives in this browser and is not a row in this account, so it is created, not updated.
+        // Checked against the preview cards, not the card list: the list reloads after a create, and saving again
+        // before it arrives would otherwise create the card a second time.
+        if (draft.id > 0 && !localCards.some((card) => card.id === draft.id)) {
           const updated = await updateCard.mutateAsync({
             id: draft.id,
             ...payload,
