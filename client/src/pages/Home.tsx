@@ -1,12 +1,15 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startGoogleLogin, startLogin } from "@/const";
+import { ContactsView, type ContactPatch, type ContactRow } from "@/components/ContactsView";
+import { InsightsView } from "@/components/InsightsView";
 import { LoopVideo, isVideoUrl } from "@/components/LoopVideo";
-import { Button } from "@/components/ui/button";
+import { ShareSheet } from "@/components/ShareSheet";
+import { copyToClipboard, downloadBlob, formatDate, getInitials, safeFileName } from "@/lib/cardKit";
 import { trpc } from "@/lib/trpc";
 import { AnimatePresence, motion, useMotionTemplate, useMotionValue, useReducedMotion, useScroll, useSpring, useTransform } from "framer-motion";
 import {
   ArrowUpRight,
-  AtSign,
+  BarChart3,
   BriefcaseBusiness,
   Check,
   ChevronRight,
@@ -46,7 +49,7 @@ import {
   X,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
@@ -75,19 +78,6 @@ type PortfolioItem = { id: string; kind: "image" | "video" | "file" | "link"; ti
 type ChannelItem = { provider: string; url: string; label?: string };
 type ReferenceRow = { id: number; clientName: string; clientRole?: string | null; company?: string | null; quote: string; approved?: boolean };
 
-type ContactRow = {
-  id: number;
-  name: string;
-  email?: string | null;
-  phone?: string | null;
-  company?: string | null;
-  title?: string | null;
-  tags?: string | null;
-  notes?: string | null;
-  source: string;
-  createdAt?: string | Date;
-};
-
 const emptyCard: CardDraft = {
   id: 0,
   displayName: "",
@@ -113,42 +103,6 @@ export const themeOptions = [
   { id: "tide", label: "Tide", colors: ["#062c31", "#28c2b3", "#b9fff5"] },
   { id: "sunset", label: "Sunset", colors: ["#301d34", "#f4816b", "#ffd5a7"] },
 ];
-
-async function copyToClipboard(text: string): Promise<boolean> {
-  if (!text) return false;
-  try {
-    if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch (err) {
-    // Clipboard API denied or unavailable, fall through to execCommand
-  }
-
-  try {
-    const textArea = document.createElement("textarea");
-    textArea.value = text;
-    textArea.style.position = "fixed";
-    textArea.style.top = "0";
-    textArea.style.left = "0";
-    textArea.style.width = "2em";
-    textArea.style.height = "2em";
-    textArea.style.padding = "0";
-    textArea.style.border = "none";
-    textArea.style.outline = "none";
-    textArea.style.boxShadow = "none";
-    textArea.style.background = "transparent";
-    textArea.setAttribute("readonly", "");
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-    const successful = document.execCommand("copy");
-    document.body.removeChild(textArea);
-    return successful;
-  } catch (err) {
-    return false;
-  }
-}
 
 function parseLinks(raw: string | null | undefined) {
   try {
@@ -214,15 +168,6 @@ function toDraft(card: any): CardDraft {
   };
 }
 
-function getInitials(name: string) {
-  return name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "HM";
-}
-
-function formatDate(value?: string | Date) {
-  if (!value) return "just now";
-  return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
 function GlassButton({ children, onClick, variant = "primary", type = "button", className = "", disabled = false }: any) {
   return (
     <button type={type} onClick={onClick} disabled={disabled} className={`glass-button glass-button-${variant} ${className}`}>
@@ -254,18 +199,19 @@ export function CardVisual({ card, compact = false, onClick }: { card: CardDraft
   );
 }
 
-function NavItem({ label, icon: Icon, active, onClick, badge, disabled = false }: any) {
+function NavItem({ label, icon: Icon, active, onClick, badge, badgeAlert = false, disabled = false }: any) {
   return (
     <button
       type="button"
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
+      aria-current={active ? "page" : undefined}
       className={`nav-item ${active ? "is-active" : ""} ${disabled ? "is-disabled" : ""}`}
       style={disabled ? { opacity: 0.55, cursor: "not-allowed" } : undefined}
     >
       <Icon size={17} strokeWidth={1.8} />
       <span>{label}</span>
-      {badge ? <span className="nav-badge">{badge}</span> : null}
+      {badge ? <span className={`nav-badge ${badgeAlert ? "is-alert" : ""}`}>{badge}</span> : null}
     </button>
   );
 }
@@ -281,7 +227,6 @@ export default function Home() {
   const [localContacts, setLocalContacts] = useState<ContactRow[]>([]);
   const [selectedId, setSelectedId] = useState<number>(() => readPreviewCard()?.id ?? 0);
   const [draft, setDraft] = useState<CardDraft>(() => readPreviewCard() ?? emptyCard);
-  const [search, setSearch] = useState("");
   const [showShare, setShowShare] = useState(false);
   const [sharingCard, setSharingCard] = useState<CardDraft | null>(null);
   const [undoCard, setUndoCard] = useState<CardDraft | null>(null);
@@ -297,7 +242,12 @@ export default function Home() {
   const createReference = trpc.references.create.useMutation();
   const deleteReferenceMutation = trpc.references.delete.useMutation();
   const deleteContactMutation = trpc.contacts.delete.useMutation();
+  const updateContactMutation = trpc.contacts.update.useMutation();
+  const markContactsSeen = trpc.contacts.markSeen.useMutation();
+  const weekInsights = trpc.insights.summary.useQuery({ days: 7 }, { enabled: isAuthenticated, retry: false });
   const utils = trpc.useUtils();
+  const [newContactIds, setNewContactIds] = useState<Set<number>>(() => new Set());
+  const markingSeen = useRef(false);
 
   const cards = useMemo(() => {
     if (isAuthenticated && cardsQuery.data) return cardsQuery.data.map(toDraft);
@@ -309,7 +259,26 @@ export default function Home() {
   }, [contactsQuery.data, isAuthenticated, localContacts]);
   const activeCard = cards.find((card) => card.id === selectedId) ?? cards[0] ?? draft;
   const path = window.location.pathname;
-  const mode = path.includes("/contacts") ? "contacts" : path.includes("/cards") ? "cards" : "overview";
+  const mode = path.includes("/contacts") ? "contacts" : path.includes("/insights") ? "insights" : path.includes("/cards") ? "cards" : "overview";
+  const unseenCount = contacts.filter((contact) => !contact.seenAt).length;
+
+  // Opening Contacts marks everyone as seen, but keeps this visit's arrivals flagged "New" until you leave the page.
+  useEffect(() => {
+    if (mode !== "contacts") {
+      setNewContactIds((current) => (current.size ? new Set() : current));
+      return;
+    }
+    if (!isAuthenticated || !contactsQuery.data || markingSeen.current) return;
+    const unseen = contactsQuery.data.filter((contact) => !contact.seenAt).map((contact) => contact.id);
+    if (!unseen.length) return;
+    setNewContactIds((current) => new Set([...Array.from(current), ...unseen]));
+    markingSeen.current = true;
+    markContactsSeen.mutate(undefined, {
+      onSettled: () => {
+        void utils.contacts.list.invalidate().finally(() => { markingSeen.current = false; });
+      },
+    });
+  }, [mode, isAuthenticated, contactsQuery.data]);
   const isBuilder = path.includes("/new") || path.includes("/edit");
 
   const editMatch = path.match(/^\/app\/cards\/(\d+)\/edit/);
@@ -497,16 +466,43 @@ export default function Home() {
     }
   };
 
-  const exportContacts = () => {
-    const header = "name,email,phone,company,title,source\n";
-    const rows = contacts.map((contact) => [contact.name, contact.email, contact.phone, contact.company, contact.title, contact.source].map((cell) => `"${String(cell ?? "").replaceAll('"', '""')}"`).join(",")).join("\n");
-    const blob = new Blob([header + rows], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = "heyitsme-contacts.csv";
-    anchor.click();
-    URL.revokeObjectURL(url);
+  const updateContact = async (id: number, patch: ContactPatch): Promise<boolean> => {
+    try {
+      if (isAuthenticated) {
+        const updated = await updateContactMutation.mutateAsync({ id, ...patch });
+        utils.contacts.list.setData(undefined, (current) => current?.map((contact) => (contact.id === id ? updated : contact)));
+      } else {
+        setLocalContacts((current) => current.map((contact) => contact.id === id ? {
+          ...contact,
+          ...(patch.tags ? { tags: JSON.stringify(patch.tags) } : {}),
+          ...(patch.notes !== undefined ? { notes: patch.notes } : {}),
+          ...(patch.followedUp !== undefined ? { followedUp: patch.followedUp } : {}),
+        } : contact));
+      }
+      if (patch.followedUp !== undefined && patch.tags === undefined && patch.notes === undefined) {
+        toast.success(patch.followedUp ? "Marked as followed up." : "Moved back to needs follow-up.");
+      } else {
+        toast.success("Contact updated.");
+      }
+      return true;
+    } catch (error: any) {
+      toast.error(error?.message ?? "Could not update that contact.");
+      return false;
+    }
+  };
+
+  const deleteContact = async (id: number) => {
+    try {
+      if (isAuthenticated) {
+        await deleteContactMutation.mutateAsync({ id });
+        await utils.contacts.list.invalidate();
+      } else {
+        setLocalContacts((current) => current.filter((c) => c.id !== id));
+      }
+      toast.success("Contact deleted.");
+    } catch (error: any) {
+      toast.error(error?.message ?? "Could not delete that contact.");
+    }
   };
 
   const addMediaFile = async (file: File) => {
@@ -567,7 +563,15 @@ export default function Home() {
         <nav>
           <NavItem label="Overview" icon={LayoutGrid} active={mode === "overview"} onClick={() => { navigate("/app"); setMobileNavOpen(false); }} />
           <NavItem label="My cards" icon={CircleUserRound} active={mode === "cards"} badge={cards.length} onClick={() => { navigate("/app/cards"); setMobileNavOpen(false); }} />
-          <NavItem label="Contacts" icon={UsersRound} active={mode === "contacts"} badge={contacts.length} onClick={() => { navigate("/app/contacts"); setMobileNavOpen(false); }} />
+          <NavItem
+            label="Contacts"
+            icon={UsersRound}
+            active={mode === "contacts"}
+            badge={unseenCount > 0 ? `${unseenCount} new` : contacts.length}
+            badgeAlert={unseenCount > 0}
+            onClick={() => { navigate("/app/contacts"); setMobileNavOpen(false); }}
+          />
+          <NavItem label="Insights" icon={BarChart3} active={mode === "insights"} onClick={() => { navigate("/app/insights"); setMobileNavOpen(false); }} />
         </nav>
         <div className="nav-section-label nav-section-spaced">Keep exploring</div>
         <nav>
@@ -601,7 +605,7 @@ export default function Home() {
           <div className="crumbs">
             <span>Workspace</span>
             <ChevronRight size={14} />
-            <strong>{isBuilder ? "Card builder" : mode === "contacts" ? "Contacts" : mode === "cards" ? "My cards" : "Overview"}</strong>
+            <strong>{isBuilder ? "Card builder" : mode === "contacts" ? "Contacts" : mode === "insights" ? "Insights" : mode === "cards" ? "My cards" : "Overview"}</strong>
           </div>
           <div className="topbar-actions">
             <span className="live-pill"><span className="pulse-dot" /> all systems lovely</span>
@@ -657,26 +661,14 @@ export default function Home() {
             />
           ) : mode === "contacts" ? (
             <ContactsView
-              contacts={contacts.filter((contact) =>
-                `${contact.name} ${contact.company ?? ""} ${contact.email ?? ""}`.toLowerCase().includes(search.toLowerCase())
-              )}
-              search={search}
-              setSearch={setSearch}
-              onExport={exportContacts}
-              onDeleteContact={async (id: number) => {
-                try {
-                  if (isAuthenticated) {
-                    await deleteContactMutation.mutateAsync({ id });
-                    await utils.contacts.list.invalidate();
-                  } else {
-                    setLocalContacts((current) => current.filter((c) => c.id !== id));
-                  }
-                  toast.success("Contact deleted.");
-                } catch (error: any) {
-                  toast.error(error?.message ?? "Could not delete that contact.");
-                }
-              }}
+              contacts={contacts}
+              cards={cards}
+              newIds={newContactIds}
+              onUpdate={updateContact}
+              onDelete={deleteContact}
             />
+          ) : mode === "insights" ? (
+            <InsightsView isAuthenticated={isAuthenticated} onSignIn={startGoogleLogin} />
           ) : mode === "cards" ? (
             <CardsView
               cards={cards}
@@ -704,6 +696,8 @@ export default function Home() {
                 setShowShare(true);
               }}
               onCopy={() => copyPublicLink(activeCard)}
+              weekViews={weekInsights.data?.daily}
+              onInsights={() => navigate("/app/insights")}
             />
           )}
         </div>
@@ -712,6 +706,7 @@ export default function Home() {
       {showShare && (sharingCard || activeCard) ? (
         <ShareSheet
           card={sharingCard ?? activeCard}
+          accent={(themeOptions.find((theme) => theme.id === (sharingCard ?? activeCard).theme) ?? themeOptions[0]).colors[1]}
           onClose={() => {
             setShowShare(false);
             setSharingCard(null);
@@ -725,7 +720,22 @@ export default function Home() {
   );
 }
 
-function OverviewView({ cards, contacts, activeCard, onNew, onEdit, onShare, onCopy }: any) {
+function WeekViews({ daily, onOpen }: { daily?: { day: string; views: number }[]; onOpen: () => void }) {
+  const total = daily?.reduce((sum, point) => sum + point.views, 0) ?? 0;
+  const max = Math.max(1, ...(daily ?? []).map((point) => point.views));
+  return (
+    <button type="button" className="week-views" onClick={onOpen} aria-label={daily ? `${total} views in the last 7 days. Open insights` : "Open insights"}>
+      <span className="week-views-bars" aria-hidden="true">
+        {(daily ?? Array.from({ length: 7 }, (_, index) => ({ day: String(index), views: 0 }))).map((point) => (
+          <i key={point.day} style={{ height: point.views ? `${Math.max(12, (point.views / max) * 100)}%` : undefined }} className={point.views ? "" : "is-empty"} />
+        ))}
+      </span>
+      <span className="week-views-copy">{daily ? `${total.toLocaleString()} view${total === 1 ? "" : "s"} · 7 days` : "Views · 7 days"}</span>
+    </button>
+  );
+}
+
+function OverviewView({ cards, contacts, activeCard, onNew, onEdit, onShare, onCopy, weekViews, onInsights }: any) {
   return (
     <motion.div className="page-stack" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }}>
       <div className="hero-row"><div><span className="section-kicker"><Sparkles size={14} /> Your presence, in motion</span><h1>Make the introduction<br /><em>feel like you.</em></h1><p className="hero-copy">Create a living professional card that carries your context into every room — no app, no awkward handoff.</p><div className="hero-actions"><GlassButton onClick={onNew}><Plus size={16} /> Create a new card</GlassButton><button className="text-button" onClick={onShare}><QrCode size={16} /> Share your card</button></div></div><div className="hero-note"><span>01</span><p>One link.<br />Every detail.</p><ArrowUpRight size={20} /></div></div>
@@ -752,7 +762,7 @@ function OverviewView({ cards, contacts, activeCard, onNew, onEdit, onShare, onC
             <span className="mini-label">Cards in orbit</span>
             <strong>{cards.length}</strong>
             <span className="stat-caption">All yours. Unlimited.</span>
-            <div className="stat-sparkline"><i /><i /><i /><i /><i /><i /><i /></div>
+            <WeekViews daily={weekViews} onOpen={onInsights} />
           </div>
           <div className="stat-panel glass-panel stat-panel-lilac">
             <span className="mini-label">People you met</span>
@@ -992,16 +1002,7 @@ function buildVCard(card: CardDraft): string {
 }
 
 function downloadVCard(card: CardDraft) {
-  const vcard = buildVCard(card);
-  const blob = new Blob([vcard], { type: "text/vcard;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = `${(card.displayName || "contact").replace(/[^a-zA-Z0-9_-]/g, "_")}.vcf`;
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-  URL.revokeObjectURL(url);
+  downloadBlob(new Blob([buildVCard(card)], { type: "text/vcard;charset=utf-8" }), `${safeFileName(card.displayName, "contact")}.vcf`);
   toast.success("Contact file (.vcf) downloaded.");
 }
 
@@ -1017,174 +1018,6 @@ function Field({ label, value, onChange, placeholder, type = "text", required = 
         required={required}
       />
     </label>
-  );
-}
-
-function ContactsView({ contacts, search, setSearch, onExport, onDeleteContact }: any) {
-  const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
-
-  const handleCopyEmail = async (email?: string | null) => {
-    if (!email) {
-      toast.error("No email for this contact.");
-      return;
-    }
-    setActiveMenuId(null);
-    if (await copyToClipboard(email)) toast.success("Email copied.");
-    else toast.info(email);
-  };
-
-  return (
-    <motion.div className="page-stack" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-      <div className="page-heading-row">
-        <div>
-          <span className="section-kicker"><UsersRound size={14} /> Your people</span>
-          <h1>Keep the<br /><em>good ones close.</em></h1>
-          <p>Every saved card becomes a relationship you can return to.</p>
-        </div>
-        <button className="outline-button" onClick={onExport}><Download size={15} /> Export CSV</button>
-      </div>
-      <div className="contacts-toolbar glass-panel">
-        <div className="search-field">
-          <AtSign size={16} />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search people, companies, notes…" />
-          {search ? <button onClick={() => setSearch("")}><X size={15} /></button> : null}
-        </div>
-        <span>{contacts.length} contact{contacts.length === 1 ? "" : "s"}</span>
-      </div>
-      <div className="contacts-list glass-panel">
-        {contacts.map((contact: ContactRow, index: number) => (
-          <motion.div className="contact-row" key={contact.id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.05 }} style={{ position: "relative" }}>
-            <div className="contact-avatar">{getInitials(contact.name)}</div>
-            <div className="contact-main">
-              <strong>{contact.name}</strong>
-              <span>{contact.title || "Contact"}{contact.company ? ` · ${contact.company}` : ""}</span>
-            </div>
-            <div className="contact-detail">
-              <span>{contact.email || "No email added"}</span>
-              <small>{contact.source === "exchange_form" ? "Exchanged details" : "Saved from your card"}</small>
-            </div>
-            <div className="contact-date">{formatDate(contact.createdAt)}</div>
-            <button
-              className="icon-button"
-              type="button"
-              onClick={() => setActiveMenuId(activeMenuId === contact.id ? null : contact.id)}
-              aria-label="Contact options"
-            >
-              <MoreHorizontal size={16} />
-            </button>
-            {activeMenuId === contact.id && (
-              <div
-                className="glass-panel"
-                style={{
-                  position: "absolute",
-                  right: "12px",
-                  top: "45px",
-                  zIndex: 10,
-                  display: "flex",
-                  flexDirection: "column",
-                  padding: "6px",
-                  minWidth: "140px",
-                  boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
-                }}
-              >
-                {contact.email && (
-                  <button
-                    className="link-button"
-                    style={{ padding: "8px", textAlign: "left", fontSize: "13px" }}
-                    onClick={() => handleCopyEmail(contact.email)}
-                  >
-                    Copy email
-                  </button>
-                )}
-                <button
-                  className="link-button"
-                  style={{ padding: "8px", textAlign: "left", fontSize: "13px", color: "var(--destructive, #e5484d)" }}
-                  onClick={() => {
-                    setActiveMenuId(null);
-                    if (window.confirm(`Delete ${contact.name}?`)) {
-                      onDeleteContact(contact.id);
-                    }
-                  }}
-                >
-                  Delete contact
-                </button>
-              </div>
-            )}
-          </motion.div>
-        ))}
-        {contacts.length === 0 ? (
-          <div className="empty-state">
-            <UserRoundPlus size={24} />
-            <strong>No matches yet.</strong>
-            <span>Share your card to start collecting warm introductions.</span>
-          </div>
-        ) : null}
-      </div>
-    </motion.div>
-  );
-}
-
-function ShareSheet({
-  card,
-  onClose,
-  onCopy,
-  isAuthenticated,
-  onPublish,
-}: {
-  card: CardDraft;
-  onClose: () => void;
-  onCopy: () => void;
-  isAuthenticated?: boolean;
-  onPublish?: () => void;
-}) {
-  const url = `${window.location.origin}/c/${card.slug}`;
-  const isReady = Boolean(isAuthenticated && card.id > 0 && card.published);
-  return (
-    <motion.div className="sheet-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
-      <motion.div className="share-sheet glass-panel" initial={{ opacity: 0, y: 24, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: "spring", stiffness: 360, damping: 30 }} onClick={(event) => event.stopPropagation()}>
-        <div className="sheet-header">
-          <div>
-            <span className="mini-label">Share your card</span>
-            <h2>Make the handoff easy.</h2>
-          </div>
-          <button className="icon-button" onClick={onClose}><X size={17} /></button>
-        </div>
-        {isReady ? (
-          <>
-            <div className="qr-frame"><QRCodeSVG value={url} size={176} bgColor="transparent" fgColor="#10152a" includeMargin /></div>
-            <div className="share-link"><Link2 size={15} /><span>{url.replace(window.location.origin, "")}</span><button onClick={onCopy}><Copy size={15} /></button></div>
-            <div className="share-actions">
-              <a href={`sms:?body=${encodeURIComponent(`Here’s my heyitsme card: ${url}`)}`}><MessageCircle size={16} /> Text it</a>
-              <a href={`mailto:?subject=${encodeURIComponent(`${card.displayName} shared a card`)}&body=${encodeURIComponent(url)}`}><Mail size={16} /> Email it</a>
-              <a href={url} target="_blank" rel="noreferrer"><ExternalLink size={16} /> Open page</a>
-            </div>
-            <p className="sheet-footnote"><span className="status-dot is-live" /> Anyone with the link can view it. No app needed.</p>
-          </>
-        ) : (
-          <div className="share-sheet-unpublished" style={{ textAlign: "center", padding: "28px 16px" }}>
-            <p style={{ marginBottom: "16px", color: "var(--muted-foreground, #888)", fontSize: "15px" }}>
-              {!isAuthenticated
-                ? "Sign in to publish this card and create a shareable link."
-                : !card.published
-                ? "This card is currently private. Publish it to enable sharing and QR codes."
-                : "Save this card first to generate a shareable link."}
-            </p>
-            {onPublish && isAuthenticated && !card.published ? (
-              <button
-                className="glass-button glass-button-primary"
-                type="button"
-                onClick={() => {
-                  onPublish();
-                  onClose();
-                }}
-              >
-                Publish card
-              </button>
-            ) : null}
-          </div>
-        )}
-      </motion.div>
-    </motion.div>
   );
 }
 
@@ -1224,7 +1057,7 @@ function PublicSection({ kicker, icon: Icon, title, emphasis, className = "", ch
   );
 }
 
-function PublicPortfolio({ items }: { items: PortfolioItem[] }) {
+function PublicPortfolio({ items, onOpen }: { items: PortfolioItem[]; onOpen?: (item: PortfolioItem) => void }) {
   if (!items.length) return null;
   return (
     <PublicSection kicker="Selected work" icon={BriefcaseBusiness} title="A little proof of" emphasis="the practice." className="pl-portfolio">
@@ -1238,6 +1071,7 @@ function PublicPortfolio({ items }: { items: PortfolioItem[] }) {
             target="_blank"
             rel="noreferrer"
             key={item.id}
+            onClick={() => onOpen?.(item)}
           >
             {item.kind === "image" ? (
               <img src={item.url} alt={item.title} loading="lazy" />
@@ -1315,8 +1149,10 @@ export function TiltCard({ children, className = "" }: { children: React.ReactNo
 export function PublicCardPage() {
   const [location] = useLocation();
   const slug = location.split("/c/")[1]?.split("/")[0] ?? "";
-  const cardQuery = trpc.publicCard.bySlug.useQuery({ slug }, { enabled: Boolean(slug), retry: false });
+  // One view per page load: refetching on focus would log a new view each time the visitor switches tabs.
+  const cardQuery = trpc.publicCard.bySlug.useQuery({ slug }, { enabled: Boolean(slug), retry: false, refetchOnWindowFocus: false, staleTime: Infinity });
   const exchange = trpc.publicCard.exchange.useMutation();
+  const trackEvent = trpc.publicCard.track.useMutation();
   const [showForm, setShowForm] = useState(false);
   const [sent, setSent] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", phone: "", company: "", title: "", notes: "", website: "" });
@@ -1378,7 +1214,19 @@ export function PublicCardPage() {
   const firstName = card.displayName.split(" ")[0] || card.displayName;
   const canExchange = card.id > 0;
 
+  // Best-effort counters for the owner's Insights; a failed ping never interrupts the visitor.
+  const track = (type: "vcard" | "link" | "share", target?: string) => {
+    if (card.id <= 0) return;
+    trackEvent.mutate({ cardId: card.id, type, target: target?.slice(0, 80) || null }, { onError: () => undefined });
+  };
+
+  const saveContact = () => {
+    downloadVCard(card);
+    track("vcard");
+  };
+
   const copyLink = async () => {
+    track("share", "copy");
     if (await copyToClipboard(window.location.href)) toast.success("Link copied.");
     else toast.info(window.location.href);
   };
@@ -1387,6 +1235,7 @@ export function PublicCardPage() {
     if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
       try {
         await navigator.share({ title: card.displayName, url: window.location.href });
+        track("share", "native");
         return;
       } catch (error: any) {
         if (error?.name === "AbortError") return;
@@ -1432,10 +1281,13 @@ export function PublicCardPage() {
   };
 
   const contactRows = [
-    card.email ? { key: "email", icon: Mail, label: "Email", value: card.email, href: `mailto:${card.email}` } : null,
-    card.phone ? { key: "phone", icon: Phone, label: "Call or text", value: card.phone, href: `tel:${card.phone.replace(/\s+/g, "")}` } : null,
-    ...links.map((link: string) => ({ key: `link-${link}`, icon: Globe2, label: "Website", value: link.replace(/^https?:\/\//, "").replace(/\/$/, ""), href: toHref(link), external: true })),
-  ].filter(Boolean) as { key: string; icon: any; label: string; value: string; href: string; external?: boolean }[];
+    card.email ? { key: "email", icon: Mail, label: "Email", value: card.email, href: `mailto:${card.email}`, target: "Email" } : null,
+    card.phone ? { key: "phone", icon: Phone, label: "Call or text", value: card.phone, href: `tel:${card.phone.replace(/\s+/g, "")}`, target: "Phone" } : null,
+    ...links.map((link: string) => {
+      const value = link.replace(/^https?:\/\//, "").replace(/\/$/, "");
+      return { key: `link-${link}`, icon: Globe2, label: "Website", value, href: toHref(link), external: true, target: value.replace(/^www\./, "") };
+    }),
+  ].filter(Boolean) as { key: string; icon: any; label: string; value: string; href: string; external?: boolean; target: string }[];
 
   return (
     <div
@@ -1478,7 +1330,7 @@ export function PublicCardPage() {
           <motion.p className="pl-bio" variants={revealUp}>{card.bio || "Nice to meet you. Let’s keep the conversation going."}</motion.p>
 
           <motion.div className="pl-actions" variants={revealUp}>
-            <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }} type="button" className="pl-btn pl-btn-primary" onClick={() => downloadVCard(card)}>
+            <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }} type="button" className="pl-btn pl-btn-primary" onClick={saveContact}>
               <Download size={16} /> Save contact
             </motion.button>
             {canExchange ? (
@@ -1504,6 +1356,7 @@ export function PublicCardPage() {
                   key={`${channel.provider}-${index}`}
                   aria-label={channelLabel(channel)}
                   title={channelLabel(channel)}
+                  onClick={() => track("link", channelLabel(channel))}
                 >
                   <ChannelIcon provider={channel.provider} />
                 </motion.a>
@@ -1518,14 +1371,14 @@ export function PublicCardPage() {
               <PublicSection kicker="Reach me" icon={MessageCircle} title="Pick the easiest" emphasis="way in." className="pl-links">
                 <div className="pl-link-list">
                   {contactRows.map((row) => (
-                    <motion.a variants={revealUp} whileTap={{ scale: 0.98 }} className="pl-link" href={row.href} key={row.key} {...(row.external ? { target: "_blank", rel: "noreferrer" } : {})}>
+                    <motion.a variants={revealUp} whileTap={{ scale: 0.98 }} className="pl-link" href={row.href} key={row.key} onClick={() => track("link", row.target)} {...(row.external ? { target: "_blank", rel: "noreferrer" } : {})}>
                       <span className="pl-link-icon"><row.icon size={17} /></span>
                       <span className="pl-link-copy"><small>{row.label}</small><strong>{row.value}</strong></span>
                       <ArrowUpRight size={16} className="pl-link-arrow" />
                     </motion.a>
                   ))}
                   {channels.map((channel, index) => (
-                    <motion.a variants={revealUp} whileTap={{ scale: 0.98 }} className="pl-link" href={toHref(channel.url)} target="_blank" rel="noreferrer" key={`row-${channel.provider}-${index}`}>
+                    <motion.a variants={revealUp} whileTap={{ scale: 0.98 }} className="pl-link" href={toHref(channel.url)} target="_blank" rel="noreferrer" key={`row-${channel.provider}-${index}`} onClick={() => track("link", channelLabel(channel))}>
                       <span className="pl-link-icon"><ChannelIcon provider={channel.provider} /></span>
                       <span className="pl-link-copy"><small>{channel.provider === "calendly" ? "Book time" : "Message"}</small><strong>{channelLabel(channel)}</strong></span>
                       <ArrowUpRight size={16} className="pl-link-arrow" />
@@ -1534,7 +1387,7 @@ export function PublicCardPage() {
                 </div>
               </PublicSection>
             ) : null}
-            <PublicPortfolio items={portfolio} />
+            <PublicPortfolio items={portfolio} onOpen={(item) => track("link", `Work: ${item.title}`)} />
             <PublicReferences references={references} />
           </div>
 
@@ -1546,7 +1399,7 @@ export function PublicCardPage() {
               transition={{ type: "spring", stiffness: 120, damping: 16, delay: 0.35 }}
             >
               <span className="section-kicker">Take my card</span>
-              <TiltCard><CardVisual card={card} onClick={() => downloadVCard(card)} /></TiltCard>
+              <TiltCard><CardVisual card={card} onClick={saveContact} /></TiltCard>
               {canExchange ? (
                 <div className="pl-qr">
                   <QRCodeSVG value={window.location.href} size={104} bgColor="transparent" fgColor="#10152a" />
@@ -1564,7 +1417,7 @@ export function PublicCardPage() {
       </footer>
 
       <div className="pl-dock" role="toolbar" aria-label="Quick actions">
-        <button type="button" className="pl-btn pl-btn-primary" onClick={() => downloadVCard(card)}><Download size={16} /> Save contact</button>
+        <button type="button" className="pl-btn pl-btn-primary" onClick={saveContact}><Download size={16} /> Save contact</button>
         {canExchange ? <button type="button" className="pl-btn pl-btn-ghost" onClick={openForm} aria-label="Exchange details"><UserRoundPlus size={16} /></button> : null}
         <button type="button" className="pl-btn pl-btn-ghost" onClick={() => void shareLink()} aria-label="Share this page"><Share2 size={16} /></button>
       </div>

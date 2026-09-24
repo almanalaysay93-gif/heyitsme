@@ -16,6 +16,7 @@ function Router() {
       <Route path="/app/cards/new" component={Home} />
       <Route path="/app/cards/:id/edit" component={Home} />
       <Route path="/app/contacts" component={Home} />
+      <Route path="/app/insights" component={Home} />
       <Route path="/c/:slug" component={PublicCardPage} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
