@@ -6,7 +6,8 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { clientIp, hashIdentifier, rateLimit } from "./_core/rateLimit";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
-import { storagePut } from "./storage";
+import { orphanedUploadKeys } from "./cardFiles";
+import { storageDelete, storagePut } from "./storage";
 import {
   createReference,
   createCard,
@@ -24,7 +25,6 @@ import {
   getPublicCardBySlug,
   markContactsSeen,
   recordAnalytics,
-  restoreCard,
   updateCard,
   updateContact,
 } from "./db";
@@ -134,10 +134,14 @@ export const appRouter = router({
       .mutation(({ ctx, input }) => updateCard(input.id, ctx.user.id, { published: input.published })),
     delete: protectedProcedure
       .input(z.object({ id: z.number().int().positive() }))
-      .mutation(({ ctx, input }) => deleteCard(input.id, ctx.user.id)),
-    restore: protectedProcedure
-      .input(z.object({ id: z.number().int().positive() }))
-      .mutation(({ ctx, input }) => restoreCard(input.id, ctx.user.id)),
+      .mutation(async ({ ctx, input }) => {
+        const card = await deleteCard(input.id, ctx.user.id);
+        if (!card) return false;
+        // The card is already gone, so a storage hiccup only leaves unused files behind.
+        const unused = orphanedUploadKeys(card, await getCardsByOwner(ctx.user.id), ctx.user.id);
+        await storageDelete(unused).catch((error) => console.error("[Delete] could not remove card files:", error));
+        return true;
+      }),
   }),
   contacts: router({
     list: protectedProcedure

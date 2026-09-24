@@ -1,4 +1,5 @@
 import {
+  DeleteObjectsCommand,
   GetObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -125,6 +126,21 @@ export async function storagePut(
 
   await getS3Client().send(command);
   return { key, url: `/storage/${key}` };
+}
+
+/** Removes stored files. Keys that are already gone are not an error. */
+export async function storageDelete(relKeys: string[]): Promise<void> {
+  const backend = storageBackend();
+  if (!backend || relKeys.length === 0) return;
+  const keys = relKeys.map(normalizeKey);
+  if (backend === "supabase") {
+    const { error } = await supabaseBucket().remove(keys);
+    if (error) throw error;
+    return;
+  }
+  await getS3Client().send(
+    new DeleteObjectsCommand({ Bucket: ENV.s3Bucket, Delete: { Objects: keys.map((Key) => ({ Key })), Quiet: true } })
+  );
 }
 
 export async function storageGet(

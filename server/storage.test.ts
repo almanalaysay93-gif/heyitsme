@@ -4,10 +4,11 @@ const storage = vi.hoisted(() => ({
   getBucket: vi.fn(),
   createBucket: vi.fn(),
   upload: vi.fn(),
+  remove: vi.fn(),
 }));
 vi.mock("./_core/supabase", () => ({
   getSupabaseAdminClient: () => ({
-    storage: { getBucket: storage.getBucket, createBucket: storage.createBucket, from: () => ({ upload: storage.upload }) },
+    storage: { getBucket: storage.getBucket, createBucket: storage.createBucket, from: () => ({ upload: storage.upload, remove: storage.remove }) },
   }),
 }));
 
@@ -15,8 +16,8 @@ vi.mock("./_core/supabase", () => ({
 async function load() {
   const { ENV } = await import("./_core/env");
   Object.assign(ENV, { s3Bucket: "", supabaseUrl: "https://project.supabase.co", supabaseServiceRoleKey: "service-key", supabaseStorageBucket: "uploads" });
-  const { storagePut } = await import("./storage");
-  return { ENV, storagePut };
+  const { storageDelete, storagePut } = await import("./storage");
+  return { ENV, storageDelete, storagePut };
 }
 
 describe("storagePut with Supabase Storage", () => {
@@ -54,5 +55,23 @@ describe("storagePut with Supabase Storage", () => {
     ENV.supabaseUrl = "";
 
     await expect(storagePut("a.png", Buffer.from("x"), "image/png")).rejects.toThrow("File storage is not configured");
+  });
+});
+
+describe("storageDelete with Supabase Storage", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+  });
+
+  it("removes the files in one call and skips the call when there is nothing to remove", async () => {
+    const { storageDelete } = await load();
+    storage.remove.mockResolvedValue({ data: [], error: null });
+
+    await storageDelete([]);
+    await storageDelete(["/7-portfolio/a.webp", "7-portfolio/b.pdf"]);
+
+    expect(storage.remove).toHaveBeenCalledTimes(1);
+    expect(storage.remove).toHaveBeenCalledWith(["7-portfolio/a.webp", "7-portfolio/b.pdf"]);
   });
 });

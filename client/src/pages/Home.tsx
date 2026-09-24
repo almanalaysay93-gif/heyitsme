@@ -52,10 +52,8 @@ import {
   Share2,
   Sparkles,
   Trash2,
-  Undo2,
   Upload,
   UsersRound,
-  X,
 } from "lucide-react";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -147,7 +145,6 @@ export default function Home() {
   const [draft, setDraft] = useState<CardDraft>(() => readPreviewCard() ?? emptyCard);
   const [showShare, setShowShare] = useState(false);
   const [sharingCard, setSharingCard] = useState<CardDraft | null>(null);
-  const [undoCard, setUndoCard] = useState<CardDraft | null>(null);
 
   const cardsQuery = trpc.cards.list.useQuery(undefined, { enabled: isAuthenticated, retry: false });
   const contactsQuery = trpc.contacts.list.useInfiniteQuery(CONTACTS_PAGE, {
@@ -163,7 +160,6 @@ export default function Home() {
   const updateCard = trpc.cards.update.useMutation();
   const publishCard = trpc.cards.publish.useMutation();
   const deleteCardMutation = trpc.cards.delete.useMutation();
-  const restoreCardMutation = trpc.cards.restore.useMutation();
   const uploadMedia = trpc.media.upload.useMutation();
   const createReference = trpc.references.create.useMutation();
   const deleteReferenceMutation = trpc.references.delete.useMutation();
@@ -385,7 +381,7 @@ export default function Home() {
   };
 
   const removeCard = async (card: CardDraft) => {
-    if (!window.confirm(`Delete "${card.displayName || "this card"}"? You can undo this for a few seconds.`)) return;
+    if (!window.confirm(`Delete "${card.displayName || "this card"}" for good? Its link, references, stats, and uploaded files are erased. Contacts it collected stay.`)) return;
     try {
       if (isAuthenticated && card.id > 0) {
         await deleteCardMutation.mutateAsync({ id: card.id });
@@ -398,29 +394,9 @@ export default function Home() {
         setSelectedId(0);
         setDraft({ ...emptyCard, updatedAt: new Date() });
       }
-      setUndoCard(card);
-      window.setTimeout(() => setUndoCard((current) => current?.id === card.id ? null : current), 8000);
       toast.success("Card deleted.");
     } catch (error: any) {
       toast.error(error?.message ?? "Could not delete that card.");
-    }
-  };
-
-  const restoreDeletedCard = async (card: CardDraft) => {
-    try {
-      if (isAuthenticated && card.id > 0) {
-        await restoreCardMutation.mutateAsync({ id: card.id });
-        await utils.cards.list.invalidate();
-      } else {
-        setLocalCards((current) => current.some((item) => item.id === card.id) ? current : [card, ...current]);
-        window.localStorage.setItem(PREVIEW_CARD_STORAGE_KEY, JSON.stringify(card));
-      }
-      setSelectedId(card.id);
-      setDraft(card);
-      setUndoCard(null);
-      toast.success("Card restored.");
-    } catch (error: any) {
-      toast.error(error?.message ?? "Could not restore that card.");
     }
   };
 
@@ -670,7 +646,6 @@ export default function Home() {
               onPublish={togglePublish}
               publishing={publishCard.isPending}
               onDelete={removeCard}
-              onRestore={restoreDeletedCard}
             />
           ) : (
             <OverviewView
@@ -695,7 +670,6 @@ export default function Home() {
             />
           )}
         </div>
-        {undoCard ? <div className="undo-banner"><span><Trash2 size={15} /> “{undoCard.displayName || "Your card"}” deleted</span><button type="button" onClick={() => void restoreDeletedCard(undoCard)} disabled={restoreCardMutation.isPending}><Undo2 size={14} /> {restoreCardMutation.isPending ? "Restoring…" : "Undo"}</button><button type="button" className="undo-dismiss" onClick={() => setUndoCard(null)} aria-label="Dismiss undo message"><X size={14} /></button></div> : null}
       </main>
       {showShare && (sharingCard || activeCard) ? (
         <ShareSheet
@@ -786,8 +760,8 @@ function OverviewView({ cards, contacts, activeCard, onNew, onEdit, onShare, onC
   );
 }
 
-function CardsView({ cards, onNew, onEdit, onShare, onPublish, publishing, onDelete, onRestore }: any) {
-  return <motion.div className="page-stack" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}><div className="page-heading-row"><div><span className="section-kicker"><CircleUserRound size={14} /> Your cards</span><h1>Different room,<br /><em>different signal.</em></h1><p>Keep the right version of you close at hand.</p></div><GlassButton onClick={onNew}><Plus size={16} /> New card</GlassButton></div>{cards.length === 0 ? <div className="empty-state glass-panel"><CircleUserRound size={24} /><strong>No cards yet.</strong><span>Create your first card to share your details and portfolio.</span><GlassButton onClick={onNew}><Plus size={15} /> Create a card</GlassButton></div> : <div className="cards-grid">{cards.map((card: CardDraft, index: number) => { const archived = Boolean(card.deletedAt); const status = archived ? "Archived" : card.published ? "Live" : "Private"; return <motion.div key={card.id} className={`card-list-item glass-panel ${archived ? "is-archived" : ""}`} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.07 }}><CardVisual card={card} compact onClick={archived ? undefined : () => onEdit(card)} label={`Edit ${card.displayName || "untitled card"}`} /><div className="card-list-meta"><div><strong>{card.displayName || "Untitled card"}</strong><span>{card.title}{card.company ? ` · ${card.company}` : ""}</span></div><span className={`tiny-status ${status.toLowerCase()}`}><span className="status-dot" />{status}</span></div><div className="card-list-actions">{archived ? <button onClick={() => onRestore(card)}><Undo2 size={14} /> Restore</button> : <><button onClick={() => onEdit(card)}><Pencil size={14} /> Edit</button><button onClick={() => onShare(card)}><Share2 size={14} /> Share</button><button onClick={() => onPublish(card)} disabled={publishing}><span className="publish-toggle" />{card.published ? "Unpublish" : "Publish"}</button></>}<button className="danger-action" onClick={() => onDelete(card)}><Trash2 size={14} /> Delete</button></div></motion.div>; })}<button className="new-card-tile" onClick={onNew}><span><Plus size={20} /></span><strong>Make another version</strong><small>Same you. New context.</small></button></div>}</motion.div>;
+function CardsView({ cards, onNew, onEdit, onShare, onPublish, publishing, onDelete }: any) {
+  return <motion.div className="page-stack" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}><div className="page-heading-row"><div><span className="section-kicker"><CircleUserRound size={14} /> Your cards</span><h1>Different room,<br /><em>different signal.</em></h1><p>Keep the right version of you close at hand.</p></div><GlassButton onClick={onNew}><Plus size={16} /> New card</GlassButton></div>{cards.length === 0 ? <div className="empty-state glass-panel"><CircleUserRound size={24} /><strong>No cards yet.</strong><span>Create your first card to share your details and portfolio.</span><GlassButton onClick={onNew}><Plus size={15} /> Create a card</GlassButton></div> : <div className="cards-grid">{cards.map((card: CardDraft, index: number) => { const archived = Boolean(card.deletedAt); const status = archived ? "Archived" : card.published ? "Live" : "Private"; return <motion.div key={card.id} className={`card-list-item glass-panel ${archived ? "is-archived" : ""}`} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.07 }}><CardVisual card={card} compact onClick={archived ? undefined : () => onEdit(card)} label={`Edit ${card.displayName || "untitled card"}`} /><div className="card-list-meta"><div><strong>{card.displayName || "Untitled card"}</strong><span>{card.title}{card.company ? ` · ${card.company}` : ""}</span></div><span className={`tiny-status ${status.toLowerCase()}`}><span className="status-dot" />{status}</span></div><div className="card-list-actions">{archived ? null : <><button onClick={() => onEdit(card)}><Pencil size={14} /> Edit</button><button onClick={() => onShare(card)}><Share2 size={14} /> Share</button><button onClick={() => onPublish(card)} disabled={publishing}><span className="publish-toggle" />{card.published ? "Unpublish" : "Publish"}</button></>}<button className="danger-action" onClick={() => onDelete(card)}><Trash2 size={14} /> Delete</button></div></motion.div>; })}<button className="new-card-tile" onClick={onNew}><span><Plus size={20} /></span><strong>Make another version</strong><small>Same you. New context.</small></button></div>}</motion.div>;
 }
 
 function BuilderView({ draft, setDraft, onSave, onPublishAndCopy, onCancel, saving, onUpload, onAddReference, onDeleteReference, isAuthenticated }: any) {

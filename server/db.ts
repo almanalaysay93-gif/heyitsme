@@ -162,20 +162,17 @@ export async function updateCard(id: number, ownerUserId: number, input: Partial
   return getCardByIdForOwner(id, ownerUserId);
 }
 
+/** Erases a card with its references and visit stats. Contacts it collected stay. Returns the erased card, if there was one. */
 export async function deleteCard(id: number, ownerUserId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const card = await getCardByIdForOwner(id, ownerUserId);
-  if (!card) return false;
-  await db.update(cards).set({ deletedAt: new Date(), published: false }).where(and(eq(cards.id, id), eq(cards.ownerUserId, ownerUserId)));
-  return true;
-}
-
-export async function restoreCard(id: number, ownerUserId: number) {
-  const db = await getDb();
-  if (!db) throw new Error("Database unavailable");
-  await db.update(cards).set({ deletedAt: null }).where(and(eq(cards.id, id), eq(cards.ownerUserId, ownerUserId)));
-  return getCardByIdForOwner(id, ownerUserId);
+  return db.transaction(async (tx) => {
+    const [card] = await tx.delete(cards).where(and(eq(cards.id, id), eq(cards.ownerUserId, ownerUserId))).returning();
+    if (!card) return undefined;
+    await tx.delete(references).where(eq(references.cardId, id));
+    await tx.delete(analyticsEvents).where(eq(analyticsEvents.cardId, id));
+    return card;
+  });
 }
 
 export async function getReferencesByCard(cardId: number, approvedOnly = false) {

@@ -110,8 +110,8 @@ export function PrivacyPage() {
 
       <h2>How long we keep it</h2>
       <p>
-        We keep account and card data until you delete it or ask us to close your account. Deleted cards and contacts
-        disappear from the app right away. Hashed IP data is gone within an hour. We keep error reports and hosting logs
+        We keep account and card data until you delete it or ask us to close your account. Deleting a card erases it
+        right away, with its references, visit stats, and uploaded files. Deleted contacts disappear right away too. Hashed IP data is gone within an hour. We keep error reports and hosting logs
         only as long as we need them to run and debug the service.
       </p>
 
