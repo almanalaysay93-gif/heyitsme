@@ -117,6 +117,24 @@ export default function Home() {
       // Storage blocked: the choice lasts for this visit only.
     }
   }, [sidebarHidden]);
+  // The button that toggled the sidebar disappears with it, so hand focus to its counterpart.
+  const hideSidebarButton = useRef<HTMLButtonElement>(null);
+  const showSidebarButton = useRef<HTMLButtonElement>(null);
+  const sidebarToggled = useRef(false);
+  useEffect(() => {
+    if (!sidebarToggled.current) return;
+    sidebarToggled.current = false;
+    (sidebarHidden ? showSidebarButton : hideSidebarButton).current?.focus();
+  }, [sidebarHidden]);
+  const toggleSidebar = (hidden: boolean) => {
+    // Narrow screens use the drawer, so "hide" just closes it.
+    if (hidden && window.matchMedia("(max-width: 760px)").matches) {
+      setMobileNavOpen(false);
+      return;
+    }
+    sidebarToggled.current = true;
+    setSidebarHidden(hidden);
+  };
   const [localCards, setLocalCards] = useState<CardDraft[]>(() => {
     const saved = readPreviewCard();
     return saved ? [saved] : [];
@@ -462,19 +480,17 @@ export default function Home() {
             <strong>{user?.name || (isAuthenticated ? "You" : "Guest")}</strong>
             <span>{isAuthenticated ? "All access · free" : "Preview mode"}</span>
           </div>
-          {isAuthenticated && (
-            <button
-              className="icon-button"
-              type="button"
-              onClick={() => {
-                if (window.confirm("Sign out of heyitsme?")) void logout();
-              }}
-              title="Sign out"
-              aria-label="Sign out"
-            >
-              <LogOut size={17} />
-            </button>
-          )}
+          <button
+            ref={hideSidebarButton}
+            className="icon-button"
+            type="button"
+            onClick={() => toggleSidebar(true)}
+            title="Hide sidebar"
+            aria-label="Hide sidebar"
+            aria-controls="app-sidebar"
+          >
+            <PanelLeftClose size={17} />
+          </button>
         </div>
         <div className="nav-section-label">Workspace</div>
         <nav>
@@ -525,17 +541,20 @@ export default function Home() {
           >
             <Menu size={20} />
           </button>
-          <button
-            type="button"
-            className="icon-button sidebar-toggle"
-            onClick={() => setSidebarHidden((hidden) => !hidden)}
-            aria-label={sidebarHidden ? "Show sidebar" : "Hide sidebar"}
-            aria-controls="app-sidebar"
-            aria-expanded={!sidebarHidden}
-            title={sidebarHidden ? "Show sidebar" : "Hide sidebar"}
-          >
-            {sidebarHidden ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
-          </button>
+          {sidebarHidden && (
+            <button
+              ref={showSidebarButton}
+              type="button"
+              className="icon-button sidebar-toggle"
+              onClick={() => toggleSidebar(false)}
+              aria-label="Show sidebar"
+              aria-controls="app-sidebar"
+              aria-expanded={false}
+              title="Show sidebar"
+            >
+              <PanelLeftOpen size={17} />
+            </button>
+          )}
           <div className="crumbs">
             <span>Workspace</span>
             <ChevronRight size={14} />
