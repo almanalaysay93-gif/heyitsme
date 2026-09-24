@@ -83,7 +83,7 @@ export function PrivacyPage() {
 
       <h2>Cookies and browser storage</h2>
       <ul>
-        <li><strong>app_session_id</strong>: keeps you signed in. Lasts up to one year or until you sign out.</li>
+        <li><strong>app_session_id</strong>: keeps you signed in. Lasts up to 30 days of inactivity or until you sign out.</li>
         <li><strong>__Host-oauth_state</strong>: a one-time value that protects sign-in from forgery. Expires after 10 minutes.</li>
         <li>
           <strong>Browser storage</strong>: if you try the builder without signing in, your draft card stays in your own

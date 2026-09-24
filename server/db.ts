@@ -17,8 +17,11 @@ import { ENV } from "./_core/env";
 let _db: ReturnType<typeof drizzle> | null = null;
 let _schemaReady: Promise<void> | null = null;
 
-// Deploys have no migration step, so bring an older database up to drizzle/0003 on first use:
-// columns added after drizzle/0000, the lookup indexes, then row level security. Every statement is idempotent.
+// Deploys have no migration step, so bring an older database up to drizzle/0002 on first use:
+// columns added after drizzle/0000, then the lookup indexes. Every statement is idempotent.
+// Row level security (drizzle/0003) is NOT applied here: the app's DB role isn't the tables' owner, so it has no
+// privilege to run ALTER TABLE ... ENABLE ROW LEVEL SECURITY. Apply drizzle/0003_enable_rls.sql by hand as an
+// owner/superuser role (e.g. Supabase's SQL Editor, which runs as `postgres`) after each deploy that adds a table.
 const SCHEMA_INDEXES = [
   ["cards_owner_updated_idx", 'create index if not exists "cards_owner_updated_idx" on "cards" ("ownerUserId", "updatedAt")'],
   ["contacts_owner_id_idx", 'create index if not exists "contacts_owner_id_idx" on "contacts" ("ownerUserId", "id")'],
@@ -45,16 +48,6 @@ async function ensureSchema(client: postgres.Sql) {
   const present = new Set(indexes.map((row) => row.indexname));
   for (const [name, statement] of SCHEMA_INDEXES) {
     if (!present.has(name)) await client.unsafe(statement);
-  }
-
-  // Supabase's Data API serves this schema to anyone holding the project's public anon key. The app connects as the
-  // tables' owner, which row level security does not restrict, so turning it on with no policies only closes that door.
-  const open = await client<{ relname: string }[]>`
-    select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
-    where n.nspname = current_schema() and c.relkind = 'r' and not c.relrowsecurity
-      and pg_get_userbyid(c.relowner) = current_user`;
-  for (const { relname } of open) {
-    await client.unsafe(`alter table "${relname.replace(/"/g, '""')}" enable row level security`);
   }
 }
 

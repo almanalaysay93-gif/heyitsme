@@ -113,3 +113,6 @@ temp/
 
 .vercel
 .env*
+graphify-out/
+*.stackdump
+
