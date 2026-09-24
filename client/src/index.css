@@ -357,12 +357,24 @@ div.card-visual { cursor: default; }
 .lp-footer { position: relative; z-index: 2; max-width: 1180px; margin: 0 auto; padding: 28px 36px 40px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted-ink); border-top: 1px solid var(--line); font-size: 12px; }
 
 /* ───────── Public card: personal landing page ───────── */
-.pl-page { --pl-a: #11152b; --pl-b: #6b5cff; --pl-c: #c2b7ff; position: relative; overflow-x: clip; min-height: 100vh; padding-bottom: 20px; color: var(--ink); background: radial-gradient(circle at 90% 40%, color-mix(in srgb, var(--pl-c) 32%, transparent), transparent 36%), var(--paper); }
+.pl-page { --pl-a: #11152b; --pl-b: #6b5cff; --pl-c: #c2b7ff; position: relative; isolation: isolate; overflow-x: clip; min-height: 100vh; padding-bottom: 20px; color: var(--ink); background: var(--paper); }
+/* Soft glows in the card's colors drift behind the page. Radial gradients are soft already, so no blur filter is needed. */
+.pl-backdrop { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.pl-backdrop::after { content: ""; position: absolute; inset: 0; background-image: radial-gradient(color-mix(in srgb, var(--pl-b) 16%, transparent) 1px, transparent 1.5px); background-size: 26px 26px; mask-image: radial-gradient(ellipse at 50% 60%, black, transparent 75%); }
+.pl-backdrop i { position: absolute; border-radius: 50%; will-change: transform; animation: pl-float-a 19s ease-in-out infinite alternate; }
+.pl-backdrop i:nth-child(1) { width: 62vmax; height: 62vmax; right: -22vmax; top: 8vh; background: radial-gradient(circle, color-mix(in srgb, var(--pl-c) 55%, transparent), transparent 68%); }
+.pl-backdrop i:nth-child(2) { width: 54vmax; height: 54vmax; left: -20vmax; top: 34vh; background: radial-gradient(circle, color-mix(in srgb, var(--pl-b) 26%, transparent), transparent 68%); animation-name: pl-float-b; animation-duration: 23s; }
+.pl-backdrop i:nth-child(3) { width: 44vmax; height: 44vmax; left: 30vw; bottom: -18vmax; background: radial-gradient(circle, color-mix(in srgb, var(--aqua) 24%, transparent), transparent 68%); animation-name: pl-float-c; animation-duration: 27s; }
+.pl-backdrop i:nth-child(4) { width: 30vmax; height: 30vmax; left: 12vw; top: -6vmax; background: radial-gradient(circle, color-mix(in srgb, var(--pl-c) 40%, transparent), transparent 68%); animation-name: pl-float-c; animation-duration: 31s; animation-direction: alternate-reverse; }
+@keyframes pl-float-a { 0% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-16vw, 14vh) scale(1.15); } 100% { transform: translate(-6vw, 32vh) scale(.92); } }
+@keyframes pl-float-b { 0% { transform: translate(0, 0) scale(1.05); } 50% { transform: translate(18vw, -12vh) scale(.9); } 100% { transform: translate(8vw, 20vh) scale(1.2); } }
+@keyframes pl-float-c { 0% { transform: translate(0, 0) scale(.95); } 50% { transform: translate(14vw, -20vh) scale(1.2); } 100% { transform: translate(-12vw, -8vh) scale(1); } }
 .pl-page em { font-family: "Instrument Serif", Georgia, serif; font-style: italic; font-weight: 400; letter-spacing: -.01em; color: var(--pl-b); }
-.pl-cover-wrap { position: absolute; inset: 0 0 auto; height: 46vh; min-height: 300px; overflow: hidden; }
+/* Fades out rather than into a flat color, so it blends into the moving backdrop without a seam. */
+.pl-cover-wrap { position: absolute; inset: 0 0 auto; height: 46vh; min-height: 300px; overflow: hidden; mask-image: linear-gradient(to bottom, #000 45%, transparent); }
 .pl-cover { position: absolute; inset: 0; transform-origin: 50% 0; }
 .pl-cover img { width: 100%; height: 100%; object-fit: cover; }
-.pl-cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(16,21,42,.18), transparent 40%, var(--paper)); }
+.pl-cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(16,21,42,.18), transparent 40%); }
 .pl-cover-mesh { position: absolute; inset: 0; overflow: hidden; background: linear-gradient(135deg, var(--pl-a), color-mix(in srgb, var(--pl-a) 55%, var(--pl-b))); }
 .pl-cover-mesh i { position: absolute; border-radius: 50%; filter: blur(50px); animation: pl-drift 14s ease-in-out infinite alternate; }
 .pl-cover-mesh i:nth-child(1) { width: 46vw; height: 46vw; left: -8vw; top: -20vw; background: var(--pl-b); opacity: .7; }

@@ -336,6 +336,7 @@ export default function PublicCardPage() {
       className={`pl-page theme-${theme.id}`}
       style={{ ["--pl-a" as string]: theme.colors[0], ["--pl-b" as string]: theme.colors[1], ["--pl-c" as string]: theme.colors[2] }}
     >
+      <div className="pl-backdrop" aria-hidden="true"><i /><i /><i /><i /></div>
       <div className="pl-cover-wrap" aria-hidden="true">
         <motion.div className="pl-cover" style={{ y: coverY, scale: coverScale, opacity: coverFade }}>
           {isVideoUrl(card.coverUrl) ? (
