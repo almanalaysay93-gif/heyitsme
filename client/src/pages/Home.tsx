@@ -38,6 +38,8 @@ import {
   Link2,
   LogOut,
   Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
   Pencil,
   Plus,
   Play,
@@ -62,6 +64,16 @@ const InsightsView = lazy(() => import("@/components/InsightsView").then((m) => 
 
 // Contacts page size; the list keeps fetching pages until it has them all.
 const CONTACTS_PAGE = { limit: 200 } as const;
+
+const SIDEBAR_HIDDEN_KEY = "heyitsme.sidebar.hidden";
+
+function readSidebarHidden() {
+  try {
+    return window.localStorage.getItem(SIDEBAR_HIDDEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 
 function ViewLoading() {
   return <div className="loading-screen view-loading" role="status" aria-label="Loading"><div className="loading-orb" /></div>;
@@ -96,6 +108,15 @@ export default function Home() {
   const [, navigate] = useLocation();
   const { user, loading, isAuthenticated, logout } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  // Desktop only: on narrow screens the sidebar is a drawer behind the menu button.
+  const [sidebarHidden, setSidebarHidden] = useState(readSidebarHidden);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SIDEBAR_HIDDEN_KEY, sidebarHidden ? "1" : "0");
+    } catch {
+      // Storage blocked: the choice lasts for this visit only.
+    }
+  }, [sidebarHidden]);
   const [localCards, setLocalCards] = useState<CardDraft[]>(() => {
     const saved = readPreviewCard();
     return saved ? [saved] : [];
@@ -433,7 +454,7 @@ export default function Home() {
   return (
     <div className="app-frame">
       <div className="ambient ambient-one" /><div className="ambient ambient-two" /><div className="ambient ambient-three" />
-      <aside className={`app-sidebar ${mobileNavOpen ? "is-open" : ""}`}>
+      <aside id="app-sidebar" className={`app-sidebar ${mobileNavOpen ? "is-open" : ""} ${sidebarHidden ? "is-collapsed" : ""}`}>
         <div className="brand-lockup"><span className="brand-mark"><span /></span><span>heyitsme</span></div>
         <div className="sidebar-profile" style={{ position: "relative" }}>
           <div className="profile-orb">{getInitials(user?.name || (isAuthenticated ? "You" : "Guest"))}</div>
@@ -483,7 +504,7 @@ export default function Home() {
             </div>
           </div>
           {isAuthenticated ? (
-            <button className="signout-button" onClick={() => logout()}>Sign out</button>
+            <NavItem label="Sign out" icon={LogOut} onClick={() => logout()} />
           ) : (
             <div className="auth-actions">
               <button className="google-button" onClick={startGoogleLogin}>
@@ -503,6 +524,17 @@ export default function Home() {
             aria-expanded={mobileNavOpen}
           >
             <Menu size={20} />
+          </button>
+          <button
+            type="button"
+            className="icon-button sidebar-toggle"
+            onClick={() => setSidebarHidden((hidden) => !hidden)}
+            aria-label={sidebarHidden ? "Show sidebar" : "Hide sidebar"}
+            aria-controls="app-sidebar"
+            aria-expanded={!sidebarHidden}
+            title={sidebarHidden ? "Show sidebar" : "Hide sidebar"}
+          >
+            {sidebarHidden ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
           </button>
           <div className="crumbs">
             <span>Workspace</span>
