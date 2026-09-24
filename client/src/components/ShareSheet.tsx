@@ -1,6 +1,6 @@
 import { copyRichText, copyToClipboard, downloadBlob, safeFileName } from "@/lib/cardKit";
 import { buildSignatureHtml, buildSignatureText } from "@/lib/emailSignature";
-import type { CardDraft } from "@/pages/Home";
+import type { CardDraft } from "@/lib/card";
 import { motion } from "framer-motion";
 import { Code2, Copy, Download, ExternalLink, Link2, Mail, MessageCircle, PenLine, QrCode, X } from "lucide-react";
 import { QRCodeCanvas, QRCodeSVG } from "qrcode.react";

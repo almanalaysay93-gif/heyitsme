@@ -1,26 +1,40 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/NotFound";
+import { lazy, Suspense } from "react";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import Home, { PublicCardPage } from "./pages/Home";
-import Landing from "./pages/Landing";
+
+// Each route ships as its own chunk so a public card never downloads the workspace.
+const Landing = lazy(() => import("./pages/Landing"));
+const Home = lazy(() => import("./pages/Home"));
+const PublicCardPage = lazy(() => import("./pages/PublicCard"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const PrivacyPage = lazy(() => import("./pages/Legal").then((m) => ({ default: m.PrivacyPage })));
+const TermsPage = lazy(() => import("./pages/Legal").then((m) => ({ default: m.TermsPage })));
+
+function RouteLoading() {
+  return <div className="loading-screen" role="status" aria-label="Loading"><div className="loading-orb" /></div>;
+}
 
 function Router() {
   return (
-    <Switch>
-      <Route path="/" component={Landing} />
-      <Route path="/app" component={Home} />
-      <Route path="/app/cards" component={Home} />
-      <Route path="/app/cards/new" component={Home} />
-      <Route path="/app/cards/:id/edit" component={Home} />
-      <Route path="/app/contacts" component={Home} />
-      <Route path="/app/insights" component={Home} />
-      <Route path="/c/:slug" component={PublicCardPage} />
-      <Route path="/404" component={NotFound} />
-      <Route component={NotFound} />
-    </Switch>
+    <Suspense fallback={<RouteLoading />}>
+      <Switch>
+        <Route path="/" component={Landing} />
+        <Route path="/app" component={Home} />
+        <Route path="/app/cards" component={Home} />
+        <Route path="/app/cards/new" component={Home} />
+        <Route path="/app/cards/:id/edit" component={Home} />
+        <Route path="/app/contacts" component={Home} />
+        <Route path="/app/insights" component={Home} />
+        <Route path="/c/:slug" component={PublicCardPage} />
+        <Route path="/privacy" component={PrivacyPage} />
+        <Route path="/terms" component={TermsPage} />
+        <Route path="/404" component={NotFound} />
+        <Route component={NotFound} />
+      </Switch>
+    </Suspense>
   );
 }
 
@@ -29,6 +43,7 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
+          <a className="skip-link" href="#main">Skip to content</a>
           <Toaster />
           <Router />
         </TooltipProvider>

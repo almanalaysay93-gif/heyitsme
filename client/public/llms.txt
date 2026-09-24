@@ -19,7 +19,10 @@ heyitsme is a free digital business card and professional presence web product.
 - `/app/cards` — card list.
 - `/app/cards/new` — card builder.
 - `/app/contacts` — contact list.
+- `/app/insights` — views, saves, exchanges, and link taps per card.
 - `/c/:slug` — public card, presented as a personal landing page (photo, image or looping video cover, links, work, references, QR).
+- `/privacy` — privacy policy.
+- `/terms` — terms of use.
 
 ## Product rules
 

@@ -24,7 +24,10 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { CardVisual, TiltCard, themeOptions, type CardDraft } from "./Home";
+import { CardVisual, TiltCard } from "@/components/CardVisual";
+import { LegalLinks } from "@/components/LegalLinks";
+import { usePageMeta } from "@/hooks/usePageMeta";
+import { themeOptions, type CardDraft } from "@/lib/card";
 
 const demoCard: CardDraft = {
   id: -1,
@@ -182,9 +185,7 @@ export default function Landing() {
   const progress = useSpring(scrollYProgress, { stiffness: 140, damping: 26 });
   const howRef = useRef<HTMLElement>(null);
 
-  useEffect(() => {
-    document.title = "heyitsme — your introduction, one link away";
-  }, []);
+  usePageMeta({ title: "heyitsme — your introduction, one link away", canonicalPath: "/" });
 
   const start = () => navigate("/app/cards/new");
   const openApp = () => navigate("/app");
@@ -214,7 +215,7 @@ export default function Landing() {
         </div>
       </header>
 
-      <main>
+      <main id="main" tabIndex={-1}>
         <section className="lp-hero">
           <motion.div className="lp-hero-copy" initial="hidden" animate="show" variants={stagger}>
             <motion.span className="lp-pill" variants={reveal}><Sparkles size={13} /> Free for everyone · No app to install</motion.span>
@@ -367,6 +368,7 @@ export default function Landing() {
       <footer className="lp-footer">
         <a className="brand-lockup" href="/"><span className="brand-mark"><span /></span><span>heyitsme</span></a>
         <span>Free for everyone</span>
+        <LegalLinks />
       </footer>
     </div>
   );

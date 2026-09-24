@@ -42,7 +42,9 @@ export function getSessionCookieOptions(
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
+    // Lax: the session only needs to ride on same-site requests and top-level navigations.
+    // "none" would also send it on cross-site POSTs, which invites CSRF.
+    sameSite: "lax",
     secure: isSecureRequest(req),
   };
 }

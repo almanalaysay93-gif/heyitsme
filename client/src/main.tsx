@@ -6,7 +6,14 @@ import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
 import { startLogin } from "./const";
+import { installGlobalErrorReporting } from "./lib/reportError";
+// Self-hosted fonts: no request to Google, and CSP can stay font-src 'self'.
+import "@fontsource-variable/dm-sans";
+import "@fontsource/instrument-serif/400.css";
+import "@fontsource/instrument-serif/400-italic.css";
 import "./index.css";
+
+installGlobalErrorReporting();
 
 const queryClient = new QueryClient();
 

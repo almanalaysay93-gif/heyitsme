@@ -2,6 +2,9 @@ import { OAUTH_STATE_COOKIE, encodeOAuthState } from "@shared/const";
 
 export { COOKIE_NAME, ONE_YEAR_MS, STORAGE_PREFIX } from "@shared/const";
 
+// Public support address for the legal pages and footers. Set VITE_SUPPORT_EMAIL at build time.
+export const SUPPORT_EMAIL = ((import.meta.env.VITE_SUPPORT_EMAIL as string | undefined) ?? "").trim();
+
 // Start OAuth login. Call this from an event handler or effect at the
 // moment you want to navigate, e.g. `onClick={() => startLogin()}`.
 //
@@ -13,7 +16,8 @@ export const startLogin = () => {
   const redirectUri = `${window.location.origin}/api/oauth/callback`;
 
   const nonce = crypto.randomUUID();
-  document.cookie = `${OAUTH_STATE_COOKIE}=${nonce}; Path=/; Max-Age=600; SameSite=None; Secure`;
+  // Lax still rides along on Google's top-level redirect back to /api/oauth/callback.
+  document.cookie = `${OAUTH_STATE_COOKIE}=${nonce}; Path=/; Max-Age=600; SameSite=Lax; Secure`;
   const state = encodeOAuthState({ redirectUri, nonce });
 
   window.location.href = `/api/oauth/login?state=${encodeURIComponent(state)}`;

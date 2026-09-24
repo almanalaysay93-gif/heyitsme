@@ -1,7 +1,9 @@
 import { COOKIE_NAME } from "@shared/const";
+import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { getSessionCookieOptions } from "./_core/cookies";
+import { clientIp, hashIdentifier, rateLimit } from "./_core/rateLimit";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { storagePut } from "./storage";
@@ -53,6 +55,44 @@ const cardFields = {
   coverUrl: imageUrl,
 };
 
+const MINUTE = 60_000;
+
+// Uploads are served back to visitors, so only accept formats a card can show or offer
+// for download. Never SVG or HTML, which can carry script.
+const UPLOAD_TYPES: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  gif: "image/gif",
+  avif: "image/avif",
+  mp4: "video/mp4",
+  webm: "video/webm",
+  mov: "video/quicktime",
+  pdf: "application/pdf",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  zip: "application/zip",
+};
+const ALLOWED_UPLOAD_TYPES = new Set(Object.values(UPLOAD_TYPES).concat("application/x-zip-compressed"));
+// Base64 of the 3 MB client cap; Vercel rejects bodies over ~4.5 MB anyway.
+const MAX_UPLOAD_BASE64 = 4_200_000;
+
+export function resolveUploadType(fileName: string, contentType: string): string | null {
+  const declared = contentType.toLowerCase().split(";")[0].trim();
+  if (ALLOWED_UPLOAD_TYPES.has(declared)) return declared;
+  // Some systems send an empty or generic type for documents; fall back to the extension.
+  const extension = fileName.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1];
+  return extension ? UPLOAD_TYPES[extension] ?? null : null;
+}
+
+async function enforceRateLimit(scope: string, identity: string, limit: number, windowMs: number) {
+  const result = await rateLimit(`${scope}:${hashIdentifier(identity)}`, limit, windowMs);
+  if (!result.allowed) {
+    throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Too many requests. Please wait a moment and try again." });
+  }
+}
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -100,7 +140,12 @@ export const appRouter = router({
       .mutation(({ ctx, input }) => restoreCard(input.id, ctx.user.id)),
   }),
   contacts: router({
-    list: protectedProcedure.query(({ ctx }) => getContactsByOwner(ctx.user.id)),
+    list: protectedProcedure
+      .input(z.object({
+        cursor: z.number().int().positive().nullish(),
+        limit: z.number().int().min(1).max(500).optional(),
+      }).optional())
+      .query(({ ctx, input }) => getContactsByOwner(ctx.user.id, { cursor: input?.cursor, limit: input?.limit })),
     update: protectedProcedure
       .input(z.object({
         id: z.number().int().positive(),
@@ -114,7 +159,7 @@ export const appRouter = router({
           ...(input.notes !== undefined ? { notes: input.notes || null } : {}),
           ...(input.followedUp !== undefined ? { followedUp: input.followedUp } : {}),
         });
-        if (!updated) throw new Error("Contact not found");
+        if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });
         return updated;
       }),
     markSeen: protectedProcedure.mutation(({ ctx }) => markContactsSeen(ctx.user.id)),
@@ -144,7 +189,7 @@ export const appRouter = router({
       quote: z.string().min(8).max(1200),
     })).mutation(async ({ ctx, input }) => {
       const card = await getCardByIdForOwner(input.cardId, ctx.user.id);
-      if (!card) throw new Error("Card not found");
+      if (!card) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
       return createReference({ ...input, ownerUserId: ctx.user.id, approved: true });
     }),
     delete: protectedProcedure
@@ -155,18 +200,29 @@ export const appRouter = router({
     upload: protectedProcedure.input(z.object({
       fileName: z.string().min(1).max(180),
       contentType: z.string().min(1).max(120),
-      dataBase64: z.string().min(1).max(20_000_000),
+      dataBase64: z.string().min(1).max(MAX_UPLOAD_BASE64, "File is larger than 3MB. Upload a smaller file or add it as a link."),
     })).mutation(async ({ ctx, input }) => {
+      await enforceRateLimit("upload", `user:${ctx.user.id}`, 30, 10 * MINUTE);
+      const contentType = resolveUploadType(input.fileName, input.contentType);
+      if (!contentType) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "That file type isn't supported. Use JPG, PNG, WebP, GIF, MP4, WebM, MOV, PDF, Word, or ZIP." });
+      }
       const safeName = input.fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
       // Unique prefix so re-uploading "photo.jpg" never overwrites a file another card still uses.
-      const result = await storagePut(`${ctx.user.id}-portfolio/${nanoid(8)}-${safeName}`, Buffer.from(input.dataBase64, "base64"), input.contentType);
+      const result = await storagePut(`${ctx.user.id}-portfolio/${nanoid(8)}-${safeName}`, Buffer.from(input.dataBase64, "base64"), contentType);
       return result;
     }),
   }),
   publicCard: router({
-    bySlug: publicProcedure.input(z.object({ slug: z.string().min(1).max(120) })).query(async ({ input }) => {
+    bySlug: publicProcedure.input(z.object({ slug: z.string().min(1).max(120) })).query(async ({ ctx, input }) => {
+      const ip = clientIp(ctx.req);
+      await enforceRateLimit("card-read", ip, 120, MINUTE);
       const card = await getPublicCardBySlug(input.slug);
-      if (card) await recordAnalytics(card.id, "view", "public_card");
+      if (card) {
+        // Count a visitor once per half hour, so refreshes and retries do not inflate Insights.
+        const firstView = await rateLimit(`view:${card.id}:${hashIdentifier(ip)}`, 1, 30 * MINUTE);
+        if (firstView.allowed) await recordAnalytics(card.id, "view", "public_card");
+      }
       return card ? { ...card, references: await getReferencesByCard(card.id, true) } : card;
     }),
     exchange: publicProcedure
@@ -180,13 +236,14 @@ export const appRouter = router({
         notes: z.string().max(1000).optional().nullable(),
         website: z.string().max(200).optional().nullable(), // Honeypot field
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        await enforceRateLimit("exchange", clientIp(ctx.req), 10, 10 * MINUTE);
         // If honeypot is filled by bot, drop silently
         if (input.website) {
           return { id: 0, name: input.name, source: "exchange_form" };
         }
         const card = await getCardById(input.cardId);
-        if (!card || !card.published) throw new Error("Card not found");
+        if (!card || !card.published || card.deletedAt) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
         await recordAnalytics(input.cardId, "save", "exchange_form");
         return createContact({
           ownerUserId: card.ownerUserId,
@@ -208,7 +265,9 @@ export const appRouter = router({
         type: z.enum(["vcard", "link", "share"]),
         target: z.string().trim().max(80).optional().nullable(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        const limit = await rateLimit(`track:${hashIdentifier(clientIp(ctx.req))}`, 60, MINUTE);
+        if (!limit.allowed) return { ok: false };
         const card = await getCardById(input.cardId);
         if (!card || !card.published || card.deletedAt) return { ok: false };
         await recordAnalytics(card.id, input.type, input.target || undefined);

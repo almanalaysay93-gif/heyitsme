@@ -15,6 +15,13 @@
       "when": 1790204533160,
       "tag": "0001_concerned_devos",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790210870718,
+      "tag": "0002_indexes_and_contact_flags",
+      "breakpoints": true
     }
   ]
 }

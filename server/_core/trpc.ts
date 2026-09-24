@@ -5,6 +5,14 @@ import type { TrpcContext } from "./context";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
+  errorFormatter({ shape, error }) {
+    // Unexpected failures can carry SQL, file paths, or provider details. Log them
+    // server-side (see onError in app.ts) and send visitors a plain message.
+    if (process.env.NODE_ENV === "production" && error.code === "INTERNAL_SERVER_ERROR") {
+      return { ...shape, message: "Something went wrong on our side. Please try again." };
+    }
+    return shape;
+  },
 });
 
 export const router = t.router;

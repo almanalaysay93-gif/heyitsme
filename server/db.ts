@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, lt, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import {
@@ -17,18 +17,35 @@ import { ENV } from "./_core/env";
 let _db: ReturnType<typeof drizzle> | null = null;
 let _schemaReady: Promise<void> | null = null;
 
-// Deploys have no migration step, so add columns added after drizzle/0000 when they are missing.
-async function ensureCardMediaColumns(client: postgres.Sql) {
+// Deploys have no migration step, so bring an older database up to drizzle/0002 on first use:
+// columns added after drizzle/0000, then the lookup indexes. Every statement is idempotent.
+const SCHEMA_INDEXES = [
+  ["cards_owner_updated_idx", 'create index if not exists "cards_owner_updated_idx" on "cards" ("ownerUserId", "updatedAt")'],
+  ["contacts_owner_id_idx", 'create index if not exists "contacts_owner_id_idx" on "contacts" ("ownerUserId", "id")'],
+  ["analytics_card_created_idx", 'create index if not exists "analytics_card_created_idx" on "analyticsEvents" ("cardId", "createdAt")'],
+  ["references_card_created_idx", 'create index if not exists "references_card_created_idx" on "references" ("cardId", "createdAt")'],
+] as const;
+
+async function ensureSchema(client: postgres.Sql) {
   const existing = await client<{ table_name: string; column_name: string }[]>`
     select table_name, column_name from information_schema.columns
     where table_schema = current_schema()
       and ((table_name = 'cards' and column_name in ('avatarUrl', 'coverUrl'))
         or (table_name = 'contacts' and column_name in ('followedUp', 'seenAt')))`;
-  if (existing.length === 4) return;
-  await client`alter table "cards" add column if not exists "avatarUrl" text`;
-  await client`alter table "cards" add column if not exists "coverUrl" text`;
-  await client`alter table "contacts" add column if not exists "followedUp" boolean default false not null`;
-  await client`alter table "contacts" add column if not exists "seenAt" timestamp`;
+  if (existing.length < 4) {
+    await client`alter table "cards" add column if not exists "avatarUrl" text`;
+    await client`alter table "cards" add column if not exists "coverUrl" text`;
+    await client`alter table "contacts" add column if not exists "followedUp" boolean default false not null`;
+    await client`alter table "contacts" add column if not exists "seenAt" timestamp`;
+  }
+
+  const names = SCHEMA_INDEXES.map(([name]) => name);
+  const indexes = await client<{ indexname: string }[]>`
+    select indexname from pg_indexes where schemaname = current_schema() and indexname in ${client(names)}`;
+  const present = new Set(indexes.map((row) => row.indexname));
+  for (const [name, statement] of SCHEMA_INDEXES) {
+    if (!present.has(name)) await client.unsafe(statement);
+  }
 }
 
 export async function getDb() {
@@ -45,8 +62,8 @@ export async function getDb() {
         connect_timeout: 15,
       });
       _db = drizzle(client);
-      _schemaReady = ensureCardMediaColumns(client).catch((error) => {
-        console.warn("[Database] Could not add card media columns:", error);
+      _schemaReady = ensureSchema(client).catch((error) => {
+        console.warn("[Database] Could not bring schema up to date:", error);
       });
     } catch (error) {
       console.warn("[Database] Failed to connect PostgreSQL:", error);
@@ -99,7 +116,7 @@ export async function getUserByOpenId(openId: string) {
 export async function getCardsByOwner(ownerUserId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(cards).where(eq(cards.ownerUserId, ownerUserId)).orderBy(desc(cards.updatedAt)).limit(50);
+  return db.select().from(cards).where(eq(cards.ownerUserId, ownerUserId)).orderBy(desc(cards.updatedAt)).limit(500);
 }
 
 export async function getCardById(id: number) {
@@ -141,7 +158,7 @@ export async function createCard(input: InsertCard) {
 export async function updateCard(id: number, ownerUserId: number, input: Partial<InsertCard>) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  await db.update(cards).set(input).where(and(eq(cards.id, id), eq(cards.ownerUserId, ownerUserId)));
+  await db.update(cards).set({ ...input, updatedAt: new Date() }).where(and(eq(cards.id, id), eq(cards.ownerUserId, ownerUserId)));
   return getCardByIdForOwner(id, ownerUserId);
 }
 
@@ -185,10 +202,17 @@ export async function createReference(input: InsertReference) {
   return result[0];
 }
 
-export async function getContactsByOwner(ownerUserId: number) {
+/** Newest first, keyset-paginated on id so pages stay stable while new contacts arrive. */
+export async function getContactsByOwner(ownerUserId: number, options: { cursor?: number | null; limit?: number } = {}) {
+  const limit = Math.min(Math.max(options.limit ?? 200, 1), 500);
   const db = await getDb();
-  if (!db) return [];
-  return db.select().from(contacts).where(eq(contacts.ownerUserId, ownerUserId)).orderBy(desc(contacts.createdAt)).limit(200);
+  if (!db) return { items: [], nextCursor: null };
+  const where = options.cursor
+    ? and(eq(contacts.ownerUserId, ownerUserId), lt(contacts.id, options.cursor))
+    : eq(contacts.ownerUserId, ownerUserId);
+  const rows = await db.select().from(contacts).where(where).orderBy(desc(contacts.id)).limit(limit + 1);
+  const items = rows.slice(0, limit);
+  return { items, nextCursor: rows.length > limit ? items[items.length - 1].id : null };
 }
 
 export async function createContact(input: InsertContact) {

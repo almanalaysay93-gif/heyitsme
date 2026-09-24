@@ -1,171 +1,70 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { startGoogleLogin, startLogin } from "@/const";
-import { ContactsView, type ContactPatch, type ContactRow } from "@/components/ContactsView";
-import { InsightsView } from "@/components/InsightsView";
-import { LoopVideo, isVideoUrl } from "@/components/LoopVideo";
+import { startGoogleLogin } from "@/const";
+import { CardVisual, Field } from "@/components/CardVisual";
+import type { ContactPatch, ContactRow } from "@/components/ContactsView";
+import { LegalLinks } from "@/components/LegalLinks";
+import { isVideoUrl } from "@/components/LoopVideo";
 import { ShareSheet } from "@/components/ShareSheet";
-import { copyToClipboard, downloadBlob, formatDate, getInitials, safeFileName } from "@/lib/cardKit";
+import { usePageMeta } from "@/hooks/usePageMeta";
+import {
+  channelOptions,
+  emptyCard,
+  parseChannels,
+  parseLinks,
+  parsePortfolio,
+  PREVIEW_CARD_STORAGE_KEY,
+  readPreviewCard,
+  themeOptions,
+  toDraft,
+  type CardDraft,
+  type ChannelItem,
+  type PortfolioItem,
+  type ReferenceRow,
+} from "@/lib/card";
+import { copyToClipboard, formatDate, getInitials } from "@/lib/cardKit";
+import { prepareUpload } from "@/lib/image";
 import { trpc } from "@/lib/trpc";
-import { AnimatePresence, motion, useMotionTemplate, useMotionValue, useReducedMotion, useScroll, useSpring, useTransform } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   ArrowUpRight,
   BarChart3,
-  BriefcaseBusiness,
   Check,
   ChevronRight,
   CircleUserRound,
   Copy,
-  Download,
-  ExternalLink,
-  Facebook,
   FileText,
-  Globe2,
   Image as ImageIcon,
-  Instagram,
   LayoutGrid,
   Link2,
-  Linkedin,
   LogOut,
-  Mail,
-  MapPin,
   Menu,
-  MessageCircle,
-  MoreHorizontal,
   Pencil,
-  Phone,
   Plus,
   Play,
   Quote,
   QrCode,
-  Send,
   Settings2,
   Share2,
   Sparkles,
   Trash2,
   Undo2,
   Upload,
-  UserRoundPlus,
   UsersRound,
   X,
 } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
-export type CardDraft = {
-  id: number;
-  displayName: string;
-  title: string;
-  company: string;
-  email: string;
-  phone: string;
-  location: string;
-  bio: string;
-  links: string;
-  portfolio: string;
-  channels: string;
-  theme: string;
-  avatarUrl: string;
-  coverUrl: string;
-  slug: string;
-  published: boolean;
-  deletedAt?: string | Date | null;
-  updatedAt?: string | Date;
-};
+// Contacts and Insights are only needed on their own tabs, so they load on demand.
+const ContactsView = lazy(() => import("@/components/ContactsView").then((m) => ({ default: m.ContactsView })));
+const InsightsView = lazy(() => import("@/components/InsightsView").then((m) => ({ default: m.InsightsView })));
 
-type PortfolioItem = { id: string; kind: "image" | "video" | "file" | "link"; title: string; url: string; description?: string; mimeType?: string };
-type ChannelItem = { provider: string; url: string; label?: string };
-type ReferenceRow = { id: number; clientName: string; clientRole?: string | null; company?: string | null; quote: string; approved?: boolean };
+// Contacts page size; the list keeps fetching pages until it has them all.
+const CONTACTS_PAGE = { limit: 200 } as const;
 
-const emptyCard: CardDraft = {
-  id: 0,
-  displayName: "",
-  title: "",
-  company: "",
-  email: "",
-  phone: "",
-  location: "",
-  bio: "",
-  links: "[]",
-  portfolio: "[]",
-  channels: "[]",
-  theme: "midnight",
-  avatarUrl: "",
-  coverUrl: "",
-  slug: "new-card",
-  published: false,
-  updatedAt: new Date(),
-};
-
-export const themeOptions = [
-  { id: "midnight", label: "Midnight", colors: ["#11152b", "#6b5cff", "#c2b7ff"] },
-  { id: "tide", label: "Tide", colors: ["#062c31", "#28c2b3", "#b9fff5"] },
-  { id: "sunset", label: "Sunset", colors: ["#301d34", "#f4816b", "#ffd5a7"] },
-];
-
-function parseLinks(raw: string | null | undefined) {
-  try {
-    const parsed = JSON.parse(raw || "[]");
-    return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
-  } catch {
-    return raw ? raw.split(",").map((item) => item.trim()).filter(Boolean) : [];
-  }
-}
-
-function parsePortfolio(raw: string | null | undefined): PortfolioItem[] {
-  try {
-    const parsed = JSON.parse(raw || "[]");
-    return Array.isArray(parsed) ? parsed.filter((item) => item?.url) : [];
-  } catch {
-    return [];
-  }
-}
-
-function parseChannels(raw: string | null | undefined, options?: { keepEmpty?: boolean }): ChannelItem[] {
-  try {
-    const parsed = JSON.parse(raw || "[]");
-    return Array.isArray(parsed)
-      ? parsed.filter((item) => (options?.keepEmpty ? Boolean(item?.provider) : Boolean(item?.url)))
-      : [];
-  } catch {
-    return [];
-  }
-}
-
-const channelOptions = ["linkedin", "instagram", "facebook", "x", "whatsapp", "telegram", "viber", "signal", "calendly"];
-const PREVIEW_CARD_STORAGE_KEY = "heyitsme.preview.card";
-
-function readPreviewCard(): CardDraft | null {
-  try {
-    const raw = window.localStorage.getItem(PREVIEW_CARD_STORAGE_KEY);
-    return raw ? JSON.parse(raw) as CardDraft : null;
-  } catch {
-    return null;
-  }
-}
-
-function toDraft(card: any): CardDraft {
-  return {
-    id: Number(card.id ?? 0),
-    displayName: card.displayName ?? "",
-    title: card.title ?? "",
-    company: card.company ?? "",
-    email: card.email ?? "",
-    phone: card.phone ?? "",
-    location: card.location ?? "",
-    bio: card.bio ?? "",
-    links: card.links ?? "[]",
-    portfolio: card.portfolio ?? "[]",
-    channels: card.channels ?? "[]",
-    theme: card.theme ?? "midnight",
-    avatarUrl: card.avatarUrl ?? "",
-    coverUrl: card.coverUrl ?? "",
-    slug: card.slug ?? "new-card",
-    published: Boolean(card.published),
-    deletedAt: card.deletedAt ?? null,
-    updatedAt: card.updatedAt,
-  };
+function ViewLoading() {
+  return <div className="loading-screen view-loading" role="status" aria-label="Loading"><div className="loading-orb" /></div>;
 }
 
 function GlassButton({ children, onClick, variant = "primary", type = "button", className = "", disabled = false }: any) {
@@ -173,29 +72,6 @@ function GlassButton({ children, onClick, variant = "primary", type = "button", 
     <button type={type} onClick={onClick} disabled={disabled} className={`glass-button glass-button-${variant} ${className}`}>
       {children}
     </button>
-  );
-}
-
-export function CardVisual({ card, compact = false, onClick }: { card: CardDraft; compact?: boolean; onClick?: () => void }) {
-  const theme = themeOptions.find((item) => item.id === card.theme) ?? themeOptions[0];
-  const links = parseLinks(card.links);
-  return (
-    <motion.button
-      type="button"
-      onClick={onClick}
-      whileHover={{ y: -7, rotateX: 2, rotateY: -2 }}
-      whileTap={{ scale: 0.985 }}
-      className={`card-visual theme-${theme.id} ${compact ? "card-visual-compact" : ""}`}
-      style={{ ["--card-a" as string]: theme.colors[0], ["--card-b" as string]: theme.colors[1], ["--card-c" as string]: theme.colors[2] }}
-    >
-      <span className="card-glow" />
-      <span className="card-topline"><span className="eyebrow">heyitsme</span><span className={`status-dot ${card.published ? "is-live" : ""}`} /></span>
-      <span className="card-avatar">{card.avatarUrl ? <img src={card.avatarUrl} alt="" /> : getInitials(card.displayName)}</span>
-      <span className="card-name">{card.displayName || "Your name"}</span>
-      <span className="card-role">{card.title || "Your title"}{card.company ? ` · ${card.company}` : ""}</span>
-      {!compact && <span className="card-bio">{card.bio || "A little context makes a great introduction."}</span>}
-      <span className="card-bottomline"><span>{card.location || "Anywhere, really"}</span><span>{links[0] || "your.link"}</span></span>
-    </motion.button>
   );
 }
 
@@ -232,7 +108,15 @@ export default function Home() {
   const [undoCard, setUndoCard] = useState<CardDraft | null>(null);
 
   const cardsQuery = trpc.cards.list.useQuery(undefined, { enabled: isAuthenticated, retry: false });
-  const contactsQuery = trpc.contacts.list.useQuery(undefined, { enabled: isAuthenticated, retry: false });
+  const contactsQuery = trpc.contacts.list.useInfiniteQuery(CONTACTS_PAGE, {
+    enabled: isAuthenticated,
+    retry: false,
+    getNextPageParam: (page) => page.nextCursor ?? undefined,
+  });
+  const serverContacts = useMemo(
+    () => (contactsQuery.data ? contactsQuery.data.pages.flatMap((page) => page.items) : undefined),
+    [contactsQuery.data],
+  );
   const createCard = trpc.cards.create.useMutation();
   const updateCard = trpc.cards.update.useMutation();
   const publishCard = trpc.cards.publish.useMutation();
@@ -254,9 +138,16 @@ export default function Home() {
     return localCards;
   }, [cardsQuery.data, isAuthenticated, localCards]);
   const contacts = useMemo(() => {
-    if (isAuthenticated && contactsQuery.data) return contactsQuery.data as ContactRow[];
+    if (isAuthenticated && serverContacts) return serverContacts as ContactRow[];
     return localContacts;
-  }, [contactsQuery.data, isAuthenticated, localContacts]);
+  }, [serverContacts, isAuthenticated, localContacts]);
+
+  usePageMeta({ title: "Your workspace — heyitsme", noindex: true });
+
+  // Pull the remaining contact pages in the background so search, export, and counts cover everyone.
+  useEffect(() => {
+    if (contactsQuery.hasNextPage && !contactsQuery.isFetchingNextPage && !contactsQuery.isError) void contactsQuery.fetchNextPage();
+  }, [contactsQuery.hasNextPage, contactsQuery.isFetchingNextPage, contactsQuery.isError]);
   const activeCard = cards.find((card) => card.id === selectedId) ?? cards[0] ?? draft;
   const path = window.location.pathname;
   const mode = path.includes("/contacts") ? "contacts" : path.includes("/insights") ? "insights" : path.includes("/cards") ? "cards" : "overview";
@@ -268,8 +159,8 @@ export default function Home() {
       setNewContactIds((current) => (current.size ? new Set() : current));
       return;
     }
-    if (!isAuthenticated || !contactsQuery.data || markingSeen.current) return;
-    const unseen = contactsQuery.data.filter((contact) => !contact.seenAt).map((contact) => contact.id);
+    if (!isAuthenticated || !serverContacts || markingSeen.current) return;
+    const unseen = serverContacts.filter((contact) => !contact.seenAt).map((contact) => contact.id);
     if (!unseen.length) return;
     setNewContactIds((current) => new Set([...Array.from(current), ...unseen]));
     markingSeen.current = true;
@@ -278,7 +169,7 @@ export default function Home() {
         void utils.contacts.list.invalidate().finally(() => { markingSeen.current = false; });
       },
     });
-  }, [mode, isAuthenticated, contactsQuery.data]);
+  }, [mode, isAuthenticated, serverContacts]);
   const isBuilder = path.includes("/new") || path.includes("/edit");
 
   const editMatch = path.match(/^\/app\/cards\/(\d+)\/edit/);
@@ -470,7 +361,10 @@ export default function Home() {
     try {
       if (isAuthenticated) {
         const updated = await updateContactMutation.mutateAsync({ id, ...patch });
-        utils.contacts.list.setData(undefined, (current) => current?.map((contact) => (contact.id === id ? updated : contact)));
+        utils.contacts.list.setInfiniteData(CONTACTS_PAGE, (current) => current && {
+          ...current,
+          pages: current.pages.map((page) => ({ ...page, items: page.items.map((contact) => (contact.id === id ? updated : contact)) })),
+        });
       } else {
         setLocalContacts((current) => current.map((contact) => contact.id === id ? {
           ...contact,
@@ -505,7 +399,9 @@ export default function Home() {
     }
   };
 
-  const addMediaFile = async (file: File) => {
+  const addMediaFile = async (original: File) => {
+    // Phone photos are often 4-8 MB; shrink images before the size checks below.
+    const file = await prepareUpload(original);
     // Base64 inflates ~33% and Vercel rejects request bodies over ~4.5 MB.
     if (isAuthenticated && file.size > 3_000_000) {
       throw new Error("File is larger than 3MB. Upload a smaller file or add it as a link.");
@@ -595,11 +491,17 @@ export default function Home() {
               </button>
             </div>
           )}
+          <LegalLinks className="sidebar-legal" />
         </div>
       </aside>
-      <main className="app-main">
+      <main className="app-main" id="main" tabIndex={-1}>
         <header className="app-topbar">
-          <button className="mobile-menu-button" onClick={() => setMobileNavOpen((open) => !open)}>
+          <button
+            className="mobile-menu-button"
+            onClick={() => setMobileNavOpen((open) => !open)}
+            aria-label={mobileNavOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileNavOpen}
+          >
             <Menu size={20} />
           </button>
           <div className="crumbs">
@@ -660,15 +562,19 @@ export default function Home() {
               }}
             />
           ) : mode === "contacts" ? (
-            <ContactsView
-              contacts={contacts}
-              cards={cards}
-              newIds={newContactIds}
-              onUpdate={updateContact}
-              onDelete={deleteContact}
-            />
+            <Suspense fallback={<ViewLoading />}>
+              <ContactsView
+                contacts={contacts}
+                cards={cards}
+                newIds={newContactIds}
+                onUpdate={updateContact}
+                onDelete={deleteContact}
+              />
+            </Suspense>
           ) : mode === "insights" ? (
-            <InsightsView isAuthenticated={isAuthenticated} onSignIn={startGoogleLogin} />
+            <Suspense fallback={<ViewLoading />}>
+              <InsightsView isAuthenticated={isAuthenticated} onSignIn={startGoogleLogin} />
+            </Suspense>
           ) : mode === "cards" ? (
             <CardsView
               cards={cards}
@@ -967,519 +873,3 @@ function ReferencesEditor({
   );
 }
 
-function toHref(raw: string): string {
-  const v = (raw || "").trim();
-  if (!v) return "#";
-  // Browsers ignore whitespace/control chars inside schemes, so strip them before checking.
-  const scheme = v.replace(/[\u0000- ]/g, "").match(/^([a-z][a-z0-9+.-]*):/i)?.[1]?.toLowerCase();
-  if (scheme === "javascript" || scheme === "vbscript" || scheme === "data") return "#";
-  if (scheme) return v;
-  // Same-origin paths such as uploaded files served from /storage/...
-  if (v.startsWith("/")) return v;
-  return `https://${v}`;
-}
-
-function buildVCard(card: CardDraft): string {
-  const esc = (v: string) => v.replace(/[\\,;]/g, (m) => `\\${m}`).replace(/\n/g, "\\n");
-  // Only hosted photos — preview data: URLs would bloat the file and many contact apps reject them.
-  const photoUrl = /^https?:\/\//i.test(card.avatarUrl)
-    ? card.avatarUrl
-    : card.avatarUrl.startsWith("/") && !card.avatarUrl.startsWith("//") ? `${window.location.origin}${card.avatarUrl}` : "";
-  const lines = [
-    "BEGIN:VCARD",
-    "VERSION:3.0",
-    `FN:${esc(card.displayName || "Contact")}`,
-    card.title ? `TITLE:${esc(card.title)}` : null,
-    card.company ? `ORG:${esc(card.company)}` : null,
-    card.email ? `EMAIL;TYPE=INTERNET:${card.email}` : null,
-    card.phone ? `TEL;TYPE=CELL:${card.phone}` : null,
-    `URL:${window.location.href}`,
-    card.bio ? `NOTE:${esc(card.bio)}` : null,
-    photoUrl ? `PHOTO;VALUE=URI:${photoUrl}` : null,
-    "END:VCARD",
-  ].filter(Boolean);
-  return lines.join("\r\n");
-}
-
-function downloadVCard(card: CardDraft) {
-  downloadBlob(new Blob([buildVCard(card)], { type: "text/vcard;charset=utf-8" }), `${safeFileName(card.displayName, "contact")}.vcf`);
-  toast.success("Contact file (.vcf) downloaded.");
-}
-
-function Field({ label, value, onChange, placeholder, type = "text", required = false }: any) {
-  return (
-    <label className="field-label">
-      {label}{required ? " *" : ""}
-      <input
-        type={type}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        required={required}
-      />
-    </label>
-  );
-}
-
-function ChannelIcon({ provider }: { provider: string }) {
-  if (provider === "linkedin") return <Linkedin size={16} />;
-  if (provider === "instagram") return <Instagram size={16} />;
-  if (provider === "facebook") return <Facebook size={16} />;
-  if (provider === "whatsapp" || provider === "telegram" || provider === "viber" || provider === "signal") return <MessageCircle size={16} />;
-  return <Link2 size={16} />;
-}
-
-const revealUp = {
-  hidden: { opacity: 0, y: 26 },
-  show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 140, damping: 20 } },
-};
-
-const staggerChildren = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.07, delayChildren: 0.12 } },
-};
-
-function PublicSection({ kicker, icon: Icon, title, emphasis, className = "", children }: any) {
-  return (
-    <motion.section
-      className={`pl-section ${className}`}
-      initial="hidden"
-      whileInView="show"
-      viewport={{ once: true, margin: "-80px" }}
-      variants={staggerChildren}
-    >
-      <motion.div className="pl-section-heading" variants={revealUp}>
-        <span className="section-kicker"><Icon size={13} /> {kicker}</span>
-        <h2>{title} <em>{emphasis}</em></h2>
-      </motion.div>
-      {children}
-    </motion.section>
-  );
-}
-
-function PublicPortfolio({ items, onOpen }: { items: PortfolioItem[]; onOpen?: (item: PortfolioItem) => void }) {
-  if (!items.length) return null;
-  return (
-    <PublicSection kicker="Selected work" icon={BriefcaseBusiness} title="A little proof of" emphasis="the practice." className="pl-portfolio">
-      <div className="pl-portfolio-grid">
-        {items.map((item, index) => (
-          <motion.a
-            variants={revealUp}
-            whileHover={{ y: -6 }}
-            className={`pl-work ${index === 0 && items.length > 2 ? "is-featured" : ""}`}
-            href={toHref(item.url)}
-            target="_blank"
-            rel="noreferrer"
-            key={item.id}
-            onClick={() => onOpen?.(item)}
-          >
-            {item.kind === "image" ? (
-              <img src={item.url} alt={item.title} loading="lazy" />
-            ) : item.kind === "video" ? (
-              <video src={item.url} muted playsInline loop preload="metadata" onMouseEnter={(event) => void event.currentTarget.play().catch(() => undefined)} onMouseLeave={(event) => event.currentTarget.pause()} />
-            ) : (
-              <div className="pl-work-file">
-                <span>{item.kind === "file" ? <FileText size={22} /> : <Globe2 size={22} />}</span>
-                <small>{item.kind === "file" ? "Document" : "Website"}</small>
-              </div>
-            )}
-            <div className="pl-work-caption">
-              <strong>{item.title}</strong>
-              <span className="pl-work-arrow"><ArrowUpRight size={15} /></span>
-            </div>
-          </motion.a>
-        ))}
-      </div>
-    </PublicSection>
-  );
-}
-
-function PublicReferences({ references }: { references: ReferenceRow[] }) {
-  if (!references.length) return null;
-  return (
-    <PublicSection kicker="Kind words" icon={Quote} title="What past clients" emphasis="remember." className="pl-references">
-      <div className="pl-reference-grid">
-        {references.map((reference) => (
-          <motion.figure variants={revealUp} className="pl-reference" key={reference.id}>
-            <span className="pl-quote-mark" aria-hidden="true">“</span>
-            <blockquote>{reference.quote}</blockquote>
-            <figcaption>
-              <span className="reference-avatar">{getInitials(reference.clientName)}</span>
-              <span><strong>{reference.clientName}</strong><small>{reference.clientRole || "Client"}{reference.company ? ` · ${reference.company}` : ""}</small></span>
-            </figcaption>
-          </motion.figure>
-        ))}
-      </div>
-    </PublicSection>
-  );
-}
-
-function channelLabel(channel: ChannelItem) {
-  return channel.label || (channel.provider === "x" ? "X" : channel.provider[0].toUpperCase() + channel.provider.slice(1));
-}
-
-// Pointer-follow 3D tilt. Collapses to a static card under reduced motion.
-export function TiltCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  const reduceMotion = useReducedMotion();
-  const px = useMotionValue(0.5);
-  const py = useMotionValue(0.5);
-  const rotateX = useSpring(useTransform(py, [0, 1], [10, -10]), { stiffness: 160, damping: 18 });
-  const rotateY = useSpring(useTransform(px, [0, 1], [-12, 12]), { stiffness: 160, damping: 18 });
-  const glareX = useTransform(px, [0, 1], ["0%", "100%"]);
-  const glareY = useTransform(py, [0, 1], ["0%", "100%"]);
-  const glare = useMotionTemplate`radial-gradient(circle at ${glareX} ${glareY}, rgba(255,255,255,.28), transparent 45%)`;
-  if (reduceMotion) return <div className={`tilt-card ${className}`}>{children}</div>;
-  return (
-    <motion.div
-      className={`tilt-card ${className}`}
-      style={{ rotateX, rotateY, transformPerspective: 900 }}
-      onPointerMove={(event) => {
-        const rect = event.currentTarget.getBoundingClientRect();
-        px.set((event.clientX - rect.left) / rect.width);
-        py.set((event.clientY - rect.top) / rect.height);
-      }}
-      onPointerLeave={() => { px.set(0.5); py.set(0.5); }}
-    >
-      {children}
-      <motion.span className="tilt-glare" style={{ background: glare }} aria-hidden="true" />
-    </motion.div>
-  );
-}
-
-export function PublicCardPage() {
-  const [location] = useLocation();
-  const slug = location.split("/c/")[1]?.split("/")[0] ?? "";
-  // One view per page load: refetching on focus would log a new view each time the visitor switches tabs.
-  const cardQuery = trpc.publicCard.bySlug.useQuery({ slug }, { enabled: Boolean(slug), retry: false, refetchOnWindowFocus: false, staleTime: Infinity });
-  const exchange = trpc.publicCard.exchange.useMutation();
-  const trackEvent = trpc.publicCard.track.useMutation();
-  const [showForm, setShowForm] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", phone: "", company: "", title: "", notes: "", website: "" });
-  const reduceMotion = useReducedMotion();
-  const { scrollY } = useScroll();
-  const coverY = useTransform(scrollY, [0, 500], [0, reduceMotion ? 0 : 160]);
-  const coverScale = useTransform(scrollY, [0, 500], [1, reduceMotion ? 1 : 1.12]);
-  const coverFade = useTransform(scrollY, [0, 420], [1, 0.35]);
-  const rawCard = cardQuery.data as any;
-  const previewCard = !rawCard && slug === "new-card" ? readPreviewCard() : null;
-  const card = rawCard ? toDraft(rawCard) : previewCard;
-  const links = parseLinks(card?.links);
-  const portfolio = parsePortfolio(card?.portfolio);
-  const channels = parseChannels(card?.channels);
-  const references = rawCard?.references ?? [];
-
-  useEffect(() => {
-    if (!showForm) return;
-    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setShowForm(false); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [showForm]);
-
-  useEffect(() => {
-    if (card?.displayName) document.title = `${card.displayName}${card.title ? ` · ${card.title}` : ""} — heyitsme`;
-  }, [card?.displayName, card?.title]);
-
-  if (cardQuery.isLoading) {
-    return (
-      <div className="public-loading">
-        <div className="loading-orb" />
-        <span>Opening a little context…</span>
-      </div>
-    );
-  }
-  if (cardQuery.isError) {
-    return (
-      <div className="public-loading">
-        <div className="not-found-mark">!</div>
-        <h1>Could not load this card.</h1>
-        <p>Something went wrong loading this card. Please try again.</p>
-        <button className="outline-button" onClick={() => void cardQuery.refetch()}>Try again</button>
-        <a href="/">Visit heyitsme</a>
-      </div>
-    );
-  }
-  if (!card) {
-    return (
-      <div className="public-loading">
-        <div className="not-found-mark">?</div>
-        <h1>This card moved.</h1>
-        <p>Ask for an updated link or head back to heyitsme.</p>
-        <a href="/">Visit heyitsme</a>
-      </div>
-    );
-  }
-
-  const theme = themeOptions.find((item) => item.id === card.theme) ?? themeOptions[0];
-  const firstName = card.displayName.split(" ")[0] || card.displayName;
-  const canExchange = card.id > 0;
-
-  // Best-effort counters for the owner's Insights; a failed ping never interrupts the visitor.
-  const track = (type: "vcard" | "link" | "share", target?: string) => {
-    if (card.id <= 0) return;
-    trackEvent.mutate({ cardId: card.id, type, target: target?.slice(0, 80) || null }, { onError: () => undefined });
-  };
-
-  const saveContact = () => {
-    downloadVCard(card);
-    track("vcard");
-  };
-
-  const copyLink = async () => {
-    track("share", "copy");
-    if (await copyToClipboard(window.location.href)) toast.success("Link copied.");
-    else toast.info(window.location.href);
-  };
-
-  const shareLink = async () => {
-    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
-      try {
-        await navigator.share({ title: card.displayName, url: window.location.href });
-        track("share", "native");
-        return;
-      } catch (error: any) {
-        if (error?.name === "AbortError") return;
-      }
-    }
-    await copyLink();
-  };
-
-  const openForm = () => { setShowForm(true); setSent(false); };
-
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    const trimmedName = form.name.trim();
-    if (!trimmedName) {
-      toast.error("Please add your name.");
-      return;
-    }
-    const trimmedEmail = form.email.trim();
-    if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      toast.error("That email doesn't look right.");
-      return;
-    }
-    if (card.id <= 0) {
-      toast.error("Cannot exchange details on a preview card.");
-      return;
-    }
-    try {
-      await exchange.mutateAsync({
-        cardId: card.id,
-        name: trimmedName,
-        email: form.email.trim() || null,
-        phone: form.phone.trim() || null,
-        company: form.company.trim() || null,
-        title: form.title.trim() || null,
-        notes: form.notes.trim() || null,
-        website: form.website || null,
-      });
-      setSent(true);
-      toast.success("Details exchanged.");
-    } catch (error: any) {
-      toast.error(error?.message ?? "Could not send your details.");
-    }
-  };
-
-  const contactRows = [
-    card.email ? { key: "email", icon: Mail, label: "Email", value: card.email, href: `mailto:${card.email}`, target: "Email" } : null,
-    card.phone ? { key: "phone", icon: Phone, label: "Call or text", value: card.phone, href: `tel:${card.phone.replace(/\s+/g, "")}`, target: "Phone" } : null,
-    ...links.map((link: string) => {
-      const value = link.replace(/^https?:\/\//, "").replace(/\/$/, "");
-      return { key: `link-${link}`, icon: Globe2, label: "Website", value, href: toHref(link), external: true, target: value.replace(/^www\./, "") };
-    }),
-  ].filter(Boolean) as { key: string; icon: any; label: string; value: string; href: string; external?: boolean; target: string }[];
-
-  return (
-    <div
-      className={`pl-page theme-${theme.id}`}
-      style={{ ["--pl-a" as string]: theme.colors[0], ["--pl-b" as string]: theme.colors[1], ["--pl-c" as string]: theme.colors[2] }}
-    >
-      <div className="pl-cover-wrap" aria-hidden="true">
-        <motion.div className="pl-cover" style={{ y: coverY, scale: coverScale, opacity: coverFade }}>
-          {isVideoUrl(card.coverUrl) ? (
-            <LoopVideo className="pl-cover-video" src={card.coverUrl} lazy={false} fallback={<div className="pl-cover-mesh"><i /><i /><i /></div>} />
-          ) : card.coverUrl ? <img src={card.coverUrl} alt="" /> : <div className="pl-cover-mesh"><i /><i /><i /></div>}
-        </motion.div>
-      </div>
-
-      <header className="pl-nav">
-        <a className="brand-lockup" href="/"><span className="brand-mark"><span /></span><span>heyitsme</span></a>
-        <motion.button whileTap={{ scale: 0.94 }} type="button" className="pl-nav-share" onClick={() => void shareLink()}>
-          <Share2 size={15} /> Share
-        </motion.button>
-      </header>
-
-      <main className="pl-main">
-        <motion.section className="pl-hero" initial="hidden" animate="show" variants={staggerChildren}>
-          <motion.div
-            className="pl-avatar"
-            initial={{ opacity: 0, scale: 0.6, rotate: -8 }}
-            animate={{ opacity: 1, scale: 1, rotate: 0 }}
-            transition={{ type: "spring", stiffness: 220, damping: 16, delay: 0.05 }}
-          >
-            {card.avatarUrl ? <img src={card.avatarUrl} alt={card.displayName} /> : <span>{getInitials(card.displayName)}</span>}
-            {card.published ? <span className="pl-avatar-live" title="Live card" /> : null}
-          </motion.div>
-          <motion.span className="pl-hello" variants={revealUp}>Hey, it’s</motion.span>
-          <motion.h1 variants={revealUp}>{card.displayName}</motion.h1>
-          <motion.p className="pl-role" variants={revealUp}>
-            {card.title}
-            {card.company ? <> <span>at</span> {card.company}</> : null}
-          </motion.p>
-          {card.location ? <motion.p className="pl-location" variants={revealUp}><MapPin size={14} /> {card.location}</motion.p> : null}
-          <motion.p className="pl-bio" variants={revealUp}>{card.bio || "Nice to meet you. Let’s keep the conversation going."}</motion.p>
-
-          <motion.div className="pl-actions" variants={revealUp}>
-            <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }} type="button" className="pl-btn pl-btn-primary" onClick={saveContact}>
-              <Download size={16} /> Save contact
-            </motion.button>
-            {canExchange ? (
-              <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }} type="button" className="pl-btn pl-btn-ghost" onClick={openForm}>
-                <UserRoundPlus size={16} /> Exchange details
-              </motion.button>
-            ) : null}
-            <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.92 }} type="button" className="pl-btn pl-btn-icon" onClick={() => void copyLink()} aria-label="Copy link to this page">
-              <Copy size={16} />
-            </motion.button>
-          </motion.div>
-
-          {channels.length ? (
-            <motion.div className="pl-socials" variants={staggerChildren}>
-              {channels.map((channel, index) => (
-                <motion.a
-                  variants={revealUp}
-                  whileHover={{ y: -4, rotate: -4 }}
-                  whileTap={{ scale: 0.9 }}
-                  href={toHref(channel.url)}
-                  target="_blank"
-                  rel="noreferrer"
-                  key={`${channel.provider}-${index}`}
-                  aria-label={channelLabel(channel)}
-                  title={channelLabel(channel)}
-                  onClick={() => track("link", channelLabel(channel))}
-                >
-                  <ChannelIcon provider={channel.provider} />
-                </motion.a>
-              ))}
-            </motion.div>
-          ) : null}
-        </motion.section>
-
-        <div className="pl-body">
-          <div className="pl-column">
-            {contactRows.length || channels.length ? (
-              <PublicSection kicker="Reach me" icon={MessageCircle} title="Pick the easiest" emphasis="way in." className="pl-links">
-                <div className="pl-link-list">
-                  {contactRows.map((row) => (
-                    <motion.a variants={revealUp} whileTap={{ scale: 0.98 }} className="pl-link" href={row.href} key={row.key} onClick={() => track("link", row.target)} {...(row.external ? { target: "_blank", rel: "noreferrer" } : {})}>
-                      <span className="pl-link-icon"><row.icon size={17} /></span>
-                      <span className="pl-link-copy"><small>{row.label}</small><strong>{row.value}</strong></span>
-                      <ArrowUpRight size={16} className="pl-link-arrow" />
-                    </motion.a>
-                  ))}
-                  {channels.map((channel, index) => (
-                    <motion.a variants={revealUp} whileTap={{ scale: 0.98 }} className="pl-link" href={toHref(channel.url)} target="_blank" rel="noreferrer" key={`row-${channel.provider}-${index}`} onClick={() => track("link", channelLabel(channel))}>
-                      <span className="pl-link-icon"><ChannelIcon provider={channel.provider} /></span>
-                      <span className="pl-link-copy"><small>{channel.provider === "calendly" ? "Book time" : "Message"}</small><strong>{channelLabel(channel)}</strong></span>
-                      <ArrowUpRight size={16} className="pl-link-arrow" />
-                    </motion.a>
-                  ))}
-                </div>
-              </PublicSection>
-            ) : null}
-            <PublicPortfolio items={portfolio} onOpen={(item) => track("link", `Work: ${item.title}`)} />
-            <PublicReferences references={references} />
-          </div>
-
-          <aside className="pl-aside">
-            <motion.div
-              className="pl-card-stage"
-              initial={{ opacity: 0, y: 40, rotate: 4 }}
-              animate={{ opacity: 1, y: 0, rotate: 0 }}
-              transition={{ type: "spring", stiffness: 120, damping: 16, delay: 0.35 }}
-            >
-              <span className="section-kicker">Take my card</span>
-              <TiltCard><CardVisual card={card} onClick={saveContact} /></TiltCard>
-              {canExchange ? (
-                <div className="pl-qr">
-                  <QRCodeSVG value={window.location.href} size={104} bgColor="transparent" fgColor="#10152a" />
-                  <p><QrCode size={14} /> Scan to open this page on another phone.</p>
-                </div>
-              ) : null}
-            </motion.div>
-          </aside>
-        </div>
-      </main>
-
-      <footer className="pl-footer">
-        <span>{firstName}’s page on heyitsme</span>
-        <a href="/">Make yours — it’s free <ArrowUpRight size={13} /></a>
-      </footer>
-
-      <div className="pl-dock" role="toolbar" aria-label="Quick actions">
-        <button type="button" className="pl-btn pl-btn-primary" onClick={saveContact}><Download size={16} /> Save contact</button>
-        {canExchange ? <button type="button" className="pl-btn pl-btn-ghost" onClick={openForm} aria-label="Exchange details"><UserRoundPlus size={16} /></button> : null}
-        <button type="button" className="pl-btn pl-btn-ghost" onClick={() => void shareLink()} aria-label="Share this page"><Share2 size={16} /></button>
-      </div>
-
-      <AnimatePresence>
-        {showForm ? (
-          <motion.div className="sheet-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowForm(false)}>
-            <motion.div
-              role="dialog"
-              aria-modal="true"
-              aria-label={`Exchange details with ${card.displayName}`}
-              className="exchange-sheet glass-panel"
-              initial={{ opacity: 0, y: 40, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 30, scale: 0.98 }}
-              transition={{ type: "spring", stiffness: 260, damping: 24 }}
-              onClick={(event) => event.stopPropagation()}
-            >
-              {sent ? (
-                <div className="success-state">
-                  <div className="success-check"><Check size={25} /></div>
-                  <h2>Nice. You’re in.</h2>
-                  <p>Your details were sent to {card.displayName}. Keep the good conversation going.</p>
-                  <button className="outline-button" onClick={() => setShowForm(false)}>Close</button>
-                </div>
-              ) : (
-                <form onSubmit={submit}>
-                  <div className="sheet-header">
-                    <div>
-                      <span className="mini-label">Exchange details</span>
-                      <h2>Make it easy to find you too.</h2>
-                    </div>
-                    <button type="button" className="icon-button" onClick={() => setShowForm(false)} aria-label="Close"><X size={17} /></button>
-                  </div>
-                  <div className="field-grid">
-                    <Field label="Your name" value={form.name} onChange={(value: string) => setForm({ ...form, name: value })} placeholder="Jordan Lee" required />
-                    <Field label="Email" type="email" value={form.email} onChange={(value: string) => setForm({ ...form, email: value })} placeholder="you@example.com" />
-                    <Field label="Company" value={form.company} onChange={(value: string) => setForm({ ...form, company: value })} placeholder="Your company" />
-                    <Field label="Role / title" value={form.title} onChange={(value: string) => setForm({ ...form, title: value })} placeholder="What you do" />
-                  </div>
-                  <input
-                    type="text"
-                    name="website"
-                    value={form.website}
-                    onChange={(e) => setForm({ ...form, website: e.target.value })}
-                    style={{ display: "none" }}
-                    tabIndex={-1}
-                    autoComplete="off"
-                  />
-                  <label className="field-label">
-                    A note <textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} placeholder="Where did we meet?" />
-                  </label>
-                  <button className="glass-button glass-button-primary full-width" disabled={exchange.isPending}>
-                    {exchange.isPending ? "Sending…" : <><Send size={16} /> Exchange details</>}
-                  </button>
-                  <p className="privacy-note">Your details are shared only with {card.displayName}. No app download required.</p>
-                </form>
-              )}
-            </motion.div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-    </div>
-  );
-}
