@@ -2,7 +2,7 @@
 
 The interface uses a professional Apple-inspired glass language rather than a generic SaaS dashboard. The product canvas is a pale lilac paper field with navy ink, translucent white panels, soft blur, restrained borders, and three luminous accents: electric violet, tide aqua, and sunset coral.
 
-Typography pairs the functional clarity of DM Sans with italic editorial serif emphasis for the emotional phrase in each page heading. Composition favors asymmetric grids, breathing room, floating card materials, and small microcopy that makes the product feel human. The card itself is a deep ink object with a halo, soft specular lines, and a deliberately tactile hover lift.
+Typography pairs the functional clarity of DM Sans with italic editorial serif emphasis (Instrument Serif) for the emotional phrase in each page heading. Both fonts are self-hosted through `@fontsource` packages imported in `client/src/main.tsx`, so the CSP can stay `font-src 'self'` and no request goes to Google Fonts. Composition favors asymmetric grids, breathing room, floating card materials, and small microcopy that makes the product feel human. The card itself is a deep ink object with a halo, soft specular lines, and a deliberately tactile hover lift.
 
 Motion is high-energy but controlled. Entrances use staggered opacity and short vertical translation, cards lift rather than scale from zero, buttons compress on press, and sheets use a spring. The reduced-motion media query collapses non-essential animation to near-zero duration.
 
@@ -25,3 +25,7 @@ Motion is code-first. Every video slot on the landing page renders code-made mot
 - Personal pages: the cover can be a muted looping video, and the avatar ring slowly rotates.
 
 Clips are always muted, looped, inline, lazy-loaded, and paused off-screen. They are skipped under reduced motion or Save-Data, and those visitors keep the code-made fallback.
+
+## Brand assets
+
+`client/public/favicon.svg` is the brand mark (the rotated gradient tile from `.brand-mark`). `favicon.ico`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, and the 1200×630 `og.png` are rendered from it with headless Chrome. Regenerate them together if the mark changes.
