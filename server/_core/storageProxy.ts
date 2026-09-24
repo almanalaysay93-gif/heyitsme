@@ -1,6 +1,5 @@
 import type { Express, Request, Response } from "express";
-import { storageGetSignedUrl } from "../storage";
-import { ENV } from "./env";
+import { storageBackend, storageGetSignedUrl, StorageNotFoundError } from "../storage";
 
 export function registerStorageProxy(app: Express) {
   app.get("/storage/*", async (req: Request, res: Response) => {
@@ -10,7 +9,7 @@ export function registerStorageProxy(app: Express) {
       return;
     }
 
-    if (!ENV.s3Bucket) {
+    if (!storageBackend()) {
       res.status(500).send("Storage backend not configured");
       return;
     }
@@ -25,6 +24,10 @@ export function registerStorageProxy(app: Express) {
       res.set("Cache-Control", "no-store");
       res.redirect(307, url);
     } catch (err) {
+      if (err instanceof StorageNotFoundError) {
+        res.status(404).send("File not found");
+        return;
+      }
       console.error("[StorageProxy] failed:", err);
       res.status(502).send("Storage proxy error");
     }

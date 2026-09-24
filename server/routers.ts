@@ -209,8 +209,13 @@ export const appRouter = router({
       }
       const safeName = input.fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
       // Unique prefix so re-uploading "photo.jpg" never overwrites a file another card still uses.
-      const result = await storagePut(`${ctx.user.id}-portfolio/${nanoid(8)}-${safeName}`, Buffer.from(input.dataBase64, "base64"), contentType);
-      return result;
+      try {
+        return await storagePut(`${ctx.user.id}-portfolio/${nanoid(8)}-${safeName}`, Buffer.from(input.dataBase64, "base64"), contentType);
+      } catch (error) {
+        // Storage errors ("fetch failed", bucket names) mean nothing to the person uploading.
+        console.error("[Upload] storage failed:", error);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Could not save that file right now. Please try again in a moment." });
+      }
     }),
   }),
   publicCard: router({

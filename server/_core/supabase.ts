@@ -12,5 +12,8 @@ export function getSupabaseAdminClient() {
   if (!ENV.supabaseUrl || !ENV.supabaseServiceRoleKey) {
     throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be configured");
   }
-  return createClient(ENV.supabaseUrl, ENV.supabaseServiceRoleKey);
+  // Server only: no browser session to keep or refresh.
+  return createClient(ENV.supabaseUrl, ENV.supabaseServiceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }

@@ -13,6 +13,11 @@ vi.mock("@aws-sdk/s3-request-presigner", () => ({
     ),
 }));
 
+const { createSignedUrl } = vi.hoisted(() => ({ createSignedUrl: vi.fn() }));
+vi.mock("./supabase", () => ({
+  getSupabaseAdminClient: () => ({ storage: { from: () => ({ createSignedUrl }) } }),
+}));
+
 describe("storage proxy route", () => {
   let app: express.Express;
   let server: ReturnType<typeof createServer>;
@@ -50,9 +55,10 @@ describe("storage proxy route", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
 
-  it("returns 500 when S3 bucket is not configured", async () => {
-    const originalBucket = ENV.s3Bucket;
+  it("returns 500 when no storage backend is configured", async () => {
+    const original = { ...ENV };
     ENV.s3Bucket = "";
+    ENV.supabaseUrl = "";
 
     try {
       const response = await fetch(`${baseUrl}/storage/test-key.png`, {
@@ -63,7 +69,37 @@ describe("storage proxy route", () => {
       const text = await response.text();
       expect(text).toBe("Storage backend not configured");
     } finally {
-      ENV.s3Bucket = originalBucket;
+      Object.assign(ENV, original);
     }
+  });
+
+  describe("with Supabase Storage", () => {
+    const original = { ...ENV };
+    beforeAll(() => {
+      ENV.s3Bucket = "";
+      ENV.supabaseUrl = "https://project.supabase.co";
+      ENV.supabaseServiceRoleKey = "service-key";
+    });
+    afterAll(() => {
+      Object.assign(ENV, original);
+    });
+
+    it("redirects with 307 to a signed Supabase url", async () => {
+      createSignedUrl.mockResolvedValueOnce({ data: { signedUrl: "https://project.supabase.co/storage/v1/object/sign/uploads/a.png?token=t" }, error: null });
+
+      const response = await fetch(`${baseUrl}/storage/a.png`, { redirect: "manual" });
+
+      expect(createSignedUrl).toHaveBeenCalledWith("a.png", 3600);
+      expect(response.status).toBe(307);
+      expect(response.headers.get("location")).toBe("https://project.supabase.co/storage/v1/object/sign/uploads/a.png?token=t");
+    });
+
+    it("returns 404 for a file that does not exist", async () => {
+      createSignedUrl.mockResolvedValueOnce({ data: null, error: new Error("Object not found") });
+
+      const response = await fetch(`${baseUrl}/storage/missing.png`, { redirect: "manual" });
+
+      expect(response.status).toBe(404);
+    });
   });
 });
