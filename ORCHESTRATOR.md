@@ -65,3 +65,12 @@ User brief → original-brand / anti-slop rules → cited implementation princip
 - Flow cannot be driven from this environment, so the slots ship with code-made fallbacks and `docs/flow-shots.md` holds prompts plus ffmpeg export settings. Drop clips into `client/public/media/` under the listed names.
 - New: `client/src/components/LoopVideo.tsx`, `client/src/components/ShareDemo.tsx`, `client/src/lib/media.ts`. `ImagePicker` takes `allowVideo` for the cover. No schema change: `coverUrl` holds the video URL, and the file extension selects video rendering.
 - Gates run: `tsc --noEmit`, `vite build`, `vitest run`. Visual browser pass still pending.
+
+## Run: share kit, insights, contact follow-up
+
+- Grill answers: build the email signature + QR kit, an insights dashboard, and contact follow-up. New leads show as an in-app badge only (no email or push). Delivery is one pass, then push.
+- Schema: `contacts.followedUp` (boolean, default false) and `contacts.seenAt` (timestamp). `ensureCardMediaColumns` in `server/db.ts` adds them at runtime because Vercel deploys run no migrations.
+- Server: `insights.summary` (7/30/90 days, built by `server/insights.ts`), `contacts.update` (tags, notes, followedUp), `contacts.markSeen`, and public `publicCard.track` for `vcard`, `link`, and `share` events on published cards.
+- Client: `ShareSheet` (QR PNG/SVG downloads, copy-paste email signature), `InsightsView` at `/app/insights` (tiles, daily views chart with table view, per-card table, top links), `ContactsView` (status tabs, tag/card filters, detail sheet with tags, notes, and a follow-up switch). The overview sparkline now shows real 7-day views. The public page stops refetching on window focus, so switching tabs no longer logs extra views.
+- Known limit: `publicCard.track` and views are unauthenticated, so anyone can inflate the counts. Treat insights as directional.
+- Gates run: `tsc --noEmit`, `vite build`, `vitest run` (17 tests), copy scan. Browser check of the insights chart at desktop width using mocked data; mobile widths not checked visually.
