@@ -5,6 +5,7 @@ import { usePageMeta } from "@/hooks/usePageMeta";
 import {
   buildVCard,
   channelLabel,
+  channelHref,
   parseChannels,
   parseLinks,
   parsePortfolio,
@@ -93,33 +94,35 @@ function PublicPortfolio({ items, onOpen }: { items: PortfolioItem[]; onOpen?: (
   return (
     <PublicSection kicker="Selected work" icon={BriefcaseBusiness} title="A little proof of" emphasis="the practice." className="pl-portfolio">
       <div className="pl-portfolio-grid">
-        {items.map((item, index) => (
-          <motion.a
-            variants={revealUp}
-            whileHover={{ y: -6 }}
-            className={`pl-work ${index === 0 && items.length > 2 ? "is-featured" : ""}`}
-            href={toHref(item.url)}
-            target="_blank"
-            rel="noreferrer"
-            key={item.id}
-            onClick={() => onOpen?.(item)}
-          >
-            {item.kind === "image" ? (
-              <img src={item.url} alt={item.title} loading="lazy" />
-            ) : item.kind === "video" ? (
-              <video src={item.url} muted playsInline loop preload="metadata" onMouseEnter={(event) => void event.currentTarget.play().catch(() => undefined)} onMouseLeave={(event) => event.currentTarget.pause()} />
-            ) : (
-              <div className="pl-work-file">
-                <span>{item.kind === "file" ? <FileText size={22} /> : <Globe2 size={22} />}</span>
-                <small>{item.kind === "file" ? "Document" : "Website"}</small>
+        {items.map((item, index) => {
+          // Preview uploads are data: URLs that toHref blanks to "#", so they show without a link.
+          const href = toHref(item.url);
+          const linkProps = href === "#" ? {} : { href, target: "_blank", rel: "noreferrer", onClick: () => onOpen?.(item) };
+          return (
+            <motion.a
+              variants={revealUp}
+              whileHover={{ y: -6 }}
+              className={`pl-work ${index === 0 && items.length > 2 ? "is-featured" : ""}`}
+              key={item.id}
+              {...linkProps}
+            >
+              {item.kind === "image" ? (
+                <img src={item.url} alt={item.title} loading="lazy" />
+              ) : item.kind === "video" ? (
+                <video src={item.url} muted playsInline loop preload="metadata" onMouseEnter={(event) => void event.currentTarget.play().catch(() => undefined)} onMouseLeave={(event) => event.currentTarget.pause()} />
+              ) : (
+                <div className="pl-work-file">
+                  <span>{item.kind === "file" ? <FileText size={22} /> : <Globe2 size={22} />}</span>
+                  <small>{item.kind === "file" ? "Document" : "Website"}</small>
+                </div>
+              )}
+              <div className="pl-work-caption">
+                <strong>{item.title}</strong>
+                <span className="pl-work-arrow"><ArrowUpRight size={15} /></span>
               </div>
-            )}
-            <div className="pl-work-caption">
-              <strong>{item.title}</strong>
-              <span className="pl-work-arrow"><ArrowUpRight size={15} /></span>
-            </div>
-          </motion.a>
-        ))}
+            </motion.a>
+          );
+        })}
       </div>
     </PublicSection>
   );
@@ -191,35 +194,37 @@ export default function PublicCardPage() {
       </div>
     );
   }
-  if (cardQuery.isError) {
+  // A guest preview lives in this browser, so it still opens when the lookup fails.
+  if (cardQuery.isError && !card) {
     return (
-      <div className="public-loading">
+      <main className="public-loading" id="main" tabIndex={-1}>
         <div className="not-found-mark">!</div>
         <h1>Could not load this card.</h1>
         <p>Something went wrong loading this card. Please try again.</p>
         <button className="outline-button" onClick={() => void cardQuery.refetch()}>Try again</button>
         <a href="/">Visit heyitsme</a>
-      </div>
+      </main>
     );
   }
   if (!card) {
     return (
-      <div className="public-loading">
+      <main className="public-loading" id="main" tabIndex={-1}>
         <div className="not-found-mark">?</div>
         <h1>This card moved.</h1>
         <p>Ask for an updated link or head back to heyitsme.</p>
         <a href="/">Visit heyitsme</a>
-      </div>
+      </main>
     );
   }
 
   const theme = themeOptions.find((item) => item.id === card.theme) ?? themeOptions[0];
   const firstName = card.displayName.split(" ")[0] || card.displayName;
-  const canExchange = card.id > 0;
+  // Guest previews live in this browser only (their id is a timestamp), so nothing about them reaches the server.
+  const canExchange = Boolean(rawCard);
 
   // Best-effort counters for the owner's Insights; a failed ping never interrupts the visitor.
   const track = (type: "vcard" | "link" | "share", target?: string) => {
-    if (card.id <= 0) return;
+    if (!canExchange) return;
     trackEvent.mutate({ cardId: card.id, type, target: target?.slice(0, 80) || null }, { onError: () => undefined });
   };
 
@@ -261,7 +266,7 @@ export default function PublicCardPage() {
       toast.error("That email doesn't look right.");
       return;
     }
-    if (card.id <= 0) {
+    if (!canExchange) {
       toast.error("Cannot exchange details on a preview card.");
       return;
     }
@@ -353,7 +358,7 @@ export default function PublicCardPage() {
                   variants={revealUp}
                   whileHover={{ y: -4, rotate: -4 }}
                   whileTap={{ scale: 0.9 }}
-                  href={toHref(channel.url)}
+                  href={channelHref(channel)}
                   target="_blank"
                   rel="noreferrer"
                   key={`${channel.provider}-${index}`}
@@ -381,7 +386,7 @@ export default function PublicCardPage() {
                     </motion.a>
                   ))}
                   {channels.map((channel, index) => (
-                    <motion.a variants={revealUp} whileTap={{ scale: 0.98 }} className="pl-link" href={toHref(channel.url)} target="_blank" rel="noreferrer" key={`row-${channel.provider}-${index}`} onClick={() => track("link", channelLabel(channel))}>
+                    <motion.a variants={revealUp} whileTap={{ scale: 0.98 }} className="pl-link" href={channelHref(channel)} target="_blank" rel="noreferrer" key={`row-${channel.provider}-${index}`} onClick={() => track("link", channelLabel(channel))}>
                       <span className="pl-link-icon"><ChannelIcon provider={channel.provider} /></span>
                       <span className="pl-link-copy"><small>{channel.provider === "calendly" ? "Book time" : "Message"}</small><strong>{channelLabel(channel)}</strong></span>
                       <ArrowUpRight size={16} className="pl-link-arrow" />
@@ -402,7 +407,7 @@ export default function PublicCardPage() {
               transition={{ type: "spring", stiffness: 120, damping: 16, delay: 0.35 }}
             >
               <span className="section-kicker">Take my card</span>
-              <TiltCard><CardVisual card={card} onClick={saveContact} /></TiltCard>
+              <TiltCard><CardVisual card={card} onClick={saveContact} label={`Save ${card.displayName} to your contacts`} /></TiltCard>
               {canExchange ? (
                 <div className="pl-qr">
                   <QRCodeSVG value={window.location.href} size={104} bgColor="transparent" fgColor="#10152a" />

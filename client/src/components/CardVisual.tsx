@@ -2,18 +2,16 @@ import { getInitials } from "@/lib/cardKit";
 import { parseLinks, themeOptions, type CardDraft } from "@/lib/card";
 import { motion, useMotionTemplate, useMotionValue, useReducedMotion, useSpring, useTransform } from "framer-motion";
 
-export function CardVisual({ card, compact = false, onClick }: { card: CardDraft; compact?: boolean; onClick?: () => void }) {
+export function CardVisual({ card, compact = false, onClick, label }: { card: CardDraft; compact?: boolean; onClick?: () => void; label?: string }) {
   const theme = themeOptions.find((item) => item.id === card.theme) ?? themeOptions[0];
   const links = parseLinks(card.links);
-  return (
-    <motion.button
-      type="button"
-      onClick={onClick}
-      whileHover={{ y: -7, rotateX: 2, rotateY: -2 }}
-      whileTap={{ scale: 0.985 }}
-      className={`card-visual theme-${theme.id} ${compact ? "card-visual-compact" : ""}`}
-      style={{ ["--card-a" as string]: theme.colors[0], ["--card-b" as string]: theme.colors[1], ["--card-c" as string]: theme.colors[2] }}
-    >
+  const props = {
+    whileHover: { y: -7, rotateX: 2, rotateY: -2 },
+    className: `card-visual theme-${theme.id} ${compact ? "card-visual-compact" : ""}`,
+    style: { ["--card-a" as string]: theme.colors[0], ["--card-b" as string]: theme.colors[1], ["--card-c" as string]: theme.colors[2] },
+  };
+  const face = (
+    <>
       <span className="card-glow" />
       <span className="card-topline"><span className="eyebrow">heyitsme</span><span className={`status-dot ${card.published ? "is-live" : ""}`} /></span>
       <span className="card-avatar">{card.avatarUrl ? <img src={card.avatarUrl} alt="" /> : getInitials(card.displayName)}</span>
@@ -21,6 +19,13 @@ export function CardVisual({ card, compact = false, onClick }: { card: CardDraft
       <span className="card-role">{card.title || "Your title"}{card.company ? ` · ${card.company}` : ""}</span>
       {!compact && <span className="card-bio">{card.bio || "A little context makes a great introduction."}</span>}
       <span className="card-bottomline"><span>{card.location || "Anywhere, really"}</span><span>{links[0] || "your.link"}</span></span>
+    </>
+  );
+  // Previews with nothing to do render as a plain element, not a button that goes nowhere.
+  if (!onClick) return <motion.div {...props}>{face}</motion.div>;
+  return (
+    <motion.button type="button" onClick={onClick} aria-label={label} whileTap={{ scale: 0.985 }} {...props}>
+      {face}
     </motion.button>
   );
 }

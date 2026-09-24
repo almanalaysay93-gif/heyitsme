@@ -9,6 +9,7 @@ import { usePageMeta } from "@/hooks/usePageMeta";
 import {
   channelOptions,
   emptyCard,
+  channelPlaceholder,
   parseChannels,
   parseLinks,
   parsePortfolio,
@@ -265,7 +266,7 @@ export default function Home() {
             ...payload,
             ...(options?.publish !== undefined ? { published: options.publish } : {}),
           });
-          savedCard = updated ? toDraft(updated) : ({ ...draft, ...payload } as CardDraft);
+          savedCard = toDraft(updated ?? { ...draft, ...payload });
           setDraft(savedCard);
         } else {
           const created = await createCard.mutateAsync({
@@ -290,13 +291,14 @@ export default function Home() {
         return null;
       }
     }
-    const next = {
+    // toDraft turns the payload's nulls back into "", which the share sheet, vCard, and builder inputs expect.
+    const next = toDraft({
       ...draft,
       ...payload,
       published: options?.publish !== undefined ? options.publish : draft.published,
       updatedAt: new Date(),
       id: draft.id || Date.now(),
-    } as CardDraft;
+    });
     setLocalCards((current) =>
       current.some((item) => item.id === draft.id)
         ? current.map((item) => (item.id === draft.id ? next : item))
@@ -314,8 +316,12 @@ export default function Home() {
 
   const copyPublicLink = async (card = activeCard): Promise<boolean> => {
     if (!card) return false;
-    if (!isAuthenticated || card.id <= 0 || card.slug === "new-card") {
+    if (!isAuthenticated) {
       toast.error("Sign in to publish this card and get a shareable link.");
+      return false;
+    }
+    if (card.id <= 0 || card.slug === "new-card") {
+      toast.error("Save this card first to get its link.");
       return false;
     }
     if (!card.published) {
@@ -342,6 +348,10 @@ export default function Home() {
 
   const togglePublish = async (card: CardDraft) => {
     const published = !card.published;
+    if (isAuthenticated && card.id <= 0) {
+      toast.error("Save this card first, then publish it.");
+      return;
+    }
     try {
       if (isAuthenticated && card.id > 0) {
         await publishCard.mutateAsync({ id: card.id, published });
@@ -569,11 +579,13 @@ export default function Home() {
                   if (window.confirm("Sign out of heyitsme?")) void logout();
                 }}
                 title="Click to sign out"
+                aria-label="Sign out"
+                type="button"
               >
                 {getInitials(user?.name || "You")}
               </button>
             ) : (
-              <button className="topbar-avatar" onClick={startGoogleLogin} title="Click to sign in with Google">
+              <button type="button" className="topbar-avatar" onClick={startGoogleLogin} title="Click to sign in with Google" aria-label="Sign in with Google">
                 G
               </button>
             )}
@@ -645,13 +657,19 @@ export default function Home() {
             <OverviewView
               cards={cards}
               contacts={contacts}
-              activeCard={activeCard}
+              activeCard={cards.length ? activeCard : null}
               onNew={() => openBuilder()}
               onEdit={() => openBuilder(activeCard)}
               onShare={() => {
+                if (!cards.length) {
+                  toast.info("Make your first card, then share it from here.");
+                  openBuilder();
+                  return;
+                }
                 setSharingCard(activeCard);
                 setShowShare(true);
               }}
+              onViewContacts={() => navigate("/app/contacts")}
               onCopy={() => copyPublicLink(activeCard)}
               weekViews={weekInsights.data?.daily}
               onInsights={() => navigate("/app/insights")}
@@ -692,7 +710,7 @@ function WeekViews({ daily, onOpen }: { daily?: { day: string; views: number }[]
   );
 }
 
-function OverviewView({ cards, contacts, activeCard, onNew, onEdit, onShare, onCopy, weekViews, onInsights }: any) {
+function OverviewView({ cards, contacts, activeCard, onNew, onEdit, onShare, onCopy, onViewContacts, weekViews, onInsights }: any) {
   return (
     <motion.div className="page-stack" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }}>
       <div className="hero-row"><div><span className="section-kicker"><Sparkles size={14} /> Your presence, in motion</span><h1>Make the introduction<br /><em>feel like you.</em></h1><p className="hero-copy">Create a living professional card that carries your context into every room — no app, no awkward handoff.</p><div className="hero-actions"><GlassButton onClick={onNew}><Plus size={16} /> Create a new card</GlassButton><button className="text-button" onClick={onShare}><QrCode size={16} /> Share your card</button></div></div><div className="hero-note"><span>01</span><p>One link.<br />Every detail.</p><ArrowUpRight size={20} /></div></div>
@@ -703,15 +721,19 @@ function OverviewView({ cards, contacts, activeCard, onNew, onEdit, onShare, onC
               <span className="mini-label">Your live card</span>
               <h2>{activeCard?.displayName || "Your first card"}</h2>
             </div>
-            <button className="icon-button" onClick={onEdit}><Pencil size={16} /></button>
+            {activeCard ? <button type="button" className="icon-button" onClick={onEdit} aria-label="Edit card" title="Edit card"><Pencil size={16} /></button> : null}
           </div>
-          {activeCard ? <CardVisual card={activeCard} onClick={onEdit} /> : <div className="empty-card" onClick={onNew}><Plus size={22} /><span>Build your first card</span></div>}
+          {activeCard ? (
+            <CardVisual card={activeCard} onClick={onEdit} label={`Edit ${activeCard.displayName || "your card"}`} />
+          ) : (
+            <button type="button" className="new-card-tile" onClick={onNew}><span><Plus size={20} /></span><strong>Build your first card</strong><small>It takes about a minute.</small></button>
+          )}
           <div className="panel-footer">
             <span>
               <span className={`status-dot ${activeCard?.published ? "is-live" : ""}`} />
               {activeCard?.published ? "Live on the web" : "Not published yet"}
             </span>
-            <button className="link-button" onClick={onCopy}><Copy size={14} /> Copy link</button>
+            {activeCard ? <button type="button" className="link-button" onClick={onCopy}><Copy size={14} /> Copy link</button> : null}
           </div>
         </div>
         <div className="stats-column">
@@ -740,13 +762,13 @@ function OverviewView({ cards, contacts, activeCard, onNew, onEdit, onShare, onC
           </div>
         </div>
       </div>
-      <div className="lower-grid"><div className="recent-panel glass-panel"><div className="panel-header"><div><span className="mini-label">Recent introductions</span><h2>A little momentum</h2></div><button className="link-button" onClick={() => { window.history.pushState({}, "", "/app/contacts"); window.dispatchEvent(new PopStateEvent("popstate")); }}>View all <ArrowUpRight size={14} /></button></div><div className="activity-list">{contacts.slice(0, 3).map((contact: ContactRow, index: number) => <motion.div key={contact.id} className="activity-row" initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.08 }}><div className="activity-avatar">{getInitials(contact.name)}</div><div className="activity-copy"><strong>{contact.name}</strong><span>{contact.title || "New contact"}{contact.company ? ` · ${contact.company}` : ""}</span></div><div className="activity-meta"><span>{contact.source === "exchange_form" ? "Exchanged details" : "Saved your card"}</span><time>{formatDate(contact.createdAt)}</time></div></motion.div>)}{contacts.length === 0 ? <div className="empty-state"><UsersRound size={22} /><span>Your first introduction will land here.</span></div> : null}</div></div><div className="quote-panel"><span className="quote-mark">“</span><p>People remember how easy you made it to keep in touch.</p><span className="quote-credit">heyitsme / a better handoff</span></div></div>
+      <div className="lower-grid"><div className="recent-panel glass-panel"><div className="panel-header"><div><span className="mini-label">Recent introductions</span><h2>A little momentum</h2></div><button type="button" className="link-button" onClick={onViewContacts}>View all <ArrowUpRight size={14} /></button></div><div className="activity-list">{contacts.slice(0, 3).map((contact: ContactRow, index: number) => <motion.div key={contact.id} className="activity-row" initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.08 }}><div className="activity-avatar">{getInitials(contact.name)}</div><div className="activity-copy"><strong>{contact.name}</strong><span>{contact.title || "New contact"}{contact.company ? ` · ${contact.company}` : ""}</span></div><div className="activity-meta"><span>{contact.source === "exchange_form" ? "Exchanged details" : "Saved your card"}</span><time>{formatDate(contact.createdAt)}</time></div></motion.div>)}{contacts.length === 0 ? <div className="empty-state"><UsersRound size={22} /><span>Your first introduction will land here.</span></div> : null}</div></div><div className="quote-panel"><span className="quote-mark">“</span><p>People remember how easy you made it to keep in touch.</p><span className="quote-credit">heyitsme / a better handoff</span></div></div>
     </motion.div>
   );
 }
 
 function CardsView({ cards, onNew, onEdit, onShare, onPublish, onDelete, onRestore }: any) {
-  return <motion.div className="page-stack" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}><div className="page-heading-row"><div><span className="section-kicker"><CircleUserRound size={14} /> Your cards</span><h1>Different room,<br /><em>different signal.</em></h1><p>Keep the right version of you close at hand.</p></div><GlassButton onClick={onNew}><Plus size={16} /> New card</GlassButton></div>{cards.length === 0 ? <div className="empty-state glass-panel"><CircleUserRound size={24} /><strong>No cards yet.</strong><span>Create your first card to share your details and portfolio.</span><GlassButton onClick={onNew}><Plus size={15} /> Create a card</GlassButton></div> : <div className="cards-grid">{cards.map((card: CardDraft, index: number) => { const archived = Boolean(card.deletedAt); const status = archived ? "Archived" : card.published ? "Live" : "Private"; return <motion.div key={card.id} className={`card-list-item glass-panel ${archived ? "is-archived" : ""}`} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.07 }}><CardVisual card={card} compact onClick={() => !archived && onEdit(card)} /><div className="card-list-meta"><div><strong>{card.displayName || "Untitled card"}</strong><span>{card.title}{card.company ? ` · ${card.company}` : ""}</span></div><span className={`tiny-status ${status.toLowerCase()}`}><span className="status-dot" />{status}</span></div><div className="card-list-actions">{archived ? <button onClick={() => onRestore(card)}><Undo2 size={14} /> Restore</button> : <><button onClick={() => onEdit(card)}><Pencil size={14} /> Edit</button><button onClick={() => onShare(card)}><Share2 size={14} /> Share</button><button onClick={() => onPublish(card)}><span className="publish-toggle" />{card.published ? "Unpublish" : "Publish"}</button></>}<button className="danger-action" onClick={() => onDelete(card)}><Trash2 size={14} /> Delete</button></div></motion.div>; })}<button className="new-card-tile" onClick={onNew}><span><Plus size={20} /></span><strong>Make another version</strong><small>Same you. New context.</small></button></div>}</motion.div>;
+  return <motion.div className="page-stack" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}><div className="page-heading-row"><div><span className="section-kicker"><CircleUserRound size={14} /> Your cards</span><h1>Different room,<br /><em>different signal.</em></h1><p>Keep the right version of you close at hand.</p></div><GlassButton onClick={onNew}><Plus size={16} /> New card</GlassButton></div>{cards.length === 0 ? <div className="empty-state glass-panel"><CircleUserRound size={24} /><strong>No cards yet.</strong><span>Create your first card to share your details and portfolio.</span><GlassButton onClick={onNew}><Plus size={15} /> Create a card</GlassButton></div> : <div className="cards-grid">{cards.map((card: CardDraft, index: number) => { const archived = Boolean(card.deletedAt); const status = archived ? "Archived" : card.published ? "Live" : "Private"; return <motion.div key={card.id} className={`card-list-item glass-panel ${archived ? "is-archived" : ""}`} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.07 }}><CardVisual card={card} compact onClick={archived ? undefined : () => onEdit(card)} label={`Edit ${card.displayName || "untitled card"}`} /><div className="card-list-meta"><div><strong>{card.displayName || "Untitled card"}</strong><span>{card.title}{card.company ? ` · ${card.company}` : ""}</span></div><span className={`tiny-status ${status.toLowerCase()}`}><span className="status-dot" />{status}</span></div><div className="card-list-actions">{archived ? <button onClick={() => onRestore(card)}><Undo2 size={14} /> Restore</button> : <><button onClick={() => onEdit(card)}><Pencil size={14} /> Edit</button><button onClick={() => onShare(card)}><Share2 size={14} /> Share</button><button onClick={() => onPublish(card)}><span className="publish-toggle" />{card.published ? "Unpublish" : "Publish"}</button></>}<button className="danger-action" onClick={() => onDelete(card)}><Trash2 size={14} /> Delete</button></div></motion.div>; })}<button className="new-card-tile" onClick={onNew}><span><Plus size={20} /></span><strong>Make another version</strong><small>Same you. New context.</small></button></div>}</motion.div>;
 }
 
 function BuilderView({ draft, setDraft, onSave, onPublishAndCopy, onCancel, saving, onUpload, onAddReference, onDeleteReference, isAuthenticated }: any) {
@@ -796,7 +818,7 @@ function PortfolioEditor({ raw, onChange, onUpload }: { raw: string; onChange: (
   const addItem = (item: PortfolioItem) => onChange(JSON.stringify([...items, item]));
   const addLink = () => { if (!url.trim()) return; addItem({ id: crypto.randomUUID(), kind, title: title.trim() || url.trim(), url: url.trim() }); setTitle(""); setUrl(""); };
   const handleFile = async (file: File) => { setBusy(true); try { const uploadedUrl = await onUpload(file); const fileKind = file.type.startsWith("image/") ? "image" : file.type.startsWith("video/") ? "video" : "file"; addItem({ id: crypto.randomUUID(), kind: fileKind, title: title.trim() || file.name, url: uploadedUrl, mimeType: file.type }); setTitle(""); } catch (error: any) { toast.error(error?.message ?? "Could not upload that file."); } finally { setBusy(false); } };
-  return <div className="portfolio-editor"><div className="portfolio-add-row"><select value={kind} onChange={(event) => setKind(event.target.value as PortfolioItem["kind"])}><option value="link">Website link</option><option value="video">Video URL</option><option value="file">Document URL</option></select><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Project title" /><input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://…" /><button className="outline-button" type="button" onClick={addLink}><Plus size={14} /> Add</button></div><label className="upload-drop"><Upload size={17} /><span>{busy ? "Uploading…" : "Upload image, video, PDF, or other file"}</span><input type="file" accept="image/*,video/*,.pdf,.doc,.docx,.zip" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFile(file); event.currentTarget.value = ""; }} /></label><div className="portfolio-list">{items.map((item) => <div className="portfolio-item" key={item.id}>{item.kind === "image" ? <img src={item.url} alt="" /> : item.kind === "video" ? <span className="portfolio-item-icon"><Play size={15} /></span> : item.kind === "file" ? <span className="portfolio-item-icon"><FileText size={15} /></span> : <span className="portfolio-item-icon"><Link2 size={15} /></span>}<div><strong>{item.title}</strong><span>{item.kind} · {item.url.replace(/^https?:\/\//, "").slice(0, 42)}</span></div><button className="icon-button" type="button" onClick={() => onChange(JSON.stringify(items.filter((candidate) => candidate.id !== item.id)))}><Trash2 size={14} /></button></div>)}{items.length === 0 ? <p className="editor-empty">Your work will appear here as a visual, a link, or a downloadable file.</p> : null}</div></div>;
+  return <div className="portfolio-editor"><div className="portfolio-add-row"><select value={kind} onChange={(event) => setKind(event.target.value as PortfolioItem["kind"])}><option value="link">Website link</option><option value="video">Video URL</option><option value="file">Document URL</option></select><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Project title" /><input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://…" /><button className="outline-button" type="button" onClick={addLink}><Plus size={14} /> Add</button></div><label className="upload-drop"><Upload size={17} /><span>{busy ? "Uploading…" : "Upload image, video, PDF, or other file"}</span><input type="file" accept="image/*,video/*,.pdf,.doc,.docx,.zip" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFile(file); event.currentTarget.value = ""; }} /></label><div className="portfolio-list">{items.map((item) => <div className="portfolio-item" key={item.id}>{item.kind === "image" ? <img src={item.url} alt="" /> : item.kind === "video" ? <span className="portfolio-item-icon"><Play size={15} /></span> : item.kind === "file" ? <span className="portfolio-item-icon"><FileText size={15} /></span> : <span className="portfolio-item-icon"><Link2 size={15} /></span>}<div><strong>{item.title}</strong><span>{item.kind} · {item.url.replace(/^https?:\/\//, "").slice(0, 42)}</span></div><button className="icon-button" type="button" onClick={() => onChange(JSON.stringify(items.filter((candidate) => candidate.id !== item.id)))} aria-label={`Remove ${item.title}`} title="Remove"><Trash2 size={14} /></button></div>)}{items.length === 0 ? <p className="editor-empty">Your work will appear here as a visual, a link, or a downloadable file.</p> : null}</div></div>;
 }
 
 function ChannelsEditor({ raw, onChange }: { raw: string; onChange: (value: string) => void }) {
@@ -804,7 +826,7 @@ function ChannelsEditor({ raw, onChange }: { raw: string; onChange: (value: stri
   const [selectedProvider, setSelectedProvider] = useState("");
   const update = (index: number, patch: Partial<ChannelItem>) => onChange(JSON.stringify(channels.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item)));
   const addChannel = () => { if (!selectedProvider) return; onChange(JSON.stringify([...channels, { provider: selectedProvider, url: "" }])); setSelectedProvider(""); };
-  return <div className="channels-editor"><div className="channel-add-grid"><select value={selectedProvider} onChange={(event) => setSelectedProvider(event.target.value)}><option value="">Choose a provider…</option>{channelOptions.filter((provider) => !channels.some((item) => item.provider === provider)).map((provider) => <option value={provider} key={provider}>{provider[0].toUpperCase() + provider.slice(1)}</option>)}</select><button className="outline-button" type="button" onClick={addChannel} disabled={!selectedProvider}><Plus size={14} /> Add channel</button><span>Choose a provider, then add a new conversation door.</span></div>{channels.map((channel, index) => <div className="channel-row" key={`${channel.provider}-${index}`}><strong>{channel.provider}</strong><input value={channel.label ?? ""} onChange={(event) => update(index, { label: event.target.value })} placeholder="Custom label, e.g. Message me" /><input value={channel.url} onChange={(event) => update(index, { url: event.target.value })} placeholder={`https://${channel.provider}.com/you`} /><button className="icon-button" type="button" onClick={() => onChange(JSON.stringify(channels.filter((_, itemIndex) => itemIndex !== index)))}><Trash2 size={14} /></button></div>)}{channels.length === 0 ? <p className="editor-empty">Add your social profiles and direct messaging links.</p> : null}</div>;
+  return <div className="channels-editor"><div className="channel-add-grid"><select value={selectedProvider} onChange={(event) => setSelectedProvider(event.target.value)}><option value="">Choose a provider…</option>{channelOptions.filter((provider) => !channels.some((item) => item.provider === provider)).map((provider) => <option value={provider} key={provider}>{provider[0].toUpperCase() + provider.slice(1)}</option>)}</select><button className="outline-button" type="button" onClick={addChannel} disabled={!selectedProvider}><Plus size={14} /> Add channel</button><span>Choose a provider, then add a new conversation door.</span></div>{channels.map((channel, index) => <div className="channel-row" key={`${channel.provider}-${index}`}><strong>{channel.provider}</strong><input value={channel.label ?? ""} onChange={(event) => update(index, { label: event.target.value })} placeholder="Custom label, e.g. Message me" aria-label={`${channel.provider} button label`} /><input value={channel.url} onChange={(event) => update(index, { url: event.target.value })} placeholder={channelPlaceholder(channel.provider)} aria-label={`${channel.provider} link, handle, or number`} /><button className="icon-button" type="button" onClick={() => onChange(JSON.stringify(channels.filter((_, itemIndex) => itemIndex !== index)))} aria-label={`Remove ${channel.provider}`} title="Remove"><Trash2 size={14} /></button></div>)}{channels.length === 0 ? <p className="editor-empty">Add your social profiles and direct messaging links.</p> : null}</div>;
 }
 
 function ReferencesEditor({
@@ -913,7 +935,7 @@ function ReferencesEditor({
                 <span>{reference.clientName}{reference.company ? ` · ${reference.company}` : ""}</span>
               </div>
             </div>
-            <button className="icon-button" type="button" onClick={() => void remove(reference.id)} title="Delete reference">
+            <button className="icon-button" type="button" onClick={() => void remove(reference.id)} title="Delete reference" aria-label={`Delete reference from ${reference.clientName}`}>
               <Trash2 size={13} />
             </button>
           </div>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildVCard, emptyCard, parseChannels, parseLinks, parsePortfolio, toHref } from "./card";
+import { buildVCard, channelHref, emptyCard, parseChannels, parseLinks, parsePortfolio, toHref } from "./card";
 
 describe("toHref", () => {
   it("blocks script-capable schemes, including obfuscated ones", () => {
@@ -16,6 +16,24 @@ describe("toHref", () => {
     expect(toHref("/storage/file.pdf")).toBe("/storage/file.pdf");
     expect(toHref("ada.design")).toBe("https://ada.design");
     expect(toHref("   ")).toBe("#");
+  });
+});
+
+describe("channelHref", () => {
+  it("turns phone numbers into each messenger's link", () => {
+    expect(channelHref({ provider: "whatsapp", url: "+1 (415) 555-0183" })).toBe("https://wa.me/14155550183");
+    expect(channelHref({ provider: "viber", url: "+63 917 555 0100" })).toBe("viber://chat?number=%2B639175550100");
+    expect(channelHref({ provider: "signal", url: "+14155550183" })).toBe("https://signal.me/#p/+14155550183");
+    expect(channelHref({ provider: "telegram", url: "+14155550183" })).toBe("https://t.me/+14155550183");
+  });
+
+  it("turns handles into profile links but keeps real links and domains", () => {
+    expect(channelHref({ provider: "x", url: "@ada" })).toBe("https://x.com/ada");
+    expect(channelHref({ provider: "instagram", url: "@ada.lane" })).toBe("https://instagram.com/ada.lane");
+    expect(channelHref({ provider: "telegram", url: "ada_lane" })).toBe("https://t.me/ada_lane");
+    expect(channelHref({ provider: "whatsapp", url: "wa.me/14155550183" })).toBe("https://wa.me/14155550183");
+    expect(channelHref({ provider: "linkedin", url: "https://linkedin.com/in/ada" })).toBe("https://linkedin.com/in/ada");
+    expect(channelHref({ provider: "x", url: "javascript:alert(1)" })).toBe("#");
   });
 });
 

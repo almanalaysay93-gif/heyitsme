@@ -1,3 +1,4 @@
+import { startGoogleLogin } from "@/const";
 import { copyRichText, copyToClipboard, downloadBlob, safeFileName } from "@/lib/cardKit";
 import { buildSignatureHtml, buildSignatureText } from "@/lib/emailSignature";
 import type { CardDraft } from "@/lib/card";
@@ -14,7 +15,8 @@ const tabs: { id: ShareTab; label: string; icon: typeof QrCode }[] = [
   { id: "signature", label: "Email signature", icon: PenLine },
 ];
 
-function absoluteImageUrl(value: string) {
+function absoluteImageUrl(value: string | null | undefined) {
+  if (!value) return "";
   if (/^https?:\/\//i.test(value)) return value;
   if (value.startsWith("/") && !value.startsWith("//")) return `${window.location.origin}${value}`;
   return "";
@@ -187,11 +189,16 @@ export function ShareSheet({
             <p>
               {!isAuthenticated
                 ? "Sign in to publish this card and create a shareable link."
-                : !card.published
-                ? "This card is private. Publish it to get a link, QR code, and email signature."
-                : "Save this card first to generate a shareable link."}
+                : card.id <= 0
+                ? "Save this card first to generate a shareable link."
+                : "This card is private. Publish it to get a link, QR code, and email signature."}
             </p>
-            {onPublish && isAuthenticated && !card.published ? (
+            {!isAuthenticated ? (
+              <button className="glass-button glass-button-primary" type="button" onClick={startGoogleLogin}>
+                Sign in with Google
+              </button>
+            ) : null}
+            {onPublish && isAuthenticated && card.id > 0 && !card.published ? (
               <button
                 className="glass-button glass-button-primary"
                 type="button"

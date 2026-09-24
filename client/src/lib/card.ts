@@ -87,7 +87,8 @@ export function parseChannels(raw: string | null | undefined, options?: { keepEm
 export function readPreviewCard(): CardDraft | null {
   try {
     const raw = window.localStorage.getItem(PREVIEW_CARD_STORAGE_KEY);
-    return raw ? JSON.parse(raw) as CardDraft : null;
+    // Normalized because older previews were saved with null fields.
+    return raw ? toDraft(JSON.parse(raw)) : null;
   } catch {
     return null;
   }
@@ -149,6 +150,43 @@ export function buildVCard(card: CardDraft, pageUrl: string, origin: string): st
     "END:VCARD",
   ].filter(Boolean);
   return lines.join("\r\n");
+}
+
+const PHONE_CHANNELS = new Set(["whatsapp", "viber", "signal", "telegram"]);
+const PROFILE_BASES: Record<string, string> = {
+  linkedin: "https://www.linkedin.com/in/",
+  instagram: "https://instagram.com/",
+  facebook: "https://facebook.com/",
+  x: "https://x.com/",
+  telegram: "https://t.me/",
+  calendly: "https://calendly.com/",
+};
+
+/** Hint for the channel input, matching what `channelHref` understands. */
+export function channelPlaceholder(provider: string) {
+  if (provider === "telegram") return "@username or phone number";
+  if (PHONE_CHANNELS.has(provider)) return "Phone number, e.g. +1 415 555 0183";
+  if (provider === "x" || provider === "instagram") return `@username or ${provider}.com/you`;
+  return `${provider}.com/you`;
+}
+
+/** Link for a channel. Bare handles and phone numbers become the provider's own link instead of `https://@you`. */
+export function channelHref(channel: ChannelItem): string {
+  const value = (channel.url || "").trim();
+  if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return toHref(value);
+  const digits = value.replace(/[\s().-]/g, "");
+  if (PHONE_CHANNELS.has(channel.provider) && /^\+?\d{6,15}$/.test(digits)) {
+    const number = digits.replace(/^\+/, "");
+    if (channel.provider === "whatsapp") return `https://wa.me/${number}`;
+    if (channel.provider === "viber") return `viber://chat?number=%2B${number}`;
+    if (channel.provider === "signal") return `https://signal.me/#p/+${number}`;
+    return `https://t.me/+${number}`;
+  }
+  const handle = value.match(/^@?([A-Za-z0-9_.-]+)$/)?.[1];
+  const base = PROFILE_BASES[channel.provider];
+  // "ada.design" is a domain, "@ada.lane" is a handle.
+  if (handle && base && (value.startsWith("@") || !handle.includes("."))) return base + handle;
+  return toHref(value);
 }
 
 export function channelLabel(channel: ChannelItem) {
