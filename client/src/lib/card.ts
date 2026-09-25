@@ -17,6 +17,9 @@ export type CardDraft = {
   avatarUrl: string;
   coverUrl: string;
   backgroundUrl: string;
+  contactHeading?: string;
+  galleryHeading?: string;
+  portfolioHeading?: string;
   slug: string;
   published: boolean;
   deletedAt?: string | Date | null;
@@ -58,6 +61,31 @@ export function getPrevLightboxIndex(currentIndex: number, totalItems: number): 
   return (safe - 1 + totalItems) % totalItems;
 }
 
+/**
+ * Splits a section heading into title and emphasis (rendered with <em>) for public card display.
+ * Falls back to defaultTitle and defaultEmphasis when customText is blank.
+ */
+export function splitHeading(
+  customText: string | null | undefined,
+  defaultTitle: string,
+  defaultEmphasis: string
+): { title: string; emphasis: string } {
+  const text = (customText || "").trim();
+  if (!text) {
+    return { title: defaultTitle, emphasis: defaultEmphasis };
+  }
+  const clean = (s: string) => s.toLowerCase().replace(/[.,!?;:]+$/, "").trim();
+  if (clean(text) === clean(`${defaultTitle} ${defaultEmphasis}`)) {
+    return { title: defaultTitle, emphasis: defaultEmphasis };
+  }
+  const words = text.split(/\s+/);
+  if (words.length <= 1) {
+    return { title: text, emphasis: "" };
+  }
+  const last = words.pop()!;
+  return { title: words.join(" "), emphasis: last };
+}
+
 export const emptyCard: CardDraft = {
   id: 0,
   displayName: "",
@@ -74,6 +102,9 @@ export const emptyCard: CardDraft = {
   avatarUrl: "",
   coverUrl: "",
   backgroundUrl: "",
+  contactHeading: "",
+  galleryHeading: "",
+  portfolioHeading: "",
   slug: "new-card",
   published: false,
   updatedAt: new Date(),
@@ -144,6 +175,9 @@ export function toDraft(card: any): CardDraft {
     avatarUrl: card.avatarUrl ?? "",
     coverUrl: card.coverUrl ?? "",
     backgroundUrl: card.backgroundUrl ?? "",
+    contactHeading: card.contactHeading ?? "",
+    galleryHeading: card.galleryHeading ?? "",
+    portfolioHeading: card.portfolioHeading ?? "",
     slug: card.slug ?? "new-card",
     published: Boolean(card.published),
     deletedAt: card.deletedAt ?? null,
@@ -169,6 +203,9 @@ export function cardPayload(card: CardDraft) {
     avatarUrl: card.avatarUrl || null,
     coverUrl: card.coverUrl || null,
     backgroundUrl: card.backgroundUrl || null,
+    contactHeading: card.contactHeading?.trim() || null,
+    galleryHeading: card.galleryHeading?.trim() || null,
+    portfolioHeading: card.portfolioHeading?.trim() || null,
   };
 }
 

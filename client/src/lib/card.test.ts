@@ -14,6 +14,8 @@ import {
   parseLinks,
   parsePortfolio,
   portfolioStoredLength,
+  splitHeading,
+  toDraft,
   toHref,
   uploadInlineMedia,
   websiteShotFrom,
@@ -138,6 +140,97 @@ describe("cardPayload", () => {
     expect(payload.company).toBe("Northwind");
     expect(payload.avatarUrl).toBeNull();
     expect(payload.links).toBe('["a.com","b.com"]');
+    expect(payload.contactHeading).toBeNull();
+    expect(payload.galleryHeading).toBeNull();
+    expect(payload.portfolioHeading).toBeNull();
+  });
+
+  it("trims custom section headings and passes them through", () => {
+    const payload = cardPayload({
+      ...emptyCard,
+      contactHeading: "  Let's chat directly!  ",
+      galleryHeading: "Selected shots",
+      portfolioHeading: "Featured projects",
+    });
+    expect(payload.contactHeading).toBe("Let's chat directly!");
+    expect(payload.galleryHeading).toBe("Selected shots");
+    expect(payload.portfolioHeading).toBe("Featured projects");
+  });
+});
+
+describe("toDraft", () => {
+  it("maps null section headings to empty strings", () => {
+    const draft = toDraft({
+      id: 1,
+      displayName: "Ada",
+      title: "Designer",
+      company: null,
+      email: null,
+      phone: null,
+      location: null,
+      bio: null,
+      links: null,
+      portfolio: null,
+      channels: null,
+      theme: "midnight",
+      avatarUrl: null,
+      coverUrl: null,
+      backgroundUrl: null,
+      slug: "ada",
+      published: true,
+      contactHeading: null,
+      galleryHeading: null,
+      portfolioHeading: null,
+    });
+    expect(draft.contactHeading).toBe("");
+    expect(draft.galleryHeading).toBe("");
+    expect(draft.portfolioHeading).toBe("");
+  });
+});
+
+describe("splitHeading", () => {
+  it("falls back to default title and emphasis when custom text is empty or blank", () => {
+    expect(splitHeading(undefined, "Pick the easiest", "way in.")).toEqual({
+      title: "Pick the easiest",
+      emphasis: "way in.",
+    });
+    expect(splitHeading(null, "Moments & work in", "focus.")).toEqual({
+      title: "Moments & work in",
+      emphasis: "focus.",
+    });
+    expect(splitHeading("   ", "A little proof of", "the practice.")).toEqual({
+      title: "A little proof of",
+      emphasis: "the practice.",
+    });
+  });
+
+  it("returns default styling when custom text matches the default sentence", () => {
+    expect(splitHeading("Pick the easiest way in.", "Pick the easiest", "way in.")).toEqual({
+      title: "Pick the easiest",
+      emphasis: "way in.",
+    });
+    expect(splitHeading("Moments & work in focus", "Moments & work in", "focus.")).toEqual({
+      title: "Moments & work in",
+      emphasis: "focus.",
+    });
+  });
+
+  it("splits multi-word custom heading by isolating the last word for emphasis", () => {
+    expect(splitHeading("Get in touch with me", "Pick the easiest", "way in.")).toEqual({
+      title: "Get in touch with",
+      emphasis: "me",
+    });
+    expect(splitHeading("Recent creative work", "A little proof of", "the practice.")).toEqual({
+      title: "Recent creative",
+      emphasis: "work",
+    });
+  });
+
+  it("handles single-word custom heading without emphasis", () => {
+    expect(splitHeading("Portfolio", "A little proof of", "the practice.")).toEqual({
+      title: "Portfolio",
+      emphasis: "",
+    });
   });
 });
 

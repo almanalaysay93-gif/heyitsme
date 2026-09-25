@@ -75,6 +75,9 @@ const cardFields = {
   avatarUrl: imageUrl,
   coverUrl: imageUrl,
   backgroundUrl: imageUrl,
+  contactHeading: z.string().max(160).optional().nullable(),
+  galleryHeading: z.string().max(160).optional().nullable(),
+  portfolioHeading: z.string().max(160).optional().nullable(),
 };
 
 const MINUTE = 60_000;

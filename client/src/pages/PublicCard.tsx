@@ -12,6 +12,7 @@ import {
   parseLinks,
   parsePortfolio,
   readPreviewCard,
+  splitHeading,
   themeOptions,
   toDraft,
   toHref,
@@ -122,12 +123,24 @@ function WebsiteShot({ request, title }: { request: string; title: string }) {
   );
 }
 
-function PublicPortfolio({ items, onOpen }: { items: PortfolioItem[]; onOpen?: (item: PortfolioItem) => void }) {
+function PublicPortfolio({
+  items,
+  galleryHeading,
+  portfolioHeading,
+  onOpen,
+}: {
+  items: PortfolioItem[];
+  galleryHeading?: string | null;
+  portfolioHeading?: string | null;
+  onOpen?: (item: PortfolioItem) => void;
+}) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   if (!items.length) return null;
 
   const photoItems = items.filter((item) => item.kind === "image");
   const otherItems = items.filter((item) => item.kind !== "image");
+  const gallery = splitHeading(galleryHeading, "Moments & work in", "focus.");
+  const portfolio = splitHeading(portfolioHeading, "A little proof of", "the practice.");
 
   return (
     <>
@@ -135,8 +148,8 @@ function PublicPortfolio({ items, onOpen }: { items: PortfolioItem[]; onOpen?: (
         <PublicSection
           kicker="Visual Gallery"
           icon={BriefcaseBusiness}
-          title="Moments & work in"
-          emphasis="focus."
+          title={gallery.title}
+          emphasis={gallery.emphasis}
           className="pl-portfolio-gallery-section"
         >
           <PhotoCarousel
@@ -153,8 +166,8 @@ function PublicPortfolio({ items, onOpen }: { items: PortfolioItem[]; onOpen?: (
         <PublicSection
           kicker="Selected work"
           icon={BriefcaseBusiness}
-          title="A little proof of"
-          emphasis="the practice."
+          title={portfolio.title}
+          emphasis={portfolio.emphasis}
           className="pl-portfolio"
         >
           <div className="pl-portfolio-grid">
@@ -381,6 +394,8 @@ export default function PublicCardPage() {
     }),
   ].filter(Boolean) as { key: string; icon: any; label: string; value: string; href: string; external?: boolean; target: string }[];
 
+  const contactHeading = splitHeading(card.contactHeading, "Pick the easiest", "way in.");
+
   return (
     <div
       className={`pl-page theme-${theme.id}`}
@@ -462,7 +477,7 @@ export default function PublicCardPage() {
         <div className="pl-body">
           <div className="pl-column">
             {contactRows.length || channels.length ? (
-              <PublicSection kicker="Reach me" icon={MessageCircle} title="Pick the easiest" emphasis="way in." className="pl-links">
+              <PublicSection kicker="Reach me" icon={MessageCircle} title={contactHeading.title} emphasis={contactHeading.emphasis} className="pl-links">
                 <div className="pl-link-list">
                   {contactRows.map((row) => (
                     <motion.a variants={revealUp} whileTap={{ scale: 0.98 }} className="pl-link" href={row.href} key={row.key} onClick={() => track("link", row.target)} {...(row.external ? { target: "_blank", rel: "noreferrer" } : {})}>
@@ -481,7 +496,12 @@ export default function PublicCardPage() {
                 </div>
               </PublicSection>
             ) : null}
-            <PublicPortfolio items={portfolio} onOpen={(item) => track("link", `Work: ${item.title}`)} />
+            <PublicPortfolio
+              items={portfolio}
+              galleryHeading={card.galleryHeading}
+              portfolioHeading={card.portfolioHeading}
+              onOpen={(item) => track("link", `Work: ${item.title}`)}
+            />
             <PublicReferences references={references} />
           </div>
 

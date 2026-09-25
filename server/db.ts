@@ -33,12 +33,15 @@ async function ensureSchema(client: postgres.Sql) {
   const existing = await client<{ table_name: string; column_name: string }[]>`
     select table_name, column_name from information_schema.columns
     where table_schema = current_schema()
-      and ((table_name = 'cards' and column_name in ('avatarUrl', 'coverUrl', 'backgroundUrl'))
+      and ((table_name = 'cards' and column_name in ('avatarUrl', 'coverUrl', 'backgroundUrl', 'contactHeading', 'galleryHeading', 'portfolioHeading'))
         or (table_name = 'contacts' and column_name in ('followedUp', 'seenAt')))`;
-  if (existing.length < 5) {
+  if (existing.length < 8) {
     await client`alter table "cards" add column if not exists "avatarUrl" text`;
     await client`alter table "cards" add column if not exists "coverUrl" text`;
     await client`alter table "cards" add column if not exists "backgroundUrl" text`;
+    await client`alter table "cards" add column if not exists "contactHeading" varchar(160)`;
+    await client`alter table "cards" add column if not exists "galleryHeading" varchar(160)`;
+    await client`alter table "cards" add column if not exists "portfolioHeading" varchar(160)`;
     await client`alter table "contacts" add column if not exists "followedUp" boolean default false not null`;
     await client`alter table "contacts" add column if not exists "seenAt" timestamp`;
   }

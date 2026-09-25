@@ -47,6 +47,9 @@ const demoCard: CardDraft = {
   backgroundUrl: "",
   slug: "alex-morgan",
   published: true,
+  contactHeading: "",
+  galleryHeading: "",
+  portfolioHeading: "",
 };
 
 const channels = ["LinkedIn", "Instagram", "WhatsApp", "Telegram", "Viber", "Signal", "Calendly", "Facebook", "X"];
