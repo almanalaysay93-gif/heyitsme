@@ -1,6 +1,7 @@
 import {
   DeleteObjectsCommand,
   GetObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -128,19 +129,60 @@ export async function storagePut(
   return { key, url: `/storage/${key}` };
 }
 
+// Most keys one list or delete request handles, on both backends.
+const STORAGE_BATCH = 1000;
+
 /** Removes stored files. Keys that are already gone are not an error. */
 export async function storageDelete(relKeys: string[]): Promise<void> {
   const backend = storageBackend();
   if (!backend || relKeys.length === 0) return;
   const keys = relKeys.map(normalizeKey);
-  if (backend === "supabase") {
-    const { error } = await supabaseBucket().remove(keys);
-    if (error) throw error;
-    return;
+  for (let start = 0; start < keys.length; start += STORAGE_BATCH) {
+    const batch = keys.slice(start, start + STORAGE_BATCH);
+    if (backend === "supabase") {
+      const { error } = await supabaseBucket().remove(batch);
+      if (error) throw error;
+      continue;
+    }
+    await getS3Client().send(
+      new DeleteObjectsCommand({ Bucket: ENV.s3Bucket, Delete: { Objects: batch.map((Key) => ({ Key })), Quiet: true } })
+    );
   }
-  await getS3Client().send(
-    new DeleteObjectsCommand({ Bucket: ENV.s3Bucket, Delete: { Objects: keys.map((Key) => ({ Key })), Quiet: true } })
-  );
+}
+
+export type StoredFile = { key: string; createdAt: Date | null };
+
+/** Every file directly inside `folder` (such as `7-portfolio`), with when it was stored when the backend says. */
+export async function storageList(folder: string): Promise<StoredFile[]> {
+  const backend = storageBackend();
+  if (!backend) return [];
+  const path = normalizeKey(folder).replace(/\/+$/, "");
+  const files: StoredFile[] = [];
+  if (backend === "supabase") {
+    for (let offset = 0; ; offset += STORAGE_BATCH) {
+      const { data, error } = await supabaseBucket().list(path, { limit: STORAGE_BATCH, offset, sortBy: { column: "name", order: "asc" } });
+      if (error) {
+        // A bucket nothing has been uploaded to yet holds no files.
+        if (/not found/i.test(error.message)) return files;
+        throw error;
+      }
+      // Entries without an id are sub-folders, not files.
+      for (const item of data) {
+        if (item.id) files.push({ key: `${path}/${item.name}`, createdAt: item.created_at ? new Date(item.created_at) : null });
+      }
+      if (data.length < STORAGE_BATCH) return files;
+    }
+  }
+  const client = getS3Client();
+  let ContinuationToken: string | undefined;
+  do {
+    const page = await client.send(new ListObjectsV2Command({ Bucket: ENV.s3Bucket, Prefix: `${path}/`, ContinuationToken }));
+    for (const item of page.Contents ?? []) {
+      if (item.Key) files.push({ key: item.Key, createdAt: item.LastModified ?? null });
+    }
+    ContinuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
+  } while (ContinuationToken);
+  return files;
 }
 
 export async function storageGet(

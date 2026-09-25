@@ -6,8 +6,8 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { clientIp, hashIdentifier, rateLimit } from "./_core/rateLimit";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
-import { orphanedUploadKeys } from "./cardFiles";
-import { storageDelete, storagePut } from "./storage";
+import { storagePut } from "./storage";
+import { tidyOwnerUploads } from "./uploadSweep";
 import {
   createReference,
   createCard,
@@ -168,9 +168,9 @@ export const appRouter = router({
     ),
     create: protectedProcedure
       .input(z.object({ ...cardFields, published: z.boolean().optional() }))
-      .mutation(({ ctx, input }) => {
+      .mutation(async ({ ctx, input }) => {
         const slug = `${input.displayName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "card"}-${nanoid(6).toLowerCase()}`;
-        return createCard({
+        const created = await createCard({
           ...input,
           ownerUserId: ctx.user.id,
           slug,
@@ -180,12 +180,18 @@ export const appRouter = router({
           channels: input.channels ?? "[]",
           theme: input.theme ?? "midnight",
         });
+        await tidyOwnerUploads(ctx.user.id);
+        return created;
       }),
     update: protectedProcedure
       .input(z.object({ id: z.number().int().positive(), ...cardFields, published: z.boolean().optional() }))
-      .mutation(({ ctx, input }) => {
+      .mutation(async ({ ctx, input }) => {
         const { id, ...rest } = input;
-        return updateCard(id, ctx.user.id, rest);
+        const before = await getCardByIdForOwner(id, ctx.user.id);
+        const updated = await updateCard(id, ctx.user.id, rest);
+        // A replaced or removed photo or file is no longer linked anywhere, so it can go.
+        if (before && updated) await tidyOwnerUploads(ctx.user.id, before);
+        return updated;
       }),
     publish: protectedProcedure
       .input(z.object({ id: z.number().int().positive(), published: z.boolean() }))
@@ -196,8 +202,7 @@ export const appRouter = router({
         const card = await deleteCard(input.id, ctx.user.id);
         if (!card) return false;
         // The card is already gone, so a storage hiccup only leaves unused files behind.
-        const unused = orphanedUploadKeys(card, await getCardsByOwner(ctx.user.id), ctx.user.id);
-        await storageDelete(unused).catch((error) => console.error("[Delete] could not remove card files:", error));
+        await tidyOwnerUploads(ctx.user.id, card);
         return true;
       }),
   }),

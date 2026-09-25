@@ -117,10 +117,13 @@ export async function getUserByOpenId(openId: string) {
   return result[0];
 }
 
+/** Most cards getCardsByOwner returns. An owner at the cap may have more than the list shows. */
+export const OWNER_CARD_LIMIT = 500;
+
 export async function getCardsByOwner(ownerUserId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(cards).where(eq(cards.ownerUserId, ownerUserId)).orderBy(desc(cards.updatedAt)).limit(500);
+  return db.select().from(cards).where(eq(cards.ownerUserId, ownerUserId)).orderBy(desc(cards.updatedAt)).limit(OWNER_CARD_LIMIT);
 }
 
 export async function getCardById(id: number) {

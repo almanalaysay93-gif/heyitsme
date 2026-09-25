@@ -30,6 +30,18 @@ export type ReferenceRow = { id: number; clientName: string; clientRole?: string
 export const MAX_PORTFOLIO_ITEMS = 20;
 export const MAX_PORTFOLIO_LENGTH = 12000;
 
+// Stands in for an inline preview upload's future link: `/storage/<owner>-portfolio/<id>-portfolio-file_<hash>.<ext>`
+// with room to spare.
+const STORED_URL_STAND_IN = `/storage/${"0".repeat(72)}`;
+
+/**
+ * The portfolio's length as the server will store it. Preview-mode uploads are inline data: URLs until sign-in swaps
+ * each for a short storage link, so they are counted at that link's length, not their own.
+ */
+export function portfolioStoredLength(items: PortfolioItem[]): number {
+  return JSON.stringify(items.map((item) => (item.url.startsWith("data:") ? { ...item, url: STORED_URL_STAND_IN } : item))).length;
+}
+
 export function isLightboxOpen(currentIndex: number | null, totalItems: number): boolean {
   return currentIndex !== null && currentIndex >= 0 && currentIndex < totalItems;
 }
@@ -242,7 +254,7 @@ export async function executeBatchUpload<T extends UploadableFile>(
       mimeType: file.type,
     };
 
-    if (JSON.stringify([...currentItems, ...newItems, dummyItem]).length > maxLength - 200) {
+    if (portfolioStoredLength([...currentItems, ...newItems, dummyItem]) > maxLength - 200) {
       warning = `Portfolio size limit reached. Stopped uploading remaining ${filesToUpload.length - i} file(s).`;
       break;
     }
@@ -266,7 +278,7 @@ export async function executeBatchUpload<T extends UploadableFile>(
         mimeType: file.type,
       };
 
-      if (JSON.stringify([...currentItems, ...newItems, realItem]).length > maxLength) {
+      if (portfolioStoredLength([...currentItems, ...newItems, realItem]) > maxLength) {
         warning = "Portfolio size limit reached.";
         break;
       }

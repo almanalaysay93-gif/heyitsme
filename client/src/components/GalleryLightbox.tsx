@@ -1,7 +1,7 @@
 import { getNextLightboxIndex, getPrevLightboxIndex, isLightboxOpen, type PortfolioItem } from "@/lib/card";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 interface GalleryLightboxProps {
   items: PortfolioItem[];
@@ -18,6 +18,15 @@ export function GalleryLightbox({
 }: GalleryLightboxProps) {
   const isOpen = isLightboxOpen(currentIndex, items.length);
   const currentItem = isOpen && currentIndex !== null ? items[currentIndex] : null;
+  const closeButton = useRef<HTMLButtonElement>(null);
+
+  // Keyboard and screen reader users land inside the dialog, then go back to the photo that opened it.
+  useEffect(() => {
+    if (!isOpen) return;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeButton.current?.focus();
+    return () => opener?.focus();
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen || currentIndex === null) return;
@@ -63,6 +72,7 @@ export function GalleryLightbox({
               {currentIndex + 1} / {items.length}
             </span>
             <button
+              ref={closeButton}
               type="button"
               className="gallery-lightbox-btn gallery-lightbox-close"
               onClick={onClose}

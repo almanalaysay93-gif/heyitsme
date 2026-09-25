@@ -13,6 +13,7 @@ import {
   parseChannels,
   parseLinks,
   parsePortfolio,
+  portfolioStoredLength,
   toHref,
   uploadInlineMedia,
   websiteShotFrom,
@@ -337,3 +338,20 @@ describe("executeBatchUpload", () => {
   });
 });
 
+
+describe("preview-mode portfolio uploads", () => {
+  it("count inline photos at their future storage link length, so they fit under the cap", async () => {
+    const inlinePhoto = `data:image/jpeg;base64,${"A".repeat(40_000)}`;
+    const result = await executeBatchUpload([], [{ name: "me.jpg", type: "image/jpeg" }], async () => inlinePhoto);
+
+    expect(result.warning).toBeUndefined();
+    expect(result.newItems).toHaveLength(1);
+    expect(result.newItems[0].url).toBe(inlinePhoto);
+    expect(portfolioStoredLength(result.updatedItems)).toBeLessThan(MAX_PORTFOLIO_LENGTH);
+  });
+
+  it("measure regular links as they are", () => {
+    const items: PortfolioItem[] = [{ id: "1", kind: "link", title: "Site", url: "https://ada.design" }];
+    expect(portfolioStoredLength(items)).toBe(JSON.stringify(items).length);
+  });
+});

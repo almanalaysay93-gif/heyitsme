@@ -1,6 +1,6 @@
 // Uploaded files a card links to, so deleting a card can also remove the files only it used.
 
-type CardMedia = { avatarUrl?: string | null; coverUrl?: string | null; backgroundUrl?: string | null; logoUrl?: string | null; portfolio?: string | null };
+export type CardMedia ={ avatarUrl?: string | null; coverUrl?: string | null; backgroundUrl?: string | null; logoUrl?: string | null; portfolio?: string | null };
 
 const STORAGE_PATH = /\/storage\/([A-Za-z0-9._\/-]+)/g;
 

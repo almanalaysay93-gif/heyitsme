@@ -17,6 +17,7 @@ import {
   parseChannels,
   parseLinks,
   parsePortfolio,
+  portfolioStoredLength,
   PREVIEW_CARD_STORAGE_KEY,
   readPreviewCard,
   themeOptions,
@@ -316,12 +317,18 @@ export default function Home() {
       updatedAt: new Date(),
       id: draft.id || Date.now(),
     });
+    // Preview photos are stored inline, so a few large ones can fill the browser's ~5MB storage.
+    try {
+      window.localStorage.setItem(PREVIEW_CARD_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      toast.error("This browser has no room left for preview photos. Remove a photo or sign in to save it.");
+      return null;
+    }
     setLocalCards((current) =>
       current.some((item) => item.id === draft.id)
         ? current.map((item) => (item.id === draft.id ? next : item))
         : [next, ...current]
     );
-    window.localStorage.setItem(PREVIEW_CARD_STORAGE_KEY, JSON.stringify(next));
     setSelectedId(next.id);
     setDraft(next);
     toast.success("Saved in preview mode — sign in to sync it.");
@@ -771,7 +778,7 @@ function CardsView({ cards, onNew, onEdit, onShare, onPublish, publishing, onDel
 
 function BuilderView({ draft, setDraft, onSave, onPublishAndCopy, onCancel, saving, onUpload, onAddReference, onDeleteReference, isAuthenticated }: any) {
   const update = (key: keyof CardDraft, value: string) => setDraft((current: CardDraft) => ({ ...current, [key]: value }));
-  return <motion.div className="builder-page" initial={{ opacity: 0 }} animate={{ opacity: 1 }}><div className="page-heading-row builder-heading"><div><button className="back-button" onClick={onCancel}>← Back to cards</button><span className="section-kicker"><Sparkles size={14} /> Card builder</span><h1>Make it<br /><em>unmistakably you.</em></h1></div><div className="builder-save-actions"><button className="text-button" onClick={onCancel}>Discard</button><button className="publish-copy-button" onClick={onPublishAndCopy} disabled={saving}><Share2 size={15} /> {saving ? "Publishing…" : "Publish & copy link"}</button><GlassButton onClick={onSave} disabled={saving}>{saving ? "Saving…" : <><Check size={16} /> Save card</>}</GlassButton></div></div><div className="builder-layout"><div className="builder-form glass-panel"><div className="form-section"><div className="form-section-heading"><span>01</span><div><h2>The essentials</h2><p>Enough context to make the hello feel natural.</p></div></div><div className="media-picker-row"><ImagePicker label="Profile photo" hint="Square works best" shape="round" value={draft.avatarUrl} onChange={(value) => update("avatarUrl", value)} onUpload={onUpload} /><ImagePicker label="Cover" hint="Wide image, or a muted video loop up to 3MB" shape="wide" allowVideo value={draft.coverUrl} onChange={(value) => update("coverUrl", value)} onUpload={onUpload} /></div><div className="field-grid"><Field label="Your name" value={draft.displayName} onChange={(value: string) => update("displayName", value)} placeholder="Alex Morgan" /><Field label="Role / title" value={draft.title} onChange={(value: string) => update("title", value)} placeholder="Creative director" /><Field label="Company" value={draft.company} onChange={(value: string) => update("company", value)} placeholder="Studio North" /><Field label="Location" value={draft.location} onChange={(value: string) => update("location", value)} placeholder="San Francisco, CA" /><Field label="Email" value={draft.email} onChange={(value: string) => update("email", value)} placeholder="hello@you.co" type="email" /><Field label="Phone" value={draft.phone} onChange={(value: string) => update("phone", value)} placeholder="+1 415 555 0183" /></div><label className="field-label">A little context<textarea value={draft.bio} onChange={(event) => update("bio", event.target.value)} placeholder="What do you want people to remember about you?" /></label></div><div className="form-section"><div className="form-section-heading"><span>02</span><div><h2>Your links</h2><p>Add a few places for the conversation to continue.</p></div></div><label className="field-label">Links <input value={parseLinks(draft.links).join(", ")} onChange={(event) => update("links", JSON.stringify(event.target.value.split(",").map((item) => item.trim()).filter(Boolean)))} placeholder="yourwebsite.com, linkedin.com/in/you" /></label></div><div className="form-section"><div className="form-section-heading"><span>03</span><div><h2>Portfolio, in motion</h2><p>Add images, videos, files, or a project link. Uploads are served from secure storage.</p></div></div><PortfolioEditor raw={draft.portfolio} onChange={(value: string) => update("portfolio", value)} onUpload={onUpload} /></div><div className="form-section"><div className="form-section-heading"><span>04</span><div><h2>Make it easy to reach you</h2><p>Add social profiles and direct channels — Viber, WhatsApp, Telegram, and more.</p></div></div><ChannelsEditor raw={draft.channels} onChange={(value: string) => update("channels", value)} /></div><div className="form-section"><div className="form-section-heading"><span>05</span><div><h2>Client references</h2><p>Show the thoughtful words people remember after the work is done.</p></div></div><ReferencesEditor cardId={draft.id} onAddReference={onAddReference} onDeleteReference={onDeleteReference} isAuthenticated={isAuthenticated} /></div><div className="form-section"><div className="form-section-heading"><span>06</span><div><h2>Set the tone</h2><p>Choose a palette that feels like your current chapter.</p></div></div><div className="theme-picker">{themeOptions.map((theme) => <button type="button" key={theme.id} onClick={() => update("theme", theme.id)} className={`theme-swatch theme-${theme.id} ${draft.theme === theme.id ? "is-selected" : ""}`}><span className="swatch-colors"><i style={{ background: theme.colors[0] }} /><i style={{ background: theme.colors[1] }} /><i style={{ background: theme.colors[2] }} /></span><span>{theme.label}</span>{draft.theme === theme.id ? <Check size={14} /> : null}</button>)}</div><div className="media-picker-row"><ImagePicker label="Page background" hint="Fills your page behind everything. Image up to 3MB" shape="wide" value={draft.backgroundUrl} onChange={(value) => update("backgroundUrl", value)} onUpload={onUpload} /></div></div></div><div className="builder-preview-column"><div className="preview-sticky"><div className="preview-label"><span>Live preview</span><span><span className="status-dot" /> updates as you type</span></div><CardVisual card={{ ...draft, displayName: draft.displayName || "Your name", title: draft.title || "Your title" }} /><div className="preview-tip"><Sparkles size={15} /><span>Keep it light. Your card can do the talking.</span></div></div></div></div></motion.div>;
+  return <motion.div className="builder-page" initial={{ opacity: 0 }} animate={{ opacity: 1 }}><div className="page-heading-row builder-heading"><div><button className="back-button" onClick={onCancel}>← Back to cards</button><span className="section-kicker"><Sparkles size={14} /> Card builder</span><h1>Make it<br /><em>unmistakably you.</em></h1></div><div className="builder-save-actions"><button className="text-button" onClick={onCancel}>Discard</button><button className="publish-copy-button" onClick={onPublishAndCopy} disabled={saving}><Share2 size={15} /> {saving ? "Publishing…" : "Publish & copy link"}</button><GlassButton onClick={onSave} disabled={saving}>{saving ? "Saving…" : <><Check size={16} /> Save card</>}</GlassButton></div></div><div className="builder-layout"><div className="builder-form glass-panel"><div className="form-section"><div className="form-section-heading"><span>01</span><div><h2>The essentials</h2><p>Enough context to make the hello feel natural.</p></div></div><div className="media-picker-row"><ImagePicker label="Profile photo" hint="Square works best" shape="round" value={draft.avatarUrl} onChange={(value) => update("avatarUrl", value)} onUpload={onUpload} /><ImagePicker label="Cover" hint="Wide image, or a muted video loop up to 3MB" shape="wide" allowVideo value={draft.coverUrl} onChange={(value) => update("coverUrl", value)} onUpload={onUpload} /></div><div className="field-grid"><Field label="Your name" value={draft.displayName} onChange={(value: string) => update("displayName", value)} placeholder="Alex Morgan" /><Field label="Role / title" value={draft.title} onChange={(value: string) => update("title", value)} placeholder="Creative director" /><Field label="Company" value={draft.company} onChange={(value: string) => update("company", value)} placeholder="Studio North" /><Field label="Location" value={draft.location} onChange={(value: string) => update("location", value)} placeholder="San Francisco, CA" /><Field label="Email" value={draft.email} onChange={(value: string) => update("email", value)} placeholder="hello@you.co" type="email" /><Field label="Phone" value={draft.phone} onChange={(value: string) => update("phone", value)} placeholder="+1 415 555 0183" /></div><label className="field-label">A little context<textarea value={draft.bio} onChange={(event) => update("bio", event.target.value)} placeholder="What do you want people to remember about you?" /></label></div><div className="form-section"><div className="form-section-heading"><span>02</span><div><h2>Your links</h2><p>Add a few places for the conversation to continue.</p></div></div><label className="field-label">Links <input value={parseLinks(draft.links).join(", ")} onChange={(event) => update("links", JSON.stringify(event.target.value.split(",").map((item) => item.trim()).filter(Boolean)))} placeholder="yourwebsite.com, linkedin.com/in/you" /></label></div><div className="form-section"><div className="form-section-heading"><span>03</span><div><h2>Portfolio, in motion</h2><p>Add images, videos, files, or a project link. Uploads are served from secure storage.</p></div></div><PortfolioEditor raw={draft.portfolio} onChange={(value: string) => update("portfolio", value)} onUpload={onUpload} /></div><div className="form-section"><div className="form-section-heading"><span>04</span><div><h2>Make it easy to reach you</h2><p>Add social profiles and direct channels — Viber, WhatsApp, Telegram, and more.</p></div></div><ChannelsEditor raw={draft.channels} onChange={(value: string) => update("channels", value)} /></div><div className="form-section"><div className="form-section-heading"><span>05</span><div><h2>Client references</h2><p>Show the thoughtful words people remember after the work is done.</p></div></div><ReferencesEditor cardId={draft.id} onAddReference={onAddReference} onDeleteReference={onDeleteReference} isAuthenticated={isAuthenticated} /></div><div className="form-section"><div className="form-section-heading"><span>06</span><div><h2>Set the tone</h2><p>Choose a palette that feels like your current chapter.</p></div></div><div className="theme-picker">{themeOptions.map((theme) => <button type="button" key={theme.id} onClick={() => update("theme", theme.id)} className={`theme-swatch theme-${theme.id} ${draft.theme === theme.id ? "is-selected" : ""}`}><span className="swatch-colors"><i style={{ background: theme.colors[0] }} /><i style={{ background: theme.colors[1] }} /><i style={{ background: theme.colors[2] }} /></span><span>{theme.label}</span>{draft.theme === theme.id ? <Check size={14} /> : null}</button>)}</div><div className="media-picker-row"><ImagePicker label="Page background" hint="Fills your page behind everything. Image up to 3MB" shape="wide" value={draft.backgroundUrl} onChange={(value) => update("backgroundUrl", value)} onUpload={onUpload} /></div></div></div><div className="builder-preview-column"><div className={`preview-sticky${draft.backgroundUrl ? " has-page-bg" : ""}`}>{draft.backgroundUrl ? <div className="preview-page-bg" aria-hidden="true"><img src={draft.backgroundUrl} alt="" /></div> : null}<div className="preview-label"><span>Live preview</span><span><span className="status-dot" /> updates as you type</span></div><CardVisual card={{ ...draft, displayName: draft.displayName || "Your name", title: draft.title || "Your title" }} /><div className="preview-tip"><Sparkles size={15} /><span>Keep it light. Your card can do the talking.</span></div></div></div></div></motion.div>;
 }
 
 function ImagePicker({ label, hint, shape, value, onChange, onUpload, allowVideo = false }: { label: string; hint: string; shape: "round" | "wide"; value: string; onChange: (value: string) => void; onUpload: (file: File) => Promise<string>; allowVideo?: boolean }) {
@@ -809,6 +816,8 @@ function ImagePicker({ label, hint, shape, value, onChange, onUpload, allowVideo
 
 function PortfolioEditor({ raw, onChange, onUpload }: { raw: string; onChange: (value: string) => void; onUpload: (file: File) => Promise<string> }) {
   const items = parsePortfolio(raw);
+  const latestItems = useRef(items);
+  latestItems.current = items;
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [url, setUrl] = useState("");
@@ -832,7 +841,7 @@ function PortfolioEditor({ raw, onChange, onUpload }: { raw: string; onChange: (
       url: url.trim(),
       description: description.trim() || undefined,
     };
-    if (JSON.stringify([...items, newItem]).length > MAX_PORTFOLIO_LENGTH) {
+    if (portfolioStoredLength([...items, newItem]) > MAX_PORTFOLIO_LENGTH) {
       toast.error("Portfolio size limit reached.");
       return;
     }
@@ -847,45 +856,47 @@ function PortfolioEditor({ raw, onChange, onUpload }: { raw: string; onChange: (
     if (!files.length) return;
 
     setBusy(true);
-    const result = await executeBatchUpload(
-      items,
-      files,
-      onUpload,
-      {
-        description,
-        onProgress: setUploadProgress,
-        onError: (name, error) => toast.error(`Failed to upload ${name}: ${error?.message || "Upload error"}`),
-      }
-    );
-
-    if (result.error) {
-      toast.error(result.error);
-    } else {
-      if (result.warning) toast.warning(result.warning);
-      if (result.newItems.length > 0) {
-        onChange(JSON.stringify(result.updatedItems));
-        if (result.newItems.length > 1) {
-          toast.success(`Uploaded ${result.newItems.length} photos! Add descriptions below.`);
-        } else {
-          toast.success("Photo uploaded.");
+    try {
+      const result = await executeBatchUpload(
+        items,
+        files,
+        onUpload,
+        {
+          description,
+          onProgress: setUploadProgress,
+          onError: (name, error) => toast.error(`Failed to upload ${name}: ${error?.message || "Upload error"}`),
         }
-        setDescription("");
-        setTitle("");
-      }
-    }
+      );
 
-    setUploadProgress(null);
-    setBusy(false);
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        if (result.warning) toast.warning(result.warning);
+        if (result.newItems.length > 0) {
+          // Uploads take a while; append to the list as it is now, so edits made meanwhile are kept.
+          onChange(JSON.stringify([...latestItems.current, ...result.newItems]));
+          if (result.newItems.length > 1) {
+            toast.success(`Uploaded ${result.newItems.length} photos! Add descriptions below.`);
+          } else {
+            toast.success("Photo uploaded.");
+          }
+          setDescription("");
+          setTitle("");
+        }
+      }
+    } finally {
+      setUploadProgress(null);
+      setBusy(false);
+    }
   };
 
   const updateItem = (index: number, patch: Partial<PortfolioItem>) => {
     const next = items.map((item, i) => (i === index ? { ...item, ...patch } : item));
-    const nextJson = JSON.stringify(next);
-    if (nextJson.length > MAX_PORTFOLIO_LENGTH) {
+    if (portfolioStoredLength(next) > MAX_PORTFOLIO_LENGTH) {
       toast.error("Portfolio size limit reached.");
       return;
     }
-    onChange(nextJson);
+    onChange(JSON.stringify(next));
   };
 
   const moveItem = (index: number, direction: "up" | "down") => {
