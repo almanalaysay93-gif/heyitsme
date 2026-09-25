@@ -269,7 +269,7 @@ export default function Home() {
     navigate(card ? `/app/cards/${card.id}/edit` : "/app/cards/new");
   };
 
-  const saveDraft = async (options?: { publish?: boolean; redirect?: boolean }) => {
+  const saveDraft = async (options?: { publish?: boolean; redirect?: boolean; silent?: boolean }) => {
     const payload = cardPayload(draft);
     const shouldRedirect = options?.redirect ?? true;
 
@@ -314,7 +314,8 @@ export default function Home() {
     const next = toDraft({
       ...draft,
       ...payload,
-      published: options?.publish !== undefined ? options.publish : draft.published,
+      // A preview has no public URL. Keep it unpublished until the owner signs in.
+      published: false,
       updatedAt: new Date(),
       id: draft.id || Date.now(),
     });
@@ -332,7 +333,7 @@ export default function Home() {
     );
     setSelectedId(next.id);
     setDraft(next);
-    toast.success("Saved in preview mode — sign in to sync it.");
+    if (!options?.silent) toast.success("Saved in preview mode. Sign in to sync it.");
     if (shouldRedirect) {
       navigate("/app/cards");
     }
@@ -364,6 +365,13 @@ export default function Home() {
   };
 
   const saveAndCopyLink = async () => {
+    if (!isAuthenticated) {
+      const saved = await saveDraft({ redirect: false, silent: true });
+      if (!saved) return;
+      toast.error("Sign in to publish this card and get a shareable link.");
+      navigate("/app/cards");
+      return;
+    }
     const saved = await saveDraft({ publish: true, redirect: false });
     if (saved) {
       await copyPublicLink(saved);
@@ -375,18 +383,25 @@ export default function Home() {
     // Repeat clicks while the first request runs would all read the old state.
     if (publishCard.isPending) return;
     const published = !card.published;
-    if (isAuthenticated && card.id <= 0) {
+    if (!isAuthenticated) {
+      if (!card.published) {
+        toast.error("Sign in to publish this card and get a shareable link.");
+        return;
+      }
+      const next = { ...card, published: false };
+      setLocalCards((current) => current.map((item) => (item.id === card.id ? next : item)));
+      if (draft.id === card.id) setDraft(next);
+      if (readPreviewCard()?.id === card.id) window.localStorage.setItem(PREVIEW_CARD_STORAGE_KEY, JSON.stringify(next));
+      toast.success("Your card is hidden.");
+      return;
+    }
+    if (card.id <= 0) {
       toast.error("Save this card first, then publish it.");
       return;
     }
     try {
-      if (isAuthenticated && card.id > 0) {
-        await publishCard.mutateAsync({ id: card.id, published });
-        await utils.cards.list.invalidate();
-      } else {
-        setLocalCards((current) => current.map((item) => item.id === card.id ? { ...item, published } : item));
-        if (draft.id === card.id) setDraft({ ...draft, published });
-      }
+      await publishCard.mutateAsync({ id: card.id, published });
+      await utils.cards.list.invalidate();
       toast.success(published ? "Your card is live." : "Your card is hidden.");
     } catch (error: any) {
       toast.error(error?.message ?? "Could not update that card.");
@@ -750,7 +765,7 @@ function OverviewView({ cards, contacts, activeCard, onNew, onEdit, onShare, onC
         <div className="feature-panel glass-panel">
           <div className="panel-header">
             <div>
-              <span className="mini-label">Your live card</span>
+              <span className="mini-label">{activeCard?.published ? "Your live card" : "Your card"}</span>
               <h2>{activeCard?.displayName || "Your first card"}</h2>
             </div>
             {activeCard ? <button type="button" className="icon-button" onClick={onEdit} aria-label="Edit card" title="Edit card"><Pencil size={16} /></button> : null}

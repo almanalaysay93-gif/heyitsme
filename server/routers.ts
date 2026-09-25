@@ -329,7 +329,8 @@ export const appRouter = router({
         const firstView = await rateLimit(`view:${card.id}:${hashIdentifier(ip)}`, 1, 30 * MINUTE);
         if (firstView.allowed) await recordAnalytics(card.id, "view", "public_card");
       }
-      return card ? { ...card, references: await getReferencesByCard(card.id, true) } : card;
+      // null, not undefined: a missing slug is an empty result. undefined makes the client treat it as a failed query.
+      return card ? { ...card, references: await getReferencesByCard(card.id, true) } : null;
     }),
     exchange: publicProcedure
       .input(z.object({

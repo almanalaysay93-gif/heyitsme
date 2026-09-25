@@ -13,7 +13,9 @@ import {
   parseChannels,
   parseLinks,
   parsePortfolio,
+  PREVIEW_CARD_STORAGE_KEY,
   portfolioStoredLength,
+  readPreviewCard,
   splitHeading,
   toDraft,
   toHref,
@@ -185,6 +187,23 @@ describe("toDraft", () => {
     expect(draft.contactHeading).toBe("");
     expect(draft.galleryHeading).toBe("");
     expect(draft.portfolioHeading).toBe("");
+  });
+});
+
+describe("readPreviewCard", () => {
+  it("reads a preview marked Live as private and stores that correction", () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => { store.set(key, value); },
+      },
+    });
+    store.set(PREVIEW_CARD_STORAGE_KEY, JSON.stringify({ ...emptyCard, id: 5, displayName: "Ada", published: true }));
+
+    expect(readPreviewCard()?.published).toBe(false);
+    expect(JSON.parse(store.get(PREVIEW_CARD_STORAGE_KEY) ?? "{}").published).toBe(false);
+    vi.unstubAllGlobals();
   });
 });
 

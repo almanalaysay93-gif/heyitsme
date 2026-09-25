@@ -7,6 +7,7 @@ const db = vi.hoisted(() => ({
   recordAnalytics: vi.fn(),
   getUserById: vi.fn(),
   updateContact: vi.fn(),
+  getPublicCardBySlug: vi.fn(),
 }));
 const mail = vi.hoisted(() => ({ sendMail: vi.fn() }));
 
@@ -23,6 +24,17 @@ const card = { id: 7, ownerUserId: 3, displayName: "Ada Lane", published: true, 
 const req = { protocol: "https", headers: {}, ip: "203.0.113.9", get: () => "heyitsme.test" } as unknown as TrpcContext["req"];
 const publicCaller = () => appRouter.createCaller({ user: null, req, res: {} as TrpcContext["res"] });
 const visitor = { cardId: 7, name: "Bo Visitor", email: "bo@example.com", phone: "+1 555 0100" };
+
+describe("publicCard.bySlug", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns null when no published card uses the slug", async () => {
+    db.getPublicCardBySlug.mockResolvedValue(undefined);
+    await expect(publicCaller().publicCard.bySlug({ slug: "missing-card" })).resolves.toBeNull();
+  });
+});
 
 describe("publicCard.exchange", () => {
   beforeEach(() => {

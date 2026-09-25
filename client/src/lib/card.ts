@@ -151,8 +151,15 @@ export function parseChannels(raw: string | null | undefined, options?: { keepEm
 export function readPreviewCard(): CardDraft | null {
   try {
     const raw = window.localStorage.getItem(PREVIEW_CARD_STORAGE_KEY);
+    if (!raw) return null;
     // Normalized because older previews were saved with null fields.
-    return raw ? toDraft(JSON.parse(raw)) : null;
+    const draft = toDraft(JSON.parse(raw));
+    // A preview has no public URL. Older saves marked these Live.
+    if (draft.published) {
+      draft.published = false;
+      window.localStorage.setItem(PREVIEW_CARD_STORAGE_KEY, JSON.stringify(draft));
+    }
+    return draft;
   } catch {
     return null;
   }
