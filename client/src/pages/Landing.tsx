@@ -44,6 +44,7 @@ const demoCard: CardDraft = {
   theme: "midnight",
   avatarUrl: "",
   coverUrl: "",
+  backgroundUrl: "",
   slug: "alex-morgan",
   published: true,
 };

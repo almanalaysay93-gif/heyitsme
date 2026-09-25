@@ -1,5 +1,24 @@
-import { describe, expect, it } from "vitest";
-import { buildVCard, cardPayload, channelHref, emptyCard, parseChannels, parseLinks, parsePortfolio, toHref, uploadInlineMedia, websiteShotFrom, websiteShotRequest } from "./card";
+import { describe, expect, it, vi } from "vitest";
+import {
+  buildVCard,
+  cardPayload,
+  channelHref,
+  emptyCard,
+  executeBatchUpload,
+  getNextLightboxIndex,
+  getPrevLightboxIndex,
+  isLightboxOpen,
+  MAX_PORTFOLIO_ITEMS,
+  MAX_PORTFOLIO_LENGTH,
+  parseChannels,
+  parseLinks,
+  parsePortfolio,
+  toHref,
+  uploadInlineMedia,
+  websiteShotFrom,
+  websiteShotRequest,
+  type PortfolioItem,
+} from "./card";
 
 describe("toHref", () => {
   it("blocks script-capable schemes, including obfuscated ones", () => {
@@ -160,3 +179,161 @@ describe("parsePortfolio", () => {
     expect(parsed[1].description).toBeUndefined();
   });
 });
+
+describe("GalleryLightbox navigation & state", () => {
+  it("determines whether the lightbox is open based on index and item bounds", () => {
+    expect(isLightboxOpen(null, 3)).toBe(false);
+    expect(isLightboxOpen(-1, 3)).toBe(false);
+    expect(isLightboxOpen(3, 3)).toBe(false);
+    expect(isLightboxOpen(4, 3)).toBe(false);
+    expect(isLightboxOpen(0, 3)).toBe(true);
+    expect(isLightboxOpen(2, 3)).toBe(true);
+    expect(isLightboxOpen(0, 0)).toBe(false);
+  });
+
+  it("navigates forward with wrap-around to start", () => {
+    expect(getNextLightboxIndex(0, 3)).toBe(1);
+    expect(getNextLightboxIndex(1, 3)).toBe(2);
+    expect(getNextLightboxIndex(2, 3)).toBe(0);
+    expect(getNextLightboxIndex(0, 1)).toBe(0);
+    expect(getNextLightboxIndex(0, 0)).toBe(0);
+  });
+
+  it("navigates backward with wrap-around to end", () => {
+    expect(getPrevLightboxIndex(2, 3)).toBe(1);
+    expect(getPrevLightboxIndex(1, 3)).toBe(0);
+    expect(getPrevLightboxIndex(0, 3)).toBe(2);
+    expect(getPrevLightboxIndex(0, 1)).toBe(0);
+    expect(getPrevLightboxIndex(0, 0)).toBe(0);
+  });
+});
+
+describe("executeBatchUpload", () => {
+  it("uploads all files successfully and assigns proper properties", async () => {
+    const existing: PortfolioItem[] = [
+      { id: "existing-1", kind: "link", title: "My Site", url: "https://example.com" },
+    ];
+    const files = [
+      { name: "photo1.jpg", type: "image/jpeg" },
+      { name: "clip.mp4", type: "video/mp4" },
+      { name: "doc.pdf", type: "application/pdf" },
+    ];
+    const uploader = vi.fn().mockImplementation(async (f) => `/storage/7-portfolio/${f.name}`);
+    const onProgress = vi.fn();
+
+    const result = await executeBatchUpload(existing, files, uploader, {
+      description: "Sample description",
+      onProgress,
+    });
+
+    expect(result.error).toBeUndefined();
+    expect(result.warning).toBeUndefined();
+    expect(result.newItems).toHaveLength(3);
+    expect(result.updatedItems).toHaveLength(4);
+    expect(uploader).toHaveBeenCalledTimes(3);
+
+    // First image receives the initial description, subsequent ones do not unless single
+    expect(result.newItems[0].kind).toBe("image");
+    expect(result.newItems[0].title).toBe("");
+    expect(result.newItems[0].url).toBe("/storage/7-portfolio/photo1.jpg");
+    expect(result.newItems[0].description).toBe("Sample description");
+
+    expect(result.newItems[1].kind).toBe("video");
+    expect(result.newItems[1].title).toBe("clip");
+    expect(result.newItems[1].url).toBe("/storage/7-portfolio/clip.mp4");
+    expect(result.newItems[1].description).toBeUndefined();
+
+    expect(result.newItems[2].kind).toBe("file");
+    expect(result.newItems[2].title).toBe("doc");
+    expect(result.newItems[2].url).toBe("/storage/7-portfolio/doc.pdf");
+
+    expect(onProgress).toHaveBeenCalledWith("Uploading 1 of 3 (photo1.jpg)…");
+  });
+
+  it("handles partial failure without dropping successful uploads", async () => {
+    const files = [
+      { name: "good1.png", type: "image/png" },
+      { name: "corrupted.png", type: "image/png" },
+      { name: "good2.png", type: "image/png" },
+    ];
+    const uploader = vi.fn().mockImplementation(async (f) => {
+      if (f.name === "corrupted.png") throw new Error("Upload failed: file corrupted");
+      return `/storage/7-portfolio/${f.name}`;
+    });
+    const onError = vi.fn();
+
+    const result = await executeBatchUpload([], files, uploader, { onError });
+
+    expect(result.newItems).toHaveLength(2);
+    expect(result.newItems.map((item) => item.url)).toEqual([
+      "/storage/7-portfolio/good1.png",
+      "/storage/7-portfolio/good2.png",
+    ]);
+    expect(onError).toHaveBeenCalledWith("corrupted.png", expect.any(Error));
+  });
+
+  it("rejects uploads when portfolio has already reached maximum item capacity", async () => {
+    const fullItems: PortfolioItem[] = Array.from({ length: MAX_PORTFOLIO_ITEMS }, (_, i) => ({
+      id: `item-${i}`,
+      kind: "image",
+      title: "",
+      url: `/storage/7-portfolio/pic-${i}.jpg`,
+    }));
+
+    const uploader = vi.fn();
+    const result = await executeBatchUpload(fullItems, [{ name: "another.png", type: "image/png" }], uploader);
+
+    expect(result.error).toContain(`Portfolio is full (maximum ${MAX_PORTFOLIO_ITEMS} items)`);
+    expect(result.newItems).toHaveLength(0);
+    expect(uploader).not.toHaveBeenCalled();
+  });
+
+  it("slices batch files and issues a warning when selection exceeds remaining slots", async () => {
+    const items: PortfolioItem[] = Array.from({ length: 18 }, (_, i) => ({
+      id: `item-${i}`,
+      kind: "image",
+      title: "",
+      url: `/storage/7-portfolio/pic-${i}.jpg`,
+    }));
+
+    const files = [
+      { name: "photo1.png", type: "image/png" },
+      { name: "photo2.png", type: "image/png" },
+      { name: "photo3.png", type: "image/png" },
+      { name: "photo4.png", type: "image/png" },
+    ];
+    const uploader = vi.fn().mockImplementation(async (f) => `/storage/7-portfolio/${f.name}`);
+
+    const result = await executeBatchUpload(items, files, uploader);
+
+    expect(result.warning).toContain(`Only 2 item(s) can be added (maximum ${MAX_PORTFOLIO_ITEMS})`);
+    expect(result.newItems).toHaveLength(2);
+    expect(uploader).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops before calling uploader when projected serialized size exceeds max length", async () => {
+    // Construct an item that puts total JSON close to the cap
+    const longDesc = "A".repeat(4000);
+    const nearCapItems: PortfolioItem[] = [
+      { id: "1", kind: "image", title: "", url: "https://example.com/1.jpg", description: longDesc },
+      { id: "2", kind: "image", title: "", url: "https://example.com/2.jpg", description: longDesc },
+    ];
+
+    const files = [
+      { name: "photo1.jpg", type: "image/jpeg" },
+      { name: "photo2.jpg", type: "image/jpeg" },
+    ];
+    const uploader = vi.fn().mockResolvedValue("/storage/7-portfolio/photo.jpg");
+
+    // With maxLength set to 8500 (near current JSON length), projected length will hit cap
+    const result = await executeBatchUpload(nearCapItems, files, uploader, {
+      maxLength: 8500,
+    });
+
+    expect(result.warning).toContain("Portfolio size limit reached");
+    expect(result.newItems).toHaveLength(0);
+    // Uploader was never called! No orphan files created in storage!
+    expect(uploader).not.toHaveBeenCalled();
+  });
+});
+

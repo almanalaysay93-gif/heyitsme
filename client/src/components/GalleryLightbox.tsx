@@ -1,4 +1,4 @@
-import type { PortfolioItem } from "@/lib/card";
+import { getNextLightboxIndex, getPrevLightboxIndex, isLightboxOpen, type PortfolioItem } from "@/lib/card";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useEffect } from "react";
@@ -16,19 +16,19 @@ export function GalleryLightbox({
   onClose,
   onNavigate,
 }: GalleryLightboxProps) {
-  const isOpen = currentIndex !== null && currentIndex >= 0 && currentIndex < items.length;
-  const currentItem = isOpen ? items[currentIndex] : null;
+  const isOpen = isLightboxOpen(currentIndex, items.length);
+  const currentItem = isOpen && currentIndex !== null ? items[currentIndex] : null;
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || currentIndex === null) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         onClose();
       } else if (e.key === "ArrowLeft") {
-        onNavigate((currentIndex - 1 + items.length) % items.length);
+        onNavigate(getPrevLightboxIndex(currentIndex, items.length));
       } else if (e.key === "ArrowRight") {
-        onNavigate((currentIndex + 1) % items.length);
+        onNavigate(getNextLightboxIndex(currentIndex, items.length));
       }
     };
 
@@ -44,7 +44,7 @@ export function GalleryLightbox({
 
   return (
     <AnimatePresence>
-      {isOpen && currentItem && (
+      {isOpen && currentItem && currentIndex !== null && (
         <motion.div
           className="gallery-lightbox-overlay"
           initial={{ opacity: 0 }}
@@ -77,7 +77,7 @@ export function GalleryLightbox({
               <button
                 type="button"
                 className="gallery-lightbox-nav prev"
-                onClick={() => onNavigate((currentIndex - 1 + items.length) % items.length)}
+                onClick={() => currentIndex !== null && onNavigate(getPrevLightboxIndex(currentIndex, items.length))}
                 aria-label="Previous image"
               >
                 <ChevronLeft size={28} />
@@ -109,7 +109,7 @@ export function GalleryLightbox({
               <button
                 type="button"
                 className="gallery-lightbox-nav next"
-                onClick={() => onNavigate((currentIndex + 1) % items.length)}
+                onClick={() => currentIndex !== null && onNavigate(getNextLightboxIndex(currentIndex, items.length))}
                 aria-label="Next image"
               >
                 <ChevronRight size={28} />

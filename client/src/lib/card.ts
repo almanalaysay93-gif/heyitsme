@@ -16,6 +16,7 @@ export type CardDraft = {
   theme: string;
   avatarUrl: string;
   coverUrl: string;
+  backgroundUrl: string;
   slug: string;
   published: boolean;
   deletedAt?: string | Date | null;
@@ -25,6 +26,25 @@ export type CardDraft = {
 export type PortfolioItem = { id: string; kind: "image" | "video" | "file" | "link"; title: string; url: string; description?: string; mimeType?: string };
 export type ChannelItem = { provider: string; url: string; label?: string };
 export type ReferenceRow = { id: number; clientName: string; clientRole?: string | null; company?: string | null; quote: string; approved?: boolean };
+
+export const MAX_PORTFOLIO_ITEMS = 20;
+export const MAX_PORTFOLIO_LENGTH = 12000;
+
+export function isLightboxOpen(currentIndex: number | null, totalItems: number): boolean {
+  return currentIndex !== null && currentIndex >= 0 && currentIndex < totalItems;
+}
+
+export function getNextLightboxIndex(currentIndex: number, totalItems: number): number {
+  if (totalItems <= 0) return 0;
+  const safe = ((currentIndex % totalItems) + totalItems) % totalItems;
+  return (safe + 1) % totalItems;
+}
+
+export function getPrevLightboxIndex(currentIndex: number, totalItems: number): number {
+  if (totalItems <= 0) return 0;
+  const safe = ((currentIndex % totalItems) + totalItems) % totalItems;
+  return (safe - 1 + totalItems) % totalItems;
+}
 
 export const emptyCard: CardDraft = {
   id: 0,
@@ -41,6 +61,7 @@ export const emptyCard: CardDraft = {
   theme: "midnight",
   avatarUrl: "",
   coverUrl: "",
+  backgroundUrl: "",
   slug: "new-card",
   published: false,
   updatedAt: new Date(),
@@ -110,6 +131,7 @@ export function toDraft(card: any): CardDraft {
     theme: card.theme ?? "midnight",
     avatarUrl: card.avatarUrl ?? "",
     coverUrl: card.coverUrl ?? "",
+    backgroundUrl: card.backgroundUrl ?? "",
     slug: card.slug ?? "new-card",
     published: Boolean(card.published),
     deletedAt: card.deletedAt ?? null,
@@ -134,6 +156,7 @@ export function cardPayload(card: CardDraft) {
     theme: card.theme,
     avatarUrl: card.avatarUrl || null,
     coverUrl: card.coverUrl || null,
+    backgroundUrl: card.backgroundUrl || null,
   };
 }
 
@@ -153,7 +176,111 @@ export async function uploadInlineMedia(card: CardDraft, upload: (file: InlineUp
     ...card,
     avatarUrl: await store(card.avatarUrl, "profile-photo"),
     coverUrl: await store(card.coverUrl, "cover"),
+    backgroundUrl: await store(card.backgroundUrl, "background"),
     portfolio: JSON.stringify(portfolio),
+  };
+}
+
+export type UploadableFile = { name: string; type: string };
+
+export async function executeBatchUpload<T extends UploadableFile>(
+  currentItems: PortfolioItem[],
+  files: T[],
+  uploader: (file: T) => Promise<string>,
+  options?: {
+    description?: string;
+    maxItems?: number;
+    maxLength?: number;
+    onProgress?: (message: string) => void;
+    onError?: (fileName: string, err: any) => void;
+  }
+): Promise<{
+  newItems: PortfolioItem[];
+  updatedItems: PortfolioItem[];
+  warning?: string;
+  error?: string;
+}> {
+  const maxItems = options?.maxItems ?? MAX_PORTFOLIO_ITEMS;
+  const maxLength = options?.maxLength ?? MAX_PORTFOLIO_LENGTH;
+
+  if (currentItems.length >= maxItems) {
+    return {
+      newItems: [],
+      updatedItems: currentItems,
+      error: `Portfolio is full (maximum ${maxItems} items). Remove items to upload more.`,
+    };
+  }
+
+  const remainingSlots = maxItems - currentItems.length;
+  let filesToUpload = files;
+  let warning: string | undefined;
+
+  if (files.length > remainingSlots) {
+    warning = `Only ${remainingSlots} item(s) can be added (maximum ${maxItems}). Uploading the first ${remainingSlots}.`;
+    filesToUpload = files.slice(0, remainingSlots);
+  }
+
+  const newItems: PortfolioItem[] = [];
+  const desc = options?.description?.trim();
+
+  for (let i = 0; i < filesToUpload.length; i++) {
+    const file = filesToUpload[i];
+    const fileKind: PortfolioItem["kind"] = file.type.startsWith("image/")
+      ? "image"
+      : file.type.startsWith("video/")
+      ? "video"
+      : "file";
+    const descText = desc && (filesToUpload.length === 1 || i === 0) ? desc : undefined;
+
+    // Check projected size before starting upload to prevent orphaned storage objects
+    const dummyItem: PortfolioItem = {
+      id: "00000000-0000-0000-0000-000000000000",
+      kind: fileKind,
+      title: fileKind === "image" ? "" : file.name.replace(/\.[^/.]+$/, ""),
+      url: `/storage/0-portfolio/${file.name}`,
+      description: descText,
+      mimeType: file.type,
+    };
+
+    if (JSON.stringify([...currentItems, ...newItems, dummyItem]).length > maxLength - 200) {
+      warning = `Portfolio size limit reached. Stopped uploading remaining ${filesToUpload.length - i} file(s).`;
+      break;
+    }
+
+    if (options?.onProgress) {
+      options.onProgress(
+        filesToUpload.length > 1
+          ? `Uploading ${i + 1} of ${filesToUpload.length} (${file.name})…`
+          : `Uploading ${file.name}…`
+      );
+    }
+
+    try {
+      const uploadedUrl = await uploader(file);
+      const realItem: PortfolioItem = {
+        id: crypto.randomUUID(),
+        kind: fileKind,
+        title: fileKind === "image" ? "" : file.name.replace(/\.[^/.]+$/, ""),
+        url: uploadedUrl,
+        description: descText,
+        mimeType: file.type,
+      };
+
+      if (JSON.stringify([...currentItems, ...newItems, realItem]).length > maxLength) {
+        warning = "Portfolio size limit reached.";
+        break;
+      }
+
+      newItems.push(realItem);
+    } catch (err) {
+      options?.onError?.(file.name, err);
+    }
+  }
+
+  return {
+    newItems,
+    updatedItems: [...currentItems, ...newItems],
+    warning,
   };
 }
 

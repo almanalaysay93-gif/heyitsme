@@ -5,7 +5,7 @@ export const ENV = {
   isProduction: process.env.NODE_ENV === "production",
   // `||` so an empty manual variable falls through to the names the Vercel Supabase integration sets.
   supabaseUrl: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  supabaseAnonKey: process.env.SUPABASE_ANON_KEY ?? "",
+  supabaseAnonKey: process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || "",
   // Supabase Storage bucket for uploads, used when S3 is not configured. Created on first upload.
   supabaseStorageBucket: process.env.SUPABASE_STORAGE_BUCKET || "uploads",

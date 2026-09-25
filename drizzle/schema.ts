@@ -38,6 +38,7 @@ export const cards = pgTable("cards", {
   logoUrl: text("logoUrl"),
   avatarUrl: text("avatarUrl"),
   coverUrl: text("coverUrl"),
+  backgroundUrl: text("backgroundUrl"),
   slug: varchar("slug", { length: 120 }).notNull().unique(),
   published: boolean("published").default(false).notNull(),
   deletedAt: timestamp("deletedAt", { mode: "date" }),

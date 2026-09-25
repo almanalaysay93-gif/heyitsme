@@ -38,6 +38,27 @@ const imageUrl = z
   .optional()
   .nullable();
 
+export const MAX_PORTFOLIO_ITEMS = 20;
+export const MAX_PORTFOLIO_LENGTH = 12000;
+
+const portfolioSchema = z
+  .string()
+  .max(MAX_PORTFOLIO_LENGTH, `Portfolio cannot exceed ${MAX_PORTFOLIO_LENGTH} characters`)
+  .refine(
+    (value) => {
+      if (!value || !value.trim()) return true;
+      try {
+        const parsed = JSON.parse(value);
+        return !Array.isArray(parsed) || parsed.length <= MAX_PORTFOLIO_ITEMS;
+      } catch {
+        return true;
+      }
+    },
+    `Portfolio can have at most ${MAX_PORTFOLIO_ITEMS} items`
+  )
+  .optional()
+  .nullable();
+
 const cardFields = {
   displayName: z.string().min(1).max(160),
   title: z.string().min(1).max(160),
@@ -47,12 +68,13 @@ const cardFields = {
   location: z.string().max(160).optional().nullable(),
   bio: z.string().max(800).optional().nullable(),
   links: z.string().max(3000).optional().nullable(),
-  portfolio: z.string().max(12000).optional().nullable(),
+  portfolio: portfolioSchema,
   channels: z.string().max(6000).optional().nullable(),
   theme: z.string().max(80).optional().nullable(),
   logoUrl: z.string().max(600).optional().nullable(),
   avatarUrl: imageUrl,
   coverUrl: imageUrl,
+  backgroundUrl: imageUrl,
 };
 
 const MINUTE = 60_000;

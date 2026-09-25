@@ -239,6 +239,7 @@ div.card-visual { cursor: default; }
 .tilt-card .card-visual:hover { transform: none; }
 .tilt-glare { position: absolute; inset: 0; z-index: 3; border-radius: inherit; pointer-events: none; mix-blend-mode: soft-light; }
 .media-picker-row { display: grid; grid-template-columns: auto 1fr; gap: 14px; margin-bottom: 18px; }
+.theme-picker + .media-picker-row { margin: 18px 0 0; }
 .image-picker { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .image-picker-drop { position: relative; flex: none; display: grid; place-items: center; overflow: hidden; color: var(--muted-ink); background: rgba(255,255,255,.6); border: 1.5px dashed rgba(107,92,255,.32); cursor: pointer; transition: border-color .2s, transform .2s var(--ease-out); }
 .image-picker-drop:hover { border-color: var(--purple); transform: translateY(-2px); }
@@ -360,6 +361,10 @@ div.card-visual { cursor: default; }
 .pl-page { --pl-a: #11152b; --pl-b: #6b5cff; --pl-c: #c2b7ff; position: relative; isolation: isolate; overflow-x: clip; min-height: 100vh; padding-bottom: 20px; color: var(--ink); background: var(--paper); }
 /* Soft glows in the card's colors drift behind the page. Radial gradients are soft already, so no blur filter is needed. */
 .pl-backdrop { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+/* Owner's background photo. A paper veil keeps headings that sit straight on the page readable over any image. */
+.pl-bg { position: fixed; inset: 0; z-index: -2; pointer-events: none; }
+.pl-bg img { width: 100%; height: 100%; object-fit: cover; }
+.pl-bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, color-mix(in srgb, var(--paper) 30%, transparent), color-mix(in srgb, var(--paper) 62%, transparent) 55%); }
 .pl-backdrop::after { content: ""; position: absolute; inset: 0; background-image: radial-gradient(color-mix(in srgb, var(--pl-b) 16%, transparent) 1px, transparent 1.5px); background-size: 26px 26px; mask-image: radial-gradient(ellipse at 50% 60%, black, transparent 75%); }
 .pl-backdrop i { position: absolute; border-radius: 50%; will-change: transform; animation: pl-float-a 19s ease-in-out infinite alternate; }
 .pl-backdrop i:nth-child(1) { width: 62vmax; height: 62vmax; right: -22vmax; top: 8vh; background: radial-gradient(circle, color-mix(in srgb, var(--pl-c) 55%, transparent), transparent 68%); }
