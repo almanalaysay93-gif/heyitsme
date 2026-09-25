@@ -768,6 +768,20 @@ select:focus-visible, summary:focus-visible { outline: 3px solid rgba(107, 92, 2
 .insight-table tbody th { color: var(--ink); font-weight: 650; }
 .insight-table td { color: #4f5367; }
 .insight-table small { color: #85899a; font-weight: 500; }
+.insight-table-scroll { transition: background-color .25s var(--ease-out), padding .25s var(--ease-out); }
+.insight-table-scroll.is-dark { padding: 4px 8px; background: var(--ink); border-radius: 14px; box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 14px 30px rgba(16,21,42,.16); }
+.is-dark .insight-table th, .is-dark .insight-table td { border-bottom-color: rgba(255,255,255,.08); }
+.is-dark .insight-table tbody tr:last-child > * { border-bottom: 0; }
+.is-dark .insight-table thead th { color: rgba(255,255,255,.5); }
+.is-dark .insight-table tbody th { color: #fff; }
+.is-dark .insight-table td { color: rgba(255,255,255,.78); }
+.is-dark .insight-table small { color: rgba(255,255,255,.5); }
+.is-dark .insight-table tbody tr:hover > * { background: rgba(255,255,255,.04); }
+.insight-table-tools { display: flex; justify-content: flex-end; margin-top: 8px; }
+.table-theme-toggle { display: inline-flex; gap: 2px; padding: 3px; background: rgba(24,30,60,.05); border-radius: 11px; }
+.table-theme-toggle button { width: 32px; height: 28px; display: grid; place-items: center; color: #7b7f92; background: transparent; border-radius: 8px; cursor: pointer; }
+.table-theme-toggle button.is-active { color: var(--ink); background: #fff; box-shadow: 0 4px 12px rgba(31,37,70,.08); }
+.table-theme-toggle button:focus-visible { outline: 2px solid var(--purple); outline-offset: 1px; }
 .insight-card-name { display: inline-block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
 .top-links { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
 .top-links li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; }

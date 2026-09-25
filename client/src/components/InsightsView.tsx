@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { motion } from "framer-motion";
-import { BarChart3, Download, Eye, Link2, Share2, UserRoundPlus } from "lucide-react";
+import { BarChart3, Download, Eye, Link2, Moon, Share2, Sun, UserRoundPlus } from "lucide-react";
 import { useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 type Range = 7 | 30 | 90;
@@ -88,8 +88,40 @@ export function DailyViewsChart({ daily }: { daily: { day: string; views: number
   );
 }
 
+type TableTheme = "light" | "dark";
+const TABLE_THEME_KEY = "heyitsme.insights.tableTheme";
+
+function readTableTheme(): TableTheme {
+  try {
+    return window.localStorage.getItem(TABLE_THEME_KEY) === "dark" ? "dark" : "light";
+  } catch {
+    return "light";
+  }
+}
+
+function TableThemeToggle({ value, onChange }: { value: TableTheme; onChange: (value: TableTheme) => void }) {
+  return (
+    <div className="table-theme-toggle" role="group" aria-label="Table theme">
+      <button type="button" aria-label="Light table" aria-pressed={value === "light"} className={value === "light" ? "is-active" : ""} onClick={() => onChange("light")}>
+        <Sun size={13} aria-hidden="true" />
+      </button>
+      <button type="button" aria-label="Dark table" aria-pressed={value === "dark"} className={value === "dark" ? "is-active" : ""} onClick={() => onChange("dark")}>
+        <Moon size={13} aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
 export function InsightsView({ isAuthenticated, onSignIn }: { isAuthenticated: boolean; onSignIn: () => void }) {
   const [days, setDays] = useState<Range>(30);
+  const [tableTheme, setTableThemeState] = useState<TableTheme>(readTableTheme);
+  const setTableTheme = (value: TableTheme) => {
+    setTableThemeState(value);
+    try {
+      window.localStorage.setItem(TABLE_THEME_KEY, value);
+    } catch {}
+  };
+  const tableScrollClass = `insight-table-scroll${tableTheme === "dark" ? " is-dark" : ""}`;
   const summaryQuery = trpc.insights.summary.useQuery({ days }, { enabled: isAuthenticated, retry: false, placeholderData: (previous) => previous });
   const summary = summaryQuery.data;
   const topLinkMax = useMemo(() => Math.max(1, ...(summary?.topLinks ?? []).map((link) => link.count)), [summary?.topLinks]);
@@ -182,7 +214,8 @@ export function InsightsView({ isAuthenticated, onSignIn }: { isAuthenticated: b
             {noActivity ? <p className="insight-empty-note">No visits yet in this range. Share your link or QR code to get the first ones.</p> : null}
             <details className="insight-table-toggle">
               <summary>Show daily numbers</summary>
-              <div className="insight-table-scroll">
+              <div className="insight-table-tools"><TableThemeToggle value={tableTheme} onChange={setTableTheme} /></div>
+              <div className={tableScrollClass}>
                 <table className="insight-table">
                   <caption className="sr-only">Views per day, last {days} days</caption>
                   <thead><tr><th scope="col">Day</th><th scope="col">Views</th></tr></thead>
@@ -202,9 +235,9 @@ export function InsightsView({ isAuthenticated, onSignIn }: { isAuthenticated: b
 
       <div className="insight-grid">
         <section className="glass-panel insight-panel" aria-labelledby="per-card-title">
-          <div className="panel-header"><div><span className="mini-label">By card</span><h2 id="per-card-title">Which version works</h2></div></div>
+          <div className="panel-header"><div><span className="mini-label">By card</span><h2 id="per-card-title">Which version works</h2></div>{summary && summary.cards.length ? <TableThemeToggle value={tableTheme} onChange={setTableTheme} /> : null}</div>
           {summary && summary.cards.length ? (
-            <div className="insight-table-scroll">
+            <div className={tableScrollClass}>
               <table className="insight-table">
                 <thead>
                   <tr><th scope="col">Card</th><th scope="col">Views</th><th scope="col">Saved</th><th scope="col">Exchanged</th><th scope="col">Taps</th></tr>
