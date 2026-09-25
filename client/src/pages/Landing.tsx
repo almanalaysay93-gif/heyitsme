@@ -186,7 +186,7 @@ export default function Landing() {
   const progress = useSpring(scrollYProgress, { stiffness: 140, damping: 26 });
   const howRef = useRef<HTMLElement>(null);
 
-  usePageMeta({ title: "heyitsme — your introduction, one link away", canonicalPath: "/" });
+  usePageMeta({ title: "Free Digital Business Card with QR Code | heyitsme", canonicalPath: "/" });
 
   const start = () => navigate("/app/cards/new");
   const openApp = () => navigate("/app");
