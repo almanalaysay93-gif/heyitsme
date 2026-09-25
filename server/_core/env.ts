@@ -20,5 +20,6 @@ export const ENV = {
   awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? "",
   // Resend, for owner notifications. Without a key, mail is skipped and logged.
   resendApiKey: process.env.RESEND_API_KEY ?? "",
-  mailFrom: process.env.MAIL_FROM || "heyitsme <notifications@heyitsme.fyi>",
+  // The address must be on the domain verified in Resend, send.heyitsme.fyi.
+  mailFrom: process.env.MAIL_FROM || "heyitsme <notifications@send.heyitsme.fyi>",
 };
