@@ -42,6 +42,7 @@ import {
   CircleUserRound,
   Copy,
   FileText,
+  Home as HomeIcon,
   Image as ImageIcon,
   LayoutGrid,
   Link2,
@@ -490,7 +491,7 @@ export default function Home() {
     <div className="app-frame">
       <div className="ambient ambient-one" /><div className="ambient ambient-two" /><div className="ambient ambient-three" />
       <aside id="app-sidebar" className={`app-sidebar ${mobileNavOpen ? "is-open" : ""} ${sidebarHidden ? "is-collapsed" : ""}`}>
-        <div className="brand-lockup"><span className="brand-mark"><span /></span><span>heyitsme</span></div>
+        <a className="brand-lockup" href="/" onClick={(e) => { e.preventDefault(); navigate("/"); }} title="heyitsme home"><span className="brand-mark"><span /></span><span>heyitsme</span></a>
         <div className="sidebar-profile" style={{ position: "relative" }}>
           <div className="profile-orb">{getInitials(user?.name || (isAuthenticated ? "You" : "Guest"))}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -578,7 +579,15 @@ export default function Home() {
             <strong>{isBuilder ? "Card builder" : mode === "contacts" ? "Contacts" : mode === "insights" ? "Insights" : mode === "cards" ? "My cards" : "Overview"}</strong>
           </div>
           <div className="topbar-actions">
-            <span className="live-pill"><span className="pulse-dot" /> all systems lovely</span>
+            <button
+              type="button"
+              className="icon-button topbar-home"
+              onClick={() => navigate("/")}
+              title="Home"
+              aria-label="Home"
+            >
+              <HomeIcon size={17} />
+            </button>
             {isAuthenticated ? (
               <button
                 className="topbar-avatar"
@@ -591,11 +600,7 @@ export default function Home() {
               >
                 {getInitials(user?.name || "You")}
               </button>
-            ) : (
-              <button type="button" className="topbar-avatar" onClick={startGoogleLogin} title="Click to sign in with Google" aria-label="Sign in with Google">
-                G
-              </button>
-            )}
+            ) : null}
           </div>
         </header>
         <div className="content-wrap">
@@ -648,26 +653,41 @@ export default function Home() {
           ) : mode === "cards" ? (
             <CardsView
               cards={cards}
-              onNew={() => openBuilder()}
-              onEdit={openBuilder}
+              isAuthenticated={isAuthenticated}
+              onNew={isAuthenticated ? () => openBuilder() : startGoogleLogin}
+              onEdit={isAuthenticated ? openBuilder : startGoogleLogin}
               onShare={(card: CardDraft) => {
+                if (!isAuthenticated) {
+                  startGoogleLogin();
+                  return;
+                }
                 setSelectedId(card.id);
                 setDraft(card);
                 setSharingCard(card);
                 setShowShare(true);
               }}
-              onPublish={togglePublish}
+              onPublish={isAuthenticated ? togglePublish : startGoogleLogin}
               publishing={publishCard.isPending}
-              onDelete={removeCard}
+              onDelete={isAuthenticated ? removeCard : startGoogleLogin}
             />
           ) : (
             <OverviewView
               cards={cards}
               contacts={contacts}
               activeCard={cards.length ? activeCard : null}
-              onNew={() => openBuilder()}
-              onEdit={() => openBuilder(activeCard)}
+              onNew={isAuthenticated ? () => openBuilder() : startGoogleLogin}
+              onEdit={() => {
+                if (!isAuthenticated) {
+                  startGoogleLogin();
+                  return;
+                }
+                openBuilder(activeCard);
+              }}
               onShare={() => {
+                if (!isAuthenticated) {
+                  startGoogleLogin();
+                  return;
+                }
                 if (!cards.length) {
                   toast.info("Make your first card, then share it from here.");
                   openBuilder();
@@ -677,7 +697,13 @@ export default function Home() {
                 setShowShare(true);
               }}
               onViewContacts={() => navigate("/app/contacts")}
-              onCopy={() => copyPublicLink(activeCard)}
+              onCopy={() => {
+                if (!isAuthenticated) {
+                  startGoogleLogin();
+                  return;
+                }
+                copyPublicLink(activeCard);
+              }}
               weekViews={weekInsights.data?.daily}
               onInsights={() => navigate("/app/insights")}
             />
@@ -773,7 +799,7 @@ function OverviewView({ cards, contacts, activeCard, onNew, onEdit, onShare, onC
   );
 }
 
-function CardsView({ cards, onNew, onEdit, onShare, onPublish, publishing, onDelete }: any) {
+function CardsView({ cards, onNew, onEdit, onShare, onPublish, publishing, onDelete, isAuthenticated }: any) {
   return <motion.div className="page-stack" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}><div className="page-heading-row"><div><span className="section-kicker"><CircleUserRound size={14} /> Your cards</span><h1>Different room,<br /><em>different signal.</em></h1><p>Keep the right version of you close at hand.</p></div><GlassButton onClick={onNew}><Plus size={16} /> New card</GlassButton></div>{cards.length === 0 ? <div className="empty-state glass-panel"><CircleUserRound size={24} /><strong>No cards yet.</strong><span>Create your first card to share your details and portfolio.</span><GlassButton onClick={onNew}><Plus size={15} /> Create a card</GlassButton></div> : <div className="cards-grid">{cards.map((card: CardDraft, index: number) => { const archived = Boolean(card.deletedAt); const status = archived ? "Archived" : card.published ? "Live" : "Private"; return <motion.div key={card.id} className={`card-list-item glass-panel ${archived ? "is-archived" : ""}`} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.07 }}><CardVisual card={card} compact onClick={archived ? undefined : () => onEdit(card)} label={`Edit ${card.displayName || "untitled card"}`} /><div className="card-list-meta"><div><strong>{card.displayName || "Untitled card"}</strong><span>{card.title}{card.company ? ` · ${card.company}` : ""}</span></div><span className={`tiny-status ${status.toLowerCase()}`}><span className="status-dot" />{status}</span></div><div className="card-list-actions">{archived ? null : <><button onClick={() => onEdit(card)}><Pencil size={14} /> Edit</button><button onClick={() => onShare(card)}><Share2 size={14} /> Share</button><button onClick={() => onPublish(card)} disabled={publishing}><span className="publish-toggle" />{card.published ? "Unpublish" : "Publish"}</button></>}<button className="danger-action" onClick={() => onDelete(card)}><Trash2 size={14} /> Delete</button></div></motion.div>; })}<button className="new-card-tile" onClick={onNew}><span><Plus size={20} /></span><strong>Make another version</strong><small>Same you. New context.</small></button></div>}</motion.div>;
 }
 
