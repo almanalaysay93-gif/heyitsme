@@ -731,6 +731,10 @@ select:focus-visible, summary:focus-visible { outline: 3px solid rgba(107, 92, 2
 .tag-chip button { width: 24px; height: 24px; display: grid; place-items: center; color: #7c78b2; background: transparent; border-radius: 50%; cursor: pointer; }
 .tag-chip button:hover { color: var(--ink); background: rgba(255,255,255,.8); }
 .contact-notes textarea { min-height: 96px; }
+.contact-follow-up-row { display: flex; align-items: center; gap: 10px; }
+.contact-follow-up-row input { flex: 1; min-width: 0; }
+.contact-follow-up-row .text-button { min-height: 44px; }
+.contact-date.is-follow-up { display: inline-flex; align-items: center; gap: 4px; color: #1f7f74; font-weight: 600; }
 .contact-sheet-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 4px; }
 .contact-sheet-footer .glass-button:disabled { cursor: not-allowed; }
 .danger-text { min-height: 44px; color: #b04a5c; }

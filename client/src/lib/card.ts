@@ -373,28 +373,8 @@ export function websiteShotFrom(answer: any): string | null {
   return loaded && typeof shot === "string" && shot.startsWith("https://") ? shot : null;
 }
 
-/** vCard 3.0 text for a card. `pageUrl` is the public page, `origin` resolves same-origin photo paths. */
-export function buildVCard(card: CardDraft, pageUrl: string, origin: string): string {
-  const esc = (v: string) => v.replace(/[\\,;]/g, (m) => `\\${m}`).replace(/\r?\n/g, "\\n");
-  // Only hosted photos — preview data: URLs would bloat the file and many contact apps reject them.
-  const photoUrl = /^https?:\/\//i.test(card.avatarUrl)
-    ? card.avatarUrl
-    : card.avatarUrl.startsWith("/") && !card.avatarUrl.startsWith("//") ? `${origin}${card.avatarUrl}` : "";
-  const lines = [
-    "BEGIN:VCARD",
-    "VERSION:3.0",
-    `FN:${esc(card.displayName || "Contact")}`,
-    card.title ? `TITLE:${esc(card.title)}` : null,
-    card.company ? `ORG:${esc(card.company)}` : null,
-    card.email ? `EMAIL;TYPE=INTERNET:${card.email}` : null,
-    card.phone ? `TEL;TYPE=CELL:${card.phone}` : null,
-    `URL:${pageUrl}`,
-    card.bio ? `NOTE:${esc(card.bio)}` : null,
-    photoUrl ? `PHOTO;VALUE=URI:${photoUrl}` : null,
-    "END:VCARD",
-  ].filter(Boolean);
-  return lines.join("\r\n");
-}
+// Shared with the server, which serves the same file at /c/<slug>.vcf.
+export { buildVCard } from "@shared/vcard";
 
 const PHONE_CHANNELS = new Set(["whatsapp", "viber", "signal", "telegram"]);
 const PROFILE_BASES: Record<string, string> = {

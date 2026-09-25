@@ -53,6 +53,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Link, useLocation } from "wouter";
 
+/** Guest previews only; published cards link to /c/<slug>.vcf. */
 function downloadVCard(card: CardDraft) {
   downloadBlob(new Blob([buildVCard(card, window.location.href, window.location.origin)], { type: "text/vcard;charset=utf-8" }), `${safeFileName(card.displayName, "contact")}.vcf`);
   toast.success("Contact file (.vcf) downloaded.");
@@ -325,9 +326,12 @@ export default function PublicCardPage() {
     trackEvent.mutate({ cardId: card.id, type, target: target?.slice(0, 80) || null }, { onError: () => undefined });
   };
 
+  // Published cards open the server's .vcf, which iPhone Safari shows as an "add contact" sheet; blob
+  // downloads there land in Files instead. Guest previews have no server copy, so they still build the file here.
   const saveContact = () => {
-    downloadVCard(card);
     track("vcard");
+    if (rawCard?.slug) window.location.assign(`/c/${encodeURIComponent(rawCard.slug)}.vcf`);
+    else downloadVCard(card);
   };
 
   const copyLink = async () => {

@@ -3,7 +3,9 @@ import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { getSessionCookieOptions } from "./_core/cookies";
+import { newContactMail, sendMail } from "./_core/mail";
 import { clientIp, hashIdentifier, rateLimit } from "./_core/rateLimit";
+import { siteOrigin } from "./_core/seo";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { storagePut } from "./storage";
@@ -23,6 +25,7 @@ import {
   getReferencesByCard,
   getReferencesByOwner,
   getPublicCardBySlug,
+  getUserById,
   markContactsSeen,
   recordAnalytics,
   updateCard,
@@ -79,6 +82,26 @@ const cardFields = {
   galleryHeading: z.string().max(160).optional().nullable(),
   portfolioHeading: z.string().max(160).optional().nullable(),
 };
+
+type ContactNotice = { name: string; email: string | null; phone: string | null };
+
+/** Emails the card owner about a new contact. The contact is already saved, so nothing here may throw. */
+async function notifyOwnerOfContact(card: { ownerUserId: number; displayName: string }, contact: ContactNotice, origin: string) {
+  try {
+    const owner = await getUserById(card.ownerUserId);
+    if (!owner?.email) return;
+    await sendMail(newContactMail({
+      to: owner.email,
+      cardName: card.displayName,
+      name: contact.name,
+      email: contact.email,
+      phone: contact.phone,
+      contactsUrl: `${origin}/app/contacts`,
+    }));
+  } catch (error) {
+    console.error("[Mail] could not notify card owner:", error);
+  }
+}
 
 const MINUTE = 60_000;
 
@@ -222,12 +245,15 @@ export const appRouter = router({
         tags: z.array(z.string().trim().min(1).max(40)).max(12).optional(),
         notes: z.string().max(1000).optional().nullable(),
         followedUp: z.boolean().optional(),
+        // A calendar day from <input type="date">, stored as midnight UTC. Null clears it.
+        followUpOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((day) => !Number.isNaN(Date.parse(`${day}T00:00:00Z`)), "Invalid date").nullable().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const updated = await updateContact(input.id, ctx.user.id, {
           ...(input.tags ? { tags: JSON.stringify(Array.from(new Set(input.tags))) } : {}),
           ...(input.notes !== undefined ? { notes: input.notes || null } : {}),
           ...(input.followedUp !== undefined ? { followedUp: input.followedUp } : {}),
+          ...(input.followUpOn !== undefined ? { followUpOn: input.followUpOn ? new Date(`${input.followUpOn}T00:00:00Z`) : null } : {}),
         });
         if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });
         return updated;
@@ -325,7 +351,7 @@ export const appRouter = router({
         const card = await getCardById(input.cardId);
         if (!card || !card.published || card.deletedAt) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
         await recordAnalytics(input.cardId, "save", "exchange_form");
-        return createContact({
+        const contact = await createContact({
           ownerUserId: card.ownerUserId,
           cardId: input.cardId,
           name: input.name,
@@ -337,6 +363,8 @@ export const appRouter = router({
           tags: "[]",
           source: "exchange_form",
         });
+        await notifyOwnerOfContact(card, contact, siteOrigin(ctx.req));
+        return contact;
       }),
     // Fire-and-forget visitor actions for the owner's Insights. Public, like views, so counts are best-effort.
     track: publicProcedure

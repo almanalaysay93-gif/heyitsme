@@ -1,4 +1,5 @@
 import { SITEMAP_PATHS } from "@shared/routes";
+import { buildVCard } from "@shared/vcard";
 import { sql } from "drizzle-orm";
 import express, { type Express, type Request } from "express";
 import fs from "node:fs";
@@ -74,6 +75,37 @@ export function registerSeoRoutes(app: Express) {
       .type("application/xml")
       .set("Cache-Control", "public, max-age=3600")
       .send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`);
+  });
+
+  // The card as a contact file. A real URL, not a blob, so iPhone Safari opens its "add contact" sheet.
+  // Registered before /c/:slug, which would otherwise take "name.vcf" as a slug.
+  app.get("/c/:slug.vcf", async (req, res) => {
+    const slug = String(req.params.slug ?? "").slice(0, 120);
+    try {
+      const limit = await rateLimit(`vcf:${hashIdentifier(clientIp(req))}`, 60, 60_000);
+      if (!limit.allowed) {
+        res.status(429).set("Cache-Control", "no-store").type("text/plain").send("Too many requests");
+        return;
+      }
+      const card = await getPublicCardBySlug(slug);
+      if (!card) {
+        res.status(404).set("Cache-Control", "no-store").type("text/plain").send("Card not found");
+        return;
+      }
+      const origin = siteOrigin(req);
+      const fileName = (card.slug || "contact").replace(/[^a-z0-9-]+/gi, "-");
+      res
+        .status(200)
+        .set({
+          "Content-Type": "text/vcard; charset=utf-8",
+          "Content-Disposition": `inline; filename="${fileName}.vcf"`,
+          "Cache-Control": "public, max-age=0, s-maxage=60, stale-while-revalidate=60",
+        })
+        .send(buildVCard(card, `${origin}/c/${card.slug}`, origin));
+    } catch (error) {
+      logJson("error", "vcard render failed", { slug, error: String(error) });
+      res.status(503).set({ "Retry-After": "30", "Cache-Control": "no-store" }).type("text/plain").send("Try again in a moment");
+    }
   });
 
   // Public cards get real <head> tags so shared links unfurl with the person's name and photo.

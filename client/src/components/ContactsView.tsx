@@ -1,6 +1,6 @@
-import { buildContactVCard, copyToClipboard, csvCell, downloadBlob, formatDate, getInitials, parseTags, safeFileName } from "@/lib/cardKit";
+import { buildContactVCard, copyToClipboard, csvCell, downloadBlob, followUpDay, formatDate, formatFollowUp, getInitials, parseTags, safeFileName, sortByFollowUp } from "@/lib/cardKit";
 import { AnimatePresence, motion } from "framer-motion";
-import { AtSign, Check, Copy, Download, Mail, Phone, Tag, Trash2, UserRoundPlus, UsersRound, X } from "lucide-react";
+import { AtSign, CalendarClock, Check, Copy, Download, Mail, Phone, Tag, Trash2, UserRoundPlus, UsersRound, X } from "lucide-react";
 import { useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
 import { toast } from "sonner";
 
@@ -16,11 +16,14 @@ export type ContactRow = {
   notes?: string | null;
   source: string;
   followedUp?: boolean;
+  /** Midnight UTC of the day the owner means to reach out. */
+  followUpOn?: string | Date | null;
   seenAt?: string | Date | null;
   createdAt?: string | Date;
 };
 
-export type ContactPatch = { tags?: string[]; notes?: string | null; followedUp?: boolean };
+/** `followUpOn` is a "YYYY-MM-DD" day, or null to clear it. */
+export type ContactPatch = { tags?: string[]; notes?: string | null; followedUp?: boolean; followUpOn?: string | null };
 
 type StatusFilter = "all" | "new" | "todo" | "done";
 
@@ -97,13 +100,16 @@ function ContactSheet({
   const [tags, setTags] = useState(() => parseTags(contact.tags));
   const [notes, setNotes] = useState(contact.notes ?? "");
   const [followedUp, setFollowedUp] = useState(Boolean(contact.followedUp));
+  const [followUpOn, setFollowUpOn] = useState(() => followUpDay(contact.followUpOn));
   const [saving, setSaving] = useState(false);
   const titleId = useId();
   const notesId = useId();
+  const followUpId = useId();
   const dirty =
     JSON.stringify(tags) !== JSON.stringify(parseTags(contact.tags)) ||
     notes !== (contact.notes ?? "") ||
-    followedUp !== Boolean(contact.followedUp);
+    followedUp !== Boolean(contact.followedUp) ||
+    followUpOn !== followUpDay(contact.followUpOn);
 
   useEffect(() => {
     const onKey = (event: globalThis.KeyboardEvent) => { if (event.key === "Escape") onClose(); };
@@ -113,7 +119,7 @@ function ContactSheet({
 
   const save = async () => {
     setSaving(true);
-    const ok = await onSave({ tags, notes: notes.trim() || null, followedUp });
+    const ok = await onSave({ tags, notes: notes.trim() || null, followedUp, followUpOn: followUpOn || null });
     setSaving(false);
     if (ok) onClose();
   };
@@ -174,6 +180,14 @@ function ContactSheet({
           </span>
         </label>
 
+        <div className="field-label contact-follow-up">
+          <label htmlFor={followUpId}>Follow up on</label>
+          <div className="contact-follow-up-row">
+            <input id={followUpId} type="date" value={followUpOn} onChange={(event) => setFollowUpOn(event.target.value)} />
+            {followUpOn ? <button type="button" className="text-button" onClick={() => setFollowUpOn("")}>Clear</button> : null}
+          </div>
+        </div>
+
         <TagEditor tags={tags} onChange={setTags} suggestions={suggestions} />
 
         <div className="field-label contact-notes">
@@ -232,7 +246,7 @@ export function ContactsView({
 
   const visible = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return contacts.filter((contact) => {
+    return sortByFollowUp(contacts).filter((contact) => {
       if (status === "new" && !newIds.has(contact.id)) return false;
       if (status === "todo" && contact.followedUp) return false;
       if (status === "done" && !contact.followedUp) return false;
@@ -249,7 +263,7 @@ export function ContactsView({
   const openContact = contacts.find((contact) => contact.id === openId) ?? null;
 
   const exportContacts = () => {
-    const header = ["name", "email", "phone", "company", "title", "tags", "notes", "followed_up", "card", "source", "met_on"].join(",");
+    const header = ["name", "email", "phone", "company", "title", "tags", "notes", "followed_up", "follow_up_on", "card", "source", "met_on"].join(",");
     const rows = visible.map((contact) => [
       contact.name,
       contact.email,
@@ -259,6 +273,7 @@ export function ContactsView({
       parseTags(contact.tags).join("; "),
       contact.notes,
       contact.followedUp ? "yes" : "no",
+      followUpDay(contact.followUpOn),
       contact.cardId ? cardNames.get(contact.cardId) ?? "" : "",
       contact.source,
       contact.createdAt ? new Date(contact.createdAt).toISOString().slice(0, 10) : "",
@@ -326,6 +341,7 @@ export function ContactsView({
         {visible.map((contact, index) => {
           const tags = parseTags(contact.tags);
           const isNew = newIds.has(contact.id);
+          const followUp = contact.followedUp ? "" : followUpDay(contact.followUpOn);
           return (
             <motion.div className={`contact-row ${contact.followedUp ? "is-done" : ""}`} key={contact.id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: Math.min(index, 10) * 0.04 }}>
               <button type="button" className="contact-open" onClick={() => setOpenId(contact.id)} aria-label={`Open ${contact.name}${isNew ? ", new" : ""}`}>
@@ -342,7 +358,11 @@ export function ContactsView({
                     <small>{contact.notes ? contact.notes.slice(0, 60) : contact.source === "exchange_form" ? "Exchanged details" : "Saved from your card"}</small>
                   )}
                 </div>
-                <div className="contact-date">{formatDate(contact.createdAt)}</div>
+                {followUp ? (
+                  <div className="contact-date is-follow-up" title="Follow up on"><CalendarClock size={12} aria-hidden="true" /> {formatFollowUp(followUp)}</div>
+                ) : (
+                  <div className="contact-date">{formatDate(contact.createdAt)}</div>
+                )}
               </button>
               <button
                 type="button"

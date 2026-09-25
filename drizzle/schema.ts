@@ -63,6 +63,8 @@ export const contacts = pgTable("contacts", {
   source: varchar("source", { length: 32 }).default("exchange_form").notNull(),
   followedUp: boolean("followedUp").default(false).notNull(),
   seenAt: timestamp("seenAt", { mode: "date" }),
+  // When the owner means to reach out. No reminders are sent; it only orders the list.
+  followUpOn: timestamp("followUpOn", { mode: "date" }),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
 }, (table) => [index("contacts_owner_id_idx").on(table.ownerUserId, table.id)]).enableRLS();
 

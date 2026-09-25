@@ -426,6 +426,7 @@ export default function Home() {
           ...(patch.tags ? { tags: JSON.stringify(patch.tags) } : {}),
           ...(patch.notes !== undefined ? { notes: patch.notes } : {}),
           ...(patch.followedUp !== undefined ? { followedUp: patch.followedUp } : {}),
+          ...(patch.followUpOn !== undefined ? { followUpOn: patch.followUpOn ? `${patch.followUpOn}T00:00:00.000Z` : null } : {}),
         } : contact));
       }
       if (patch.followedUp !== undefined && patch.tags === undefined && patch.notes === undefined) {

@@ -18,4 +18,7 @@ export const ENV = {
   s3Region: process.env.S3_REGION ?? "us-east-1",
   awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID ?? "",
   awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? "",
+  // Resend, for owner notifications. Without a key, mail is skipped and logged.
+  resendApiKey: process.env.RESEND_API_KEY ?? "",
+  mailFrom: process.env.MAIL_FROM || "heyitsme <notifications@heyitsme.fyi>",
 };

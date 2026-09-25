@@ -34,8 +34,8 @@ async function ensureSchema(client: postgres.Sql) {
     select table_name, column_name from information_schema.columns
     where table_schema = current_schema()
       and ((table_name = 'cards' and column_name in ('avatarUrl', 'coverUrl', 'backgroundUrl', 'contactHeading', 'galleryHeading', 'portfolioHeading'))
-        or (table_name = 'contacts' and column_name in ('followedUp', 'seenAt')))`;
-  if (existing.length < 8) {
+        or (table_name = 'contacts' and column_name in ('followedUp', 'seenAt', 'followUpOn')))`;
+  if (existing.length < 9) {
     await client`alter table "cards" add column if not exists "avatarUrl" text`;
     await client`alter table "cards" add column if not exists "coverUrl" text`;
     await client`alter table "cards" add column if not exists "backgroundUrl" text`;
@@ -44,6 +44,7 @@ async function ensureSchema(client: postgres.Sql) {
     await client`alter table "cards" add column if not exists "portfolioHeading" varchar(160)`;
     await client`alter table "contacts" add column if not exists "followedUp" boolean default false not null`;
     await client`alter table "contacts" add column if not exists "seenAt" timestamp`;
+    await client`alter table "contacts" add column if not exists "followUpOn" timestamp`;
   }
 
   const names = SCHEMA_INDEXES.map(([name]) => name);
@@ -117,6 +118,13 @@ export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+  return result[0];
+}
+
+export async function getUserById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
   return result[0];
 }
 
@@ -246,7 +254,7 @@ export async function deleteContact(id: number, ownerUserId: number) {
 export async function updateContact(
   id: number,
   ownerUserId: number,
-  input: Partial<Pick<InsertContact, "tags" | "notes" | "followedUp">>,
+  input: Partial<Pick<InsertContact, "tags" | "notes" | "followedUp" | "followUpOn">>,
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
