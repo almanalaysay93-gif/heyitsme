@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startGoogleLogin } from "@/const";
+import { BrandMark, LogoLoader } from "@/components/BrandMark";
 import { CardVisual, Field } from "@/components/CardVisual";
 import type { ContactPatch, ContactRow } from "@/components/ContactsView";
 import { LegalLinks } from "@/components/LegalLinks";
@@ -84,7 +85,7 @@ function readSidebarHidden() {
 }
 
 function ViewLoading() {
-  return <div className="loading-screen view-loading" role="status" aria-label="Loading"><div className="loading-orb" /></div>;
+  return <div className="loading-screen view-loading" role="status" aria-label="Loading"><LogoLoader /></div>;
 }
 
 function GlassButton({ children, onClick, variant = "primary", type = "button", className = "", disabled = false }: any) {
@@ -500,13 +501,13 @@ export default function Home() {
     return result.url;
   };
 
-  if (loading) return <div className="loading-screen"><div className="loading-orb" /><p>Warming up your presence…</p></div>;
+  if (loading) return <div className="loading-screen" role="status"><LogoLoader /><p>Warming up your presence…</p></div>;
 
   return (
     <div className="app-frame">
       <div className="ambient ambient-one" /><div className="ambient ambient-two" /><div className="ambient ambient-three" />
       <aside id="app-sidebar" className={`app-sidebar ${mobileNavOpen ? "is-open" : ""} ${sidebarHidden ? "is-collapsed" : ""}`}>
-        <a className="brand-lockup" href="/" onClick={(e) => { e.preventDefault(); navigate("/"); }} title="heyitsme home"><span className="brand-mark"><span /></span><span>heyitsme</span></a>
+        <a className="brand-lockup" href="/" onClick={(e) => { e.preventDefault(); navigate("/"); }} title="heyitsme home"><BrandMark /><span>heyitsme</span></a>
         <div className="sidebar-profile" style={{ position: "relative" }}>
           <div className="profile-orb">{getInitials(user?.name || (isAuthenticated ? "You" : "Guest"))}</div>
           <div style={{ flex: 1, minWidth: 0 }}>

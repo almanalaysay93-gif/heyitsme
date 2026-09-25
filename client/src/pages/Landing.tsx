@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { BrandMark } from "@/components/BrandMark";
 import { LoopVideo } from "@/components/LoopVideo";
 import { ShareDemo } from "@/components/ShareDemo";
 import { VelocityMarquee } from "@/components/VelocityMarquee";
@@ -200,7 +201,7 @@ export default function Landing() {
       <div className="ambient ambient-one" /><div className="ambient ambient-two" /><div className="ambient ambient-three" />
 
       <header className="lp-nav">
-        <a className="brand-lockup" href="/"><span className="brand-mark"><span /></span><span>heyitsme</span></a>
+        <a className="brand-lockup" href="/"><BrandMark /><span>heyitsme</span></a>
         <nav className="lp-nav-links" aria-label="Page sections">
           <a href="#film">See it</a>
           <a href="#how">How it works</a>
@@ -370,7 +371,7 @@ export default function Landing() {
       </main>
 
       <footer className="lp-footer">
-        <a className="brand-lockup" href="/"><span className="brand-mark"><span /></span><span>heyitsme</span></a>
+        <a className="brand-lockup" href="/"><BrandMark /><span>heyitsme</span></a>
         <span>Free for everyone</span>
         <LegalLinks />
       </footer>

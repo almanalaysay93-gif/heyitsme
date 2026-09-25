@@ -1,3 +1,4 @@
+import { BrandMark } from "@/components/BrandMark";
 import { LegalLinks } from "@/components/LegalLinks";
 import { SUPPORT_EMAIL } from "@/const";
 import { usePageMeta } from "@/hooks/usePageMeta";
@@ -18,7 +19,7 @@ function LegalShell({ title, intro, children }: { title: string; intro: string; 
   return (
     <div className="legal-page">
       <header className="legal-nav">
-        <Link className="brand-lockup" href="/"><span className="brand-mark"><span /></span><span>heyitsme</span></Link>
+        <Link className="brand-lockup" href="/"><BrandMark /><span>heyitsme</span></Link>
       </header>
       <main id="main" tabIndex={-1}>
         <article className="legal-doc">

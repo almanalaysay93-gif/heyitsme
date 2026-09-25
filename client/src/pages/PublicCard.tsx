@@ -1,3 +1,4 @@
+import { BrandMark, LogoLoader } from "@/components/BrandMark";
 import { CardVisual, Field, TiltCard } from "@/components/CardVisual";
 import { GalleryLightbox } from "@/components/GalleryLightbox";
 import { LegalLinks } from "@/components/LegalLinks";
@@ -287,8 +288,7 @@ export default function PublicCardPage() {
   if (cardQuery.isLoading) {
     return (
       <div className="public-loading">
-        <div className="loading-orb" />
-        <span>Opening a little context…</span>
+        <LogoLoader label="Opening a little context…" />
       </div>
     );
   }
@@ -416,7 +416,7 @@ export default function PublicCardPage() {
       </div>
 
       <header className="pl-nav">
-        <a className="brand-lockup" href="/"><span className="brand-mark"><span /></span><span>heyitsme</span></a>
+        <a className="brand-lockup" href="/"><BrandMark /><span>heyitsme</span></a>
         <motion.button whileTap={{ scale: 0.94 }} type="button" className="pl-nav-share" onClick={() => void shareLink()}>
           <Share2 size={15} /> Share
         </motion.button>

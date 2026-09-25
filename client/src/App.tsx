@@ -2,6 +2,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { lazy, Suspense } from "react";
 import { Route, Switch } from "wouter";
+import { LogoLoader } from "./components/BrandMark";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 
@@ -14,7 +15,7 @@ const PrivacyPage = lazy(() => import("./pages/Legal").then((m) => ({ default: m
 const TermsPage = lazy(() => import("./pages/Legal").then((m) => ({ default: m.TermsPage })));
 
 function RouteLoading() {
-  return <div className="loading-screen" role="status" aria-label="Loading"><div className="loading-orb" /></div>;
+  return <div className="loading-screen" role="status" aria-label="Loading"><LogoLoader /></div>;
 }
 
 function Router() {
