@@ -45,11 +45,12 @@ export function registerOAuthRoutes(app: Express) {
     }
 
     // CSRF guard: the nonce in `state` must match the one-time cookie that
-    // startLogin set in the browser that began this login.
+    // startLogin set in the browser that began this login. A mismatch signs no
+    // one in; it is usually a reload of a finished callback, so go to the app.
     const { nonce } = decodeOAuthState(state);
     const expectedNonce = parseCookieHeader(req.headers.cookie ?? "")[OAUTH_STATE_COOKIE];
     if (!nonce || nonce !== expectedNonce) {
-      res.status(403).json({ error: "invalid oauth state" });
+      res.redirect(302, "/app");
       return;
     }
     res.clearCookie(OAUTH_STATE_COOKIE, { path: "/", secure: true, sameSite: "lax" });
@@ -82,6 +83,14 @@ export function registerOAuthRoutes(app: Express) {
 
       res.redirect(302, "/app");
     } catch (error) {
+      // Phone browsers sometimes send the callback twice. Google's code works
+      // once, so the repeat gets invalid_grant after the first request already
+      // signed the user in. Land it on the app (signed-out visitors see Sign in there).
+      if (error instanceof Error && error.message.includes("invalid_grant")) {
+        console.warn("[OAuth] Spent code, likely a repeated callback");
+        res.redirect(302, "/app");
+        return;
+      }
       console.error("[OAuth] Callback failed", error);
       res.status(500).json({ error: "OAuth callback failed" });
     }
