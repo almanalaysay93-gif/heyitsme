@@ -788,3 +788,47 @@
   .lx-take p { margin-inline: auto; }
   .lx-take-actions { justify-content: center; }
 }
+
+/* ============ Contact rows as glass buttons ============ */
+/* Each way to reach the owner is its own pressable tile in the page's glass; icon sits in an accent chip. */
+.lx .lx-contact {
+  display: grid; gap: 10px; max-width: none;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+}
+.lx .lx-contact li {
+  display: flex; align-items: center; min-width: 0;
+  background: var(--pill-fill);
+  border: 1px solid var(--glass-border);
+  border-bottom: 1px solid var(--glass-border);
+  border-radius: 20px;
+  box-shadow: var(--glass-highlight), 0 0 0 .5px var(--glass-edge), 0 8px 20px -14px color-mix(in srgb, #000 45%, transparent);
+  transition: background-color var(--dur-fast) ease, transform var(--dur-slow) var(--ease-spring), box-shadow var(--dur-fast) ease;
+}
+.lx .lx-contact li:last-child { border-bottom: 1px solid var(--glass-border); }
+.lx .lx-contact li:hover {
+  background: var(--pill-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--glass-highlight), 0 0 0 .5px var(--glass-edge), 0 14px 28px -14px color-mix(in srgb, #000 50%, transparent);
+}
+.lx .lx-contact li:active { transform: scale(.98); transition-duration: .12s; }
+.lx .lx-contact a {
+  min-height: 64px; margin: 0; padding: 10px 12px 10px 10px; gap: 14px;
+  border-radius: 20px; background: none;
+}
+.lx .lx-contact a:hover { background: none; }
+.lx .lx-contact a:focus-visible { outline-offset: -2px; }
+.lx .lx-contact a > svg:first-child {
+  box-sizing: content-box; width: 18px; height: 18px; padding: 11px;
+  color: var(--accent-ink);
+  background: var(--tint);
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 18%, transparent);
+}
+.lx .lx-contact strong { font-size: 16px; }
+.lx .lx-copy { margin-left: 0; margin-right: 6px; }
+/* Tiles separate themselves; group titles need no rule above them. */
+.lx .lx-contact-group { margin: 24px 0 10px; padding-top: 0; border-top: 0; }
+.lx .lx-section-contact .lx-section-head + .lx-contact-group { margin-top: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .lx .lx-contact li:hover, .lx .lx-contact li:active { transform: none; }
+}
