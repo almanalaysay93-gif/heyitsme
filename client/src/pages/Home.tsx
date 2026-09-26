@@ -357,9 +357,12 @@ export default function Home() {
         const firstError = Object.values(validation.errors)[0];
         toast.error(firstError);
         const firstKey = Object.keys(validation.errors)[0];
-        const el = document.getElementById(`field-${firstKey.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`) ||
-                   document.getElementById(firstKey);
-        if (el) (el as HTMLElement).focus();
+        // Every validated control carries id="field-<key>", so the first error is always reachable, even far down on a phone.
+        const el = document.getElementById(`field-${firstKey}`);
+        if (el) {
+          el.scrollIntoView({ block: "center", behavior: "smooth" });
+          (el as HTMLElement).focus({ preventScroll: true });
+        }
         return null;
       }
       setFieldErrors({});
@@ -1269,16 +1272,16 @@ function BuilderView({
               <ImagePicker label="Cover" hint="Wide image, or a muted video loop up to 3MB" shape="wide" allowVideo value={draft.coverUrl} onChange={(value) => update("coverUrl", value)} onUpload={onUpload} />
             </div>
             <div className="field-grid">
-              <Field label="Your name" value={draft.displayName} onChange={(value: string) => { update("displayName", value); onClearError?.("displayName"); }} error={fieldErrors.displayName} placeholder="Alex Morgan" required hint={(draft as any).id > 0 ? "Your card link stays the same when you change your name." : undefined} />
-              <Field label="Role / title" value={draft.title} onChange={(value: string) => { update("title", value); onClearError?.("title"); }} error={fieldErrors.title} placeholder="Creative director" />
-              <Field label="Company" value={draft.company} onChange={(value: string) => { update("company", value); onClearError?.("company"); }} error={fieldErrors.company} placeholder="Studio North" />
-              <Field label="Location" value={draft.location} onChange={(value: string) => { update("location", value); onClearError?.("location"); }} error={fieldErrors.location} placeholder="San Francisco, CA" />
-              <Field label="Email" value={draft.email} onChange={(value: string) => { update("email", value); onClearError?.("email"); }} error={fieldErrors.email} placeholder="hello@you.co" type="email" />
-              <Field label="Phone" value={draft.phone} onChange={(value: string) => { update("phone", value); onClearError?.("phone"); }} error={fieldErrors.phone} placeholder="+1 415 555 0183" />
+              <Field id="field-displayName" label="Your name" value={draft.displayName} onChange={(value: string) => { update("displayName", value); onClearError?.("displayName"); }} error={fieldErrors.displayName} placeholder="Alex Morgan" required hint={(draft as any).id > 0 ? "Your card link stays the same when you change your name." : undefined} />
+              <Field id="field-title" label="Role / title" value={draft.title} onChange={(value: string) => { update("title", value); onClearError?.("title"); }} error={fieldErrors.title} placeholder="Creative director" />
+              <Field id="field-company" label="Company" value={draft.company} onChange={(value: string) => { update("company", value); onClearError?.("company"); }} error={fieldErrors.company} placeholder="Studio North" />
+              <Field id="field-location" label="Location" value={draft.location} onChange={(value: string) => { update("location", value); onClearError?.("location"); }} error={fieldErrors.location} placeholder="San Francisco, CA" />
+              <Field id="field-email" label="Email" value={draft.email} onChange={(value: string) => { update("email", value); onClearError?.("email"); }} error={fieldErrors.email} placeholder="hello@you.co" type="email" />
+              <Field id="field-phone" label="Phone" value={draft.phone} onChange={(value: string) => { update("phone", value); onClearError?.("phone"); }} error={fieldErrors.phone} placeholder="+1 415 555 0183" />
             </div>
             <label className="field-label">
               <span>A little context</span>
-              <textarea value={draft.bio} onChange={(event) => update("bio", event.target.value)} placeholder="What do you want people to remember about you?" />
+              <textarea id="field-bio" value={draft.bio} onChange={(event) => update("bio", event.target.value)} placeholder="What do you want people to remember about you?" />
             </label>
           </div>
 
@@ -1315,6 +1318,7 @@ function BuilderView({
             </div>
             <div className="field-grid">
               <Field
+                id="field-galleryHeading"
                 label="Image gallery heading"
                 value={draft.galleryHeading || ""}
                 onChange={(value: string) => update("galleryHeading", value)}
@@ -1322,6 +1326,7 @@ function BuilderView({
                 hint="Heading shown above your photo gallery."
               />
               <Field
+                id="field-portfolioHeading"
                 label="Project list heading"
                 value={draft.portfolioHeading || ""}
                 onChange={(value: string) => update("portfolioHeading", value)}
@@ -1329,7 +1334,7 @@ function BuilderView({
                 hint="Heading shown above project links, documents, and videos."
               />
             </div>
-            {fieldErrors.portfolio ? <span className="field-error-text" role="alert">{fieldErrors.portfolio}</span> : null}
+            {fieldErrors.portfolio ? <span id="field-portfolio" tabIndex={-1} className="field-error-text" role="alert">{fieldErrors.portfolio}</span> : null}
             <PortfolioEditor raw={draft.portfolio} onChange={(value: string) => { update("portfolio", value); onClearError?.("portfolio"); }} onUpload={onUpload} />
           </div>
 
@@ -1341,8 +1346,8 @@ function BuilderView({
                 <p>Add social profiles and direct channels — Viber, WhatsApp, Telegram, and more.</p>
               </div>
             </div>
-            <Field label="Contact heading" value={draft.contactHeading || ""} onChange={(value: string) => update("contactHeading", value)} placeholder="Pick the easiest way in." />
-            {fieldErrors.channels ? <span className="field-error-text" role="alert">{fieldErrors.channels}</span> : null}
+            <Field id="field-contactHeading" label="Contact heading" value={draft.contactHeading || ""} onChange={(value: string) => update("contactHeading", value)} placeholder="Pick the easiest way in." />
+            {fieldErrors.channels ? <span id="field-channels" tabIndex={-1} className="field-error-text" role="alert">{fieldErrors.channels}</span> : null}
             <ChannelsEditor raw={draft.channels} onChange={(value: string) => { update("channels", value); onClearError?.("channels"); }} />
           </div>
 

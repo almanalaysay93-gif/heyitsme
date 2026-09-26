@@ -66,26 +66,6 @@ const portfolioSchema = z
   .optional()
   .nullable();
 
-const cardFields = {
-  displayName: z.string().min(1).max(160),
-  title: z.string().min(1).max(160),
-  company: z.string().max(160).optional().nullable(),
-  email: z.string().email().optional().nullable(),
-  phone: z.string().max(64).optional().nullable(),
-  location: z.string().max(160).optional().nullable(),
-  bio: z.string().max(800).optional().nullable(),
-  links: z.string().max(3000).optional().nullable(),
-  portfolio: portfolioSchema,
-  channels: z.string().max(6000).optional().nullable(),
-  theme: z.string().max(80).optional().nullable(),
-  logoUrl: z.string().max(600).optional().nullable(),
-  avatarUrl: imageUrl,
-  coverUrl: imageUrl,
-  backgroundUrl: imageUrl,
-  contactHeading: z.string().max(160).optional().nullable(),
-  galleryHeading: z.string().max(160).optional().nullable(),
-  portfolioHeading: z.string().max(160).optional().nullable(),
-};
 
 type ContactNotice = { name: string; email: string | null; phone: string | null };
 
