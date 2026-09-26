@@ -167,6 +167,13 @@ Public card profile photo in `client/src/components/cardLanding.css`. Desktop `.
 - **Fix**: Added `structuredName(displayName)` parser and explicit `N:<Family>;<Given>;<Middle>;;` to both `shared/vcard.ts` and `client/src/lib/cardKit.ts`. Handles "First Last", "Last, First", single names, and multi-word names.
 - **Verification**: Added 5 unit tests in `card.test.ts` and route check in `vcfRoute.test.ts`. All 235 tests pass. Commit `6e4986d` deployed to production; verified live on `https://heyitsme.fyi/c/demo.vcf`.
 
+## 2026-09-26: Claude regression handoff (Codex)
+- Plan written, not implemented: `D:\download\heyitsme-claude-regression-fix-plan.md`. Reviewed `4350ae9`.
+- F1 still open: raw marketing HTML canonical/OG/Twitter still emit `heyitsme-ecru.vercel.app` because `vite.config.ts` reads `SITE_URL` directly. Robots, sitemap, and `/c/demo.vcf` already use `heyitsme.fyi`.
+- F2 guest save already rejects empty name, bad email, bad URL. Focus target mismatch remains (`field-displayname` vs `field-your-name`).
+- F3 demo VCF domain correct on the sampled response. F4 demo booking still `https://example.com/book`. F5 Share uses native share, not a Copied toast. F6 `/privacy` crash not reproduced on a fresh load. F7 Support is `mailto:` with no in-browser fallback.
+- Next code step if implementing here: A2, one origin policy shared by the Vite marketing build and runtime SEO.
+
 ## 2026-09-26: Purge Legacy Vercel Domain from vCard & Server Origins
 - **Problem**: vCard exports contained `https://heyitsme-ecru.vercel.app/c/<slug>` instead of canonical `https://heyitsme.fyi/c/<slug>`.
 - **Root Cause**: `ENV.siteUrl` and runtime `host` headers during serverless invocations on Vercel resolved to `heyitsme-ecru.vercel.app`.
@@ -176,3 +183,16 @@ Public card profile photo in `client/src/components/cardLanding.css`. Desktop `.
   - `shared/vcard.ts`: Added multi-point `sanitizeHost` replacing legacy hosts across `cleanPageUrl`, `cleanOrigin`, `photoUrl`, `channels`, `links`, and `NOTE`.
   - `client/src/lib/cardKit.ts`: Added `sanitizeHost` to `buildContactVCard` for website and notes.
 - **Verification**: Added test in `vcfRoute.test.ts`. All 236 tests pass.
+
+## 2026-09-26: Regression plan F1–F7 implemented (Claude) — released `dffae7b`
+| Task | Disposition | Evidence |
+|---|---|---|
+| A2 / F1 metadata domain | Reproduced, fixed | Live raw HTML of `/`, `/about`, `/faq`, `/pricing`, `/privacy`, `/terms` had `heyitsme-ecru.vercel.app` canonical/OG/Twitter. Cause: `vite.config.ts` read `SITE_URL` raw at build. Fix: `shared/publicOrigin.ts` used by build + runtime. Local build with legacy `SITE_URL` emits only `heyitsme.fyi`; production smoke metadata checks pass. Vercel `SITE_URL` env likely still legacy — harmless now, but set it to `https://heyitsme.fyi` when convenient. |
+| A1 / F6 privacy crash | Reproduced (stale deploy), fixed | Old tab + removed `Legal-*.js` chunk (404) shows exactly "Something went sideways". `lazyRoute` reloads once (30s guard), repeat shows "heyitsme was just updated", boundary resets on route change. `__RELEASE__` commit SHA in client error reports. |
+| A3 / F2 validation | Focus bug fixed; broad failure not reproduced | Stable `id="field-<key>"`; empty save focuses name, bad email focuses email, nothing persisted. Dead `cardFields` (required title) removed. Authenticated empty-save report still unverified (no test account). |
+| A4 / F3 VCF | Verified working | `/c/demo.vcf` URL on `heyitsme.fyi`; smoke asserts no `vercel.app` in vCard. |
+| A5 / F4 demo | Fixed | Demo booking + fictional phone open in-page explanations; real cards unchanged. |
+| A6 / F5 share | Fixed | Copy link beside Share; "Link copied." only after real write; denied clipboard → manual-copy dialog; cancelled native share quiet. |
+| A7 / F7 support | Fixed | Footer Support opens dialog: address, copy, Open email app. |
+| A8 checks | Added | `scripts/smoke.mjs` metadata origin/share image/vCard assertions; `scripts/browser-checks.py` (14 checks, all pass on production). |
+- Tests 251 passed / 3 skipped. Not tested: physical iPhone/Android share/tel handling, authenticated save flow.
