@@ -111,4 +111,16 @@ Verification: `pnpm check` clean, `pnpm test` 208 passed / 3 skipped (25 files),
 - `main` fast-forwarded to `24387ca` (commits `9f6903c` Phase 1–2, `24387ca` Phase 3–5); Vercel deployed in ~45s.
 - `node scripts/smoke.mjs https://heyitsme.fyi`: all 15 checks pass (pre-release baseline failed /about, /faq, /pricing, /c/demo, /c/demo.vcf). HSTS present; legacy host 308 → heyitsme.fyi.
 - Rollback target: `380f5f0` (Vercel → promote previous deployment).
-- Still open: runbook §8 signed-in checklist, RLS + 0005–0007 SQL check in Supabase, Lighthouse scores, GitHub PR not opened (gh CLI not logged in).
+- Supabase verified (2026-09-26): RLS on for all 5 public tables, no policies (by design); columns of all tables match `schema.ts`; all 7 named indexes present (incl. `cards_owner_creation_key_idx` unique). 0005–0007 effects confirmed live.
+- Still open: runbook §8 signed-in checklist, Lighthouse scores, GitHub PR not opened (gh CLI not logged in).
+
+## 2026-09-26: Supabase Agent Skills Cross-Agent Installation & DB Verification
+- Installed official Supabase skills (`supabase` and `supabase-postgres-best-practices`) from `supabase/agent-skills` across all agent platforms:
+  - Antigravity: `C:\Users\AlAi\.gemini\config\skills\`
+  - Claude: `C:\Users\AlAi\.claude\skills\`
+  - Codex: `C:\Users\AlAi\.codex\skills\`
+  - Grok: `C:\Users\AlAi\.grok\skills\`
+  - Hermes / Universal: `C:\Users\AlAi\.agents\skills\` and `%LOCALAPPDATA%\hermes\skills\`
+- Verified DB migration behavior: `server/db.ts` (`ensureSchema`) auto-applies 0005–0007 columns/indexes on first connection.
+- `drizzle/0003_enable_rls.sql` must be run manually as `postgres` in Supabase SQL Editor. Consolidated SQL query prepared to verify RLS and migrations 0005–0007.
+
