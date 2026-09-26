@@ -66,6 +66,7 @@ export const DEMO_CARD: DemoCardData = {
   portfolioHeading: "Featured projects",
   page: JSON.stringify({
     template: "professional",
+    headline: "Brand systems for small teams",
     cta: { label: "Book an intro call", url: "https://example.com/book" },
     stats: [
       { value: "12 yrs", label: "Brand & identity work" },
