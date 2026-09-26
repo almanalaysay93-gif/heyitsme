@@ -36,7 +36,10 @@ import {
   MapPin,
   MessageCircle,
   Phone,
+  Send,
   Share2,
+  ShieldCheck,
+  CalendarDays,
   UserRoundPlus,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -78,13 +81,29 @@ function ChannelIcon({ provider }: { provider: string }) {
   if (provider === "linkedin") return <Linkedin size={16} />;
   if (provider === "instagram") return <Instagram size={16} />;
   if (provider === "facebook") return <Facebook size={16} />;
-  if (["whatsapp", "telegram", "viber", "signal"].includes(provider)) return <MessageCircle size={16} />;
+  if (provider === "telegram") return <Send size={16} />;
+  if (provider === "viber") return <Phone size={16} />;
+  if (provider === "signal") return <ShieldCheck size={16} />;
+  if (provider === "calendly") return <CalendarDays size={16} />;
+  if (provider === "whatsapp") return <MessageCircle size={16} />;
   return <Link2 size={16} />;
 }
 
-function channelKind(provider: string) {
-  if (provider === "calendly") return "Book time";
-  return ["whatsapp", "telegram", "viber", "signal"].includes(provider) ? "Message" : "Profile";
+const PROVIDER_NAMES: Record<string, string> = {
+  linkedin: "LinkedIn", instagram: "Instagram", facebook: "Facebook", x: "X", whatsapp: "WhatsApp",
+  telegram: "Telegram", viber: "Viber", signal: "Signal", calendly: "Calendly", tiktok: "TikTok", youtube: "YouTube",
+};
+const MESSAGING = new Set(["whatsapp", "telegram", "viber", "signal", "calendly"]);
+
+function providerName(provider: string) {
+  return PROVIDER_NAMES[provider] ?? provider.charAt(0).toUpperCase() + provider.slice(1);
+}
+
+/** What goes under the provider name: the owner's label, else the number or link without its scheme. */
+function channelValue(channel: ChannelItem) {
+  const label = channel.label?.trim();
+  if (label && label.toLowerCase() !== providerName(channel.provider).toLowerCase()) return label;
+  return (channel.url || "").replace(/^[a-z][a-z0-9+.-]*:(\/\/)?/i, "").replace(/^www\./, "").replace(/\/$/, "") || providerName(channel.provider);
 }
 
 function external(href: string) {
@@ -145,6 +164,7 @@ export function CardLanding(props: CardLandingProps) {
   const cta = config.cta?.label && config.cta.url ? config.cta : null;
 
   const frame = resolveFrame(config);
+  const fitName = (text: string) => ({ ["--longest" as string]: Math.max(4, ...text.split(/\s+/).map((word) => word.length)) });
 
   // The aurora drifts only while the tab is visible; nothing moves in the builder preview or for reduced motion.
   useEffect(() => {
@@ -209,8 +229,9 @@ export function CardLanding(props: CardLandingProps) {
   const socials = channels.length ? (
     <div className="lx-socials">
       {channels.map((channel: ChannelItem, index: number) => (
-        <a key={`${channel.provider}-${index}`} href={channelHref(channel)} target="_blank" rel="noreferrer" aria-label={channelLabel(channel)} title={channelLabel(channel)} onClick={() => track("link", channelLabel(channel))}>
+        <a key={`${channel.provider}-${index}`} href={channelHref(channel)} target="_blank" rel="noreferrer" aria-label={`${providerName(channel.provider)}: ${channelValue(channel)}`} onClick={() => track("link", channelLabel(channel))}>
           <ChannelIcon provider={channel.provider} />
+          <span>{providerName(channel.provider)}</span>
         </a>
       ))}
     </div>
@@ -244,7 +265,7 @@ export function CardLanding(props: CardLandingProps) {
             {card.avatarUrl ? <img className="lx-logo" src={card.avatarUrl} alt="" /> : null}
             {card.location || card.title}
           </motion.p>
-          <motion.h1 className="lx-masthead" {...enter("name")}>{brand}</motion.h1>
+          <motion.h1 className="lx-masthead" style={fitName(brand)} {...enter("name")}>{brand}</motion.h1>
           {heroPanel(
             <>
               {card.bio ? <p className="lx-lead">{card.bio}</p> : null}
@@ -283,7 +304,7 @@ export function CardLanding(props: CardLandingProps) {
           <motion.p className="lx-eyebrow" {...enter("eyebrow")}>
             {card.displayName}{config.headline && card.title ? ` · ${card.title}` : card.company ? ` · ${card.company}` : ""}
           </motion.p>
-          <motion.h1 className="lx-masthead" {...enter("name")}>{config.headline || card.title || card.displayName}</motion.h1>
+          <motion.h1 className="lx-masthead" style={fitName(config.headline || card.title || card.displayName)} {...enter("name")}>{config.headline || card.title || card.displayName}</motion.h1>
           {heroPanel(
             <>
               {card.bio ? <p className="lx-lead">{card.bio}</p> : null}
@@ -304,7 +325,7 @@ export function CardLanding(props: CardLandingProps) {
             <motion.p className="lx-eyebrow" {...enter("eyebrow")}>
               {card.title}{card.company ? <> <span>at</span> {card.company}</> : null}
             </motion.p>
-            <motion.h1 className="lx-masthead" {...enter("name")}>{card.displayName}</motion.h1>
+            <motion.h1 className="lx-masthead" style={fitName(card.displayName)} {...enter("name")}>{card.displayName}</motion.h1>
             {heroPanel(
               <>
                 {card.bio ? <p className="lx-lead">{card.bio}</p> : null}
@@ -440,6 +461,7 @@ export function CardLanding(props: CardLandingProps) {
         return (
           <>
             {heading("Contact", card.contactHeading)}
+            {contactRows.length ? <h3 className="lx-contact-group">Reach me directly</h3> : null}
             <ul className="lx-contact">
               {contactRows.map((row) => (
                 <li key={row.key}>
@@ -460,16 +482,28 @@ export function CardLanding(props: CardLandingProps) {
                   ) : null}
                 </li>
               ))}
-              {channels.map((channel: ChannelItem, index: number) => (
-                <li key={`row-${channel.provider}-${index}`}>
-                  <a href={channelHref(channel)} target="_blank" rel="noreferrer" onClick={() => track("link", channelLabel(channel))}>
-                    <ChannelIcon provider={channel.provider} />
-                    <span><small>{channelKind(channel.provider)}</small><strong>{channelLabel(channel)}</strong></span>
-                    <ArrowUpRight className="lx-row-arrow" size={16} aria-hidden="true" />
-                  </a>
-                </li>
-              ))}
             </ul>
+            {[
+              { title: "Message or book", items: channels.filter((channel) => MESSAGING.has(channel.provider)) },
+              { title: "Social profiles", items: channels.filter((channel) => !MESSAGING.has(channel.provider)) },
+            ].map((group) =>
+              group.items.length ? (
+                <div key={group.title}>
+                  <h3 className="lx-contact-group">{group.title}</h3>
+                  <ul className="lx-contact">
+                    {group.items.map((channel: ChannelItem, index: number) => (
+                      <li key={`row-${channel.provider}-${index}`}>
+                        <a href={channelHref(channel)} target="_blank" rel="noreferrer" onClick={() => track("link", channelLabel(channel))}>
+                          <ChannelIcon provider={channel.provider} />
+                          <span><small>{providerName(channel.provider)}</small><strong>{channelValue(channel)}</strong></span>
+                          <ArrowUpRight className="lx-row-arrow" size={16} aria-hidden="true" />
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null,
+            )}
           </>
         );
       }
