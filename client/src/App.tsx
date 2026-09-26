@@ -1,21 +1,22 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { lazy, Suspense } from "react";
-import { Route, Switch } from "wouter";
+import { Suspense } from "react";
+import { Route, Switch, useLocation } from "wouter";
+import { lazyRoute } from "./lib/lazyRoute";
 import { LogoLoader } from "./components/BrandMark";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 
 // Each route ships as its own chunk so a public card never downloads the workspace.
-const Landing = lazy(() => import("./pages/Landing"));
-const Home = lazy(() => import("./pages/Home"));
-const PublicCardPage = lazy(() => import("./pages/PublicCard"));
-const NotFound = lazy(() => import("./pages/NotFound"));
-const PrivacyPage = lazy(() => import("./pages/Legal").then((m) => ({ default: m.PrivacyPage })));
-const TermsPage = lazy(() => import("./pages/Legal").then((m) => ({ default: m.TermsPage })));
-const AboutPage = lazy(() => import("./pages/Info").then((m) => ({ default: m.AboutPage })));
-const FaqPage = lazy(() => import("./pages/Info").then((m) => ({ default: m.FaqPage })));
-const PricingPage = lazy(() => import("./pages/Info").then((m) => ({ default: m.PricingPage })));
+const Landing = lazyRoute(() => import("./pages/Landing"));
+const Home = lazyRoute(() => import("./pages/Home"));
+const PublicCardPage = lazyRoute(() => import("./pages/PublicCard"));
+const NotFound = lazyRoute(() => import("./pages/NotFound"));
+const PrivacyPage = lazyRoute(() => import("./pages/Legal").then((m) => ({ default: m.PrivacyPage })));
+const TermsPage = lazyRoute(() => import("./pages/Legal").then((m) => ({ default: m.TermsPage })));
+const AboutPage = lazyRoute(() => import("./pages/Info").then((m) => ({ default: m.AboutPage })));
+const FaqPage = lazyRoute(() => import("./pages/Info").then((m) => ({ default: m.FaqPage })));
+const PricingPage = lazyRoute(() => import("./pages/Info").then((m) => ({ default: m.PricingPage })));
 
 function RouteLoading() {
   return <div className="loading-screen" role="status" aria-label="Loading"><LogoLoader /></div>;
@@ -46,8 +47,9 @@ function Router() {
 }
 
 function App() {
+  const [location] = useLocation();
   return (
-    <ErrorBoundary>
+    <ErrorBoundary resetKey={location}>
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <a className="skip-link" href="#main">Skip to content</a>
