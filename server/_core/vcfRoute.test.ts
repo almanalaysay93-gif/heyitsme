@@ -70,6 +70,40 @@ describe("GET /c/:slug.vcf", () => {
     expect(body).toContain("NOTE:Line one\\nLine two");
   });
 
+  it("includes socials, contact channels, and website links in served vCard", async () => {
+    db.getPublicCardBySlug.mockResolvedValue({
+      slug: "sara",
+      displayName: "Sara Connor",
+      title: "Security Specialist",
+      company: "Cyberdyne Systems",
+      email: "sara@example.com",
+      phone: "+1 555 9999",
+      location: "Los Angeles, CA",
+      bio: "Protecting the future.",
+      channels: JSON.stringify([
+        { provider: "telegram", url: "@saraconnor", label: "Telegram" },
+        { provider: "signal", url: "+15559999", label: "Signal" },
+      ]),
+      links: JSON.stringify(["https://cyberdyne.example"]),
+      avatarUrl: "/storage/sara.jpg",
+    });
+
+    const response = await fetch(`${base}/c/sara.vcf`);
+    expect(response.status).toBe(200);
+    const body = await response.text();
+
+    expect(body).toContain("FN:Sara Connor");
+    expect(body).toContain("ADR;TYPE=WORK:;;;Los Angeles\\, CA;;;");
+    expect(body).toContain("X-SOCIALPROFILE;TYPE=telegram;x-user=saraconnor:https://t.me/saraconnor");
+    expect(body).toContain("X-SOCIALPROFILE;TYPE=signal:https://signal.me/#p/+15559999");
+    expect(body).toContain("item1.URL:https://t.me/saraconnor");
+    expect(body).toContain("item1.X-ABLabel:Telegram");
+    expect(body).toContain("item2.URL:https://signal.me/#p/+15559999");
+    expect(body).toContain("item2.X-ABLabel:Signal");
+    expect(body).toContain("item3.URL:https://cyberdyne.example");
+    expect(body).toContain("NOTE:Protecting the future.\\n\\nContact & Social Links:\\n• Telegram: https://t.me/saraconnor\\n• Signal: https://signal.me/#p/+15559999\\n• Cyberdyne: https://cyberdyne.example");
+  });
+
   it("404s for a missing or unpublished card", async () => {
     db.getPublicCardBySlug.mockResolvedValue(undefined);
     const response = await fetch(`${base}/c/nobody.vcf`);

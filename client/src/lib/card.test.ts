@@ -133,6 +133,45 @@ describe("buildVCard", () => {
     expect(vcard).not.toContain("PHOTO");
     expect(vcard).not.toContain("EMAIL");
   });
+
+  it("saves socials, contact providers, location, and websites with Apple/Google compatible fields", () => {
+    const cardWithSocials = {
+      ...emptyCard,
+      displayName: "Ada Lane",
+      title: "Design Lead",
+      location: "San Francisco, CA",
+      bio: "Crafting digital experiences.",
+      channels: JSON.stringify([
+        { provider: "linkedin", url: "https://www.linkedin.com/in/ada", label: "LinkedIn" },
+        { provider: "whatsapp", url: "+1 (415) 555-0183", label: "WhatsApp" },
+        { provider: "x", url: "@adalane", label: "X" },
+      ]),
+      links: JSON.stringify(["https://ada.design"]),
+    };
+
+    const vcard = buildVCard(cardWithSocials, "https://heyitsme.example/c/ada", "https://heyitsme.example");
+
+    // Location
+    expect(vcard).toContain("ADR;TYPE=WORK:;;;San Francisco\\, CA;;;");
+
+    // Apple Contacts X-SOCIALPROFILE
+    expect(vcard).toContain("X-SOCIALPROFILE;TYPE=linkedin;x-user=ada:https://www.linkedin.com/in/ada");
+    expect(vcard).toContain("X-SOCIALPROFILE;TYPE=whatsapp:https://wa.me/14155550183");
+    expect(vcard).toContain("X-SOCIALPROFILE;TYPE=twitter;x-user=adalane:https://x.com/adalane");
+
+    // Grouped URLs with custom labels (iOS & Android)
+    expect(vcard).toContain("item1.URL:https://www.linkedin.com/in/ada");
+    expect(vcard).toContain("item1.X-ABLabel:LinkedIn");
+    expect(vcard).toContain("item2.URL:https://wa.me/14155550183");
+    expect(vcard).toContain("item2.X-ABLabel:WhatsApp");
+    expect(vcard).toContain("item3.URL:https://x.com/adalane");
+    expect(vcard).toContain("item3.X-ABLabel:X");
+    expect(vcard).toContain("item4.URL:https://ada.design");
+    expect(vcard).toContain("item4.X-ABLabel:Ada");
+
+    // Notes fallback preserving bio and formatted link list
+    expect(vcard).toContain("NOTE:Crafting digital experiences.\\n\\nContact & Social Links:\\n• LinkedIn: https://www.linkedin.com/in/ada\\n• WhatsApp: https://wa.me/14155550183\\n• X: https://x.com/adalane\\n• Ada: https://ada.design");
+  });
 });
 
 describe("cardPayload", () => {

@@ -145,3 +145,14 @@ Verification: `pnpm check` clean, `pnpm test` 208 passed / 3 skipped (25 files),
 - Verification: TypeScript check, 228 tests passed / 3 DB-dependent tests skipped, production build passed. Browser verified all 9 theme/template previews, default-effect restoration, desktop/mobile rendering and builder preview; repeated combined cover/background check after integrating `13a6424`.
 - Worktree: `D:\ai mem\heyitsme-background-fix`, branch `fix/background-visibility`. No user card data or uploads changed. Pending production verification after push.
 - Production confirmed: code commit `8f0d06f` pushed to main and deployed. Live CardLanding stylesheet contains the 65% veil. A local-only guest fixture on production verified decoded background, absent aurora overlay and retained top cover; fixture cleared. All 15 production smoke checks passed. User-specific uploaded asset was not inspected because no card URL was supplied.
+
+## 2026-09-26: Rich vCard (.vcf) Export with Socials & Contact Providers
+- Upgraded `shared/vcard.ts` `buildVCard` to serialize all card socials, contact channels, and portfolio links into the standard vCard 3.0 format.
+- Multi-platform compatibility:
+  - **Apple iOS / macOS**: Exports `X-SOCIALPROFILE;TYPE=<provider>;x-user=<handle>:<url>` and grouped URLs `itemN.URL:<url>` with `itemN.X-ABLabel:<label>`.
+  - **Google / Android**: Imports `itemN.URL` and standard URLs into contact websites.
+  - **Universal / Notes Fallback**: Appends a clean, formatted "Contact & Social Links:" section to `NOTE:` preserving bio and ensuring 100% visibility/clickability across Outlook, Gmail, and legacy contact managers.
+  - **Location**: Maps `card.location` to `ADR;TYPE=WORK:;;;<location>;;;`.
+- Shared logic: Exports `channelHref`, `channelLabel`, `parseChannelsSafe`, `parseLinksSafe` from `@shared/vcard`.
+- Verified: `pnpm check` clean, `pnpm test` 230 passed / 3 skipped (28 test files), `pnpm build` clean.
+
