@@ -132,6 +132,12 @@ export function FaqPage() {
         companies, titles, tags, and notes you have received.
       </p>
 
+      <h3>Can I back up my cards?</h3>
+      <p>
+        Yes. Open the account menu and choose <em>Download my card data</em>. You get a JSON file with every card&rsquo;s text,
+        links, portfolio entries, and references. Photos and uploaded files are listed as links, not copied into the file, so
+        save any originals you want to keep.
+      </p>
 
       <h2>Support</h2>
       <p>

@@ -39,7 +39,7 @@ import {
   type PortfolioItem,
   type ReferenceRow,
 } from "@/lib/card";
-import { copyToClipboard, formatDate, getInitials } from "@/lib/cardKit";
+import { copyToClipboard, downloadBlob, formatDate, getInitials } from "@/lib/cardKit";
 import { prepareUpload } from "@/lib/image";
 import { trpc } from "@/lib/trpc";
 import { motion } from "framer-motion";
@@ -60,6 +60,7 @@ import {
   LayoutGrid,
   Link2,
   LogIn,
+  Download,
   LogOut,
   Mail,
   Menu,
@@ -203,6 +204,15 @@ export default function Home() {
   const markContactsSeen = trpc.contacts.markSeen.useMutation();
   const weekInsights = trpc.insights.summary.useQuery({ days: 7 }, { enabled: isAuthenticated, retry: false });
   const utils = trpc.useUtils();
+  const exportCardData = async () => {
+    try {
+      const data = await utils.cards.export.fetch();
+      downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }), `heyitsme-cards-${data.exportedAt.slice(0, 10)}.json`);
+      toast.success("Card data downloaded. Photos and files are listed as links.");
+    } catch {
+      toast.error("Could not download your card data. Try again.");
+    }
+  };
   const [newContactIds, setNewContactIds] = useState<Set<number>>(() => new Set());
   const markingSeen = useRef(false);
 
@@ -779,6 +789,9 @@ export default function Home() {
                       </a>
                     </DropdownMenuItem>
                   )}
+                  <DropdownMenuItem onClick={() => void exportCardData()} className="account-menu-link">
+                    <Download size={14} /> Download my card data
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={() => void logout()}
@@ -1237,7 +1250,7 @@ function BuilderView({
               <ImagePicker label="Cover" hint="Wide image, or a muted video loop up to 3MB" shape="wide" allowVideo value={draft.coverUrl} onChange={(value) => update("coverUrl", value)} onUpload={onUpload} />
             </div>
             <div className="field-grid">
-              <Field label="Your name" value={draft.displayName} onChange={(value: string) => { update("displayName", value); onClearError?.("displayName"); }} error={fieldErrors.displayName} placeholder="Alex Morgan" required />
+              <Field label="Your name" value={draft.displayName} onChange={(value: string) => { update("displayName", value); onClearError?.("displayName"); }} error={fieldErrors.displayName} placeholder="Alex Morgan" required hint={(draft as any).id > 0 ? "Your card link stays the same when you change your name." : undefined} />
               <Field label="Role / title" value={draft.title} onChange={(value: string) => { update("title", value); onClearError?.("title"); }} error={fieldErrors.title} placeholder="Creative director" />
               <Field label="Company" value={draft.company} onChange={(value: string) => { update("company", value); onClearError?.("company"); }} error={fieldErrors.company} placeholder="Studio North" />
               <Field label="Location" value={draft.location} onChange={(value: string) => { update("location", value); onClearError?.("location"); }} error={fieldErrors.location} placeholder="San Francisco, CA" />

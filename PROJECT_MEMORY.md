@@ -84,3 +84,25 @@ All tasks T11 through T20 completed and verified with 100% test pass rate (166 t
 - **T31 (Final Architecture & Operations Runbook)**: Compile deployment documentation, environment variables checklist, and operational runbook.
 
 
+
+## 2026-09-26: Phases 3–5 (T21–T31) completed by Claude
+
+Verification: `pnpm check` clean, `pnpm test` 208 passed / 3 skipped (25 files), `pnpm build` clean. Work is uncommitted on top of Antigravity's uncommitted Phase 1–2 changes.
+
+- **T21 Slugs**: `makeCardSlug` in `shared/routes.ts` (NFKD accent folding, 48-char prefix cap, placeholder/reserved/non-Latin → `card`). Used only in `cards.create`; update input schema has no `slug`, so published links never change. Editor name field hint on saved cards. Tests: `server/slug.test.ts`.
+- **T22 Export**: `cards.export` (protected, owner-scoped) → `server/cardExport.ts` `buildCardExport` (format `heyitsme.card-export` v1, `mediaScope: "urls-only"`, excludes ids/ownerUserId/creationKey/deleted cards). Account menu → "Download my card data". FAQ entry in `Info.tsx`. Tests: `server/cardExport.test.ts`. No import/restore (export-only scope stated).
+- **T23 Wallet**: no credentials exist → no code/button shipped. Prerequisites + design rules in `docs/wallet.md`.
+- **T24 Upload sweep**: audited `server/uploadSweep.ts` (24h grace, unknown-age kept, owner-prefix scoped, cap guard). Reference avatars not user-uploadable, so not at risk. Added cross-owner/path-escape/portfolio test.
+- **T25 Contrast**: card text alphas raised (role .86, bio .84, bottomline .8 + shadow, eyebrow .9); `@media (prefers-contrast: more)` → solid white. `client/src/lib/contrast.test.ts` computes WCAG ratios per theme from `index.css` + `themeOptions`. Native `prefers-contrast` used instead of an in-app toggle. Light dashboard grays (#9c9fad etc.) not audited.
+- **T26 Security**: Express now sends HSTS in prod (matches vercel.json); OAuth callback rate-limited 20/10min/IP; `server/_core/securityHeaders.test.ts` fails if vercel.json CSP drifts from Express.
+- **T27 Telemetry**: `/api/client-error` redacts emails, phone runs, JWTs, long tokens, query strings (`redactClientText` in `seo.ts`); path stripped of query/hash. Tests: `server/_core/clientError.test.ts`.
+- **T28 DB/RLS**: `docs/database.md` (manual RLS steps, verify SQL, rls.test usage, migration model). Added `drizzle/0007_card_creation_key.sql`. Note: `_journal.json` stops at 0004; 0005–0007 are manual idempotent SQL.
+- **T29 Perf**: baseline chunk table in `docs/runbook.md` §7. Fonts self-hosted + swap; routes lazy. No code changes.
+- **T30 E2E**: `scripts/smoke.mjs <baseUrl>` read-only public smoke (passes locally except expected no-DB health/404). Authenticated flow (OAuth → publish → exchange → export) NOT run — no `.env`/DB locally; manual checklist in runbook §8.
+- **T31 Runbook**: `docs/runbook.md` (env table, deploy, rollback, monitoring, rate limits, maintenance). `.env.example` gained `RESEND_API_KEY`, `MAIL_FROM`, `OWNER_OPEN_ID`.
+
+### Next steps
+1. Review + commit (Phase 1–2 and 3–5 are both uncommitted).
+2. Run runbook §8 checklist on staging with real OAuth/DB; run `scripts/smoke.mjs https://heyitsme.fyi` after deploy.
+3. Apply RLS SQL + `0005`–`0007` in Supabase if not already.
+4. Lighthouse mobile on `/` and `/c/demo`; record in runbook §7.

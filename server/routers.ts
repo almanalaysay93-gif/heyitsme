@@ -1,6 +1,6 @@
 import { COOKIE_NAME } from "@shared/const";
 import { DEMO_CARD_ID } from "@shared/demoCard";
-import { isReservedSlug } from "@shared/routes";
+import { makeCardSlug } from "@shared/routes";
 import { serverCardFields, validateCardData } from "@shared/cardValidation";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
@@ -13,6 +13,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { storagePut } from "./storage";
 import { tidyOwnerUploads } from "./uploadSweep";
+import { buildCardExport } from "./cardExport";
 import {
   createReference,
   createCard,
@@ -192,6 +193,13 @@ export const appRouter = router({
   }),
   cards: router({
     list: protectedProcedure.query(({ ctx }) => getCardsByOwner(ctx.user.id)),
+    /** Owner-only content backup. Scoped by ctx.user.id at every query, never by input. */
+    export: protectedProcedure.query(async ({ ctx }) => {
+      const owned = await getCardsByOwner(ctx.user.id);
+      // ponytail: one reference query per card, fine up to the 500-card owner limit.
+      const refs = await Promise.all(owned.map(async (card) => [card.id, await getReferencesByOwner(card.id, ctx.user.id)] as const));
+      return buildCardExport(owned, new Map(refs));
+    }),
     get: protectedProcedure.input(z.object({ id: z.number().int().positive() })).query(({ ctx, input }) =>
       getCardByIdForOwner(input.id, ctx.user.id),
     ),
@@ -203,10 +211,8 @@ export const appRouter = router({
           const firstError = Object.values(validation.errors)[0];
           throw new TRPCError({ code: "BAD_REQUEST", message: firstError });
         }
-        let slug = `${input.displayName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "card"}-${nanoid(6).toLowerCase()}`;
-        if (isReservedSlug(slug)) {
-          slug = `card-${nanoid(6).toLowerCase()}`;
-        }
+        // Set once here. update never touches slug, so shared links and printed QR codes survive renames.
+        const slug = makeCardSlug(input.displayName, nanoid(6));
         const created = await createCard({
           ...input,
           title: input.title ?? "",

@@ -4,6 +4,7 @@ import type { Express, Request, Response } from "express";
 import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { ENV } from "./env";
+import { clientIp, hashIdentifier, rateLimit } from "./rateLimit";
 import { sdk } from "./sdk";
 
 function getQueryParam(req: Request, key: string): string | undefined {
@@ -58,6 +59,13 @@ export function registerOAuthRoutes(app: Express) {
       return;
     }
     res.clearCookie(OAUTH_STATE_COOKIE, { path: "/", secure: true, sameSite: "lax" });
+
+    // Each callback costs two Google round trips; cap per IP so a script cannot burn quota.
+    const limit = await rateLimit(`oauth-callback:${hashIdentifier(clientIp(req))}`, 20, 10 * 60_000);
+    if (!limit.allowed) {
+      res.status(429).json({ error: "Too many sign-in attempts. Please wait a few minutes." });
+      return;
+    }
 
     try {
       const tokenResponse = await sdk.exchangeCodeForToken(code, state);

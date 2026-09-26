@@ -152,9 +152,9 @@ div.card-visual { cursor: default; }
 .card-avatar { position: relative; z-index: 1; width: 52px; height: 52px; display: grid; place-items: center; margin: 45px 0 16px; color: var(--card-a); background: var(--card-c); border-radius: 17px; font-size: 15px; font-weight: 800; box-shadow: 0 11px 24px rgba(0,0,0,.14); }
 .card-name, .card-role, .card-bio, .card-bottomline { position: relative; z-index: 1; }
 .card-name { font-size: 27px; font-weight: 700; letter-spacing: -.07em; }
-.card-role { margin-top: 4px; color: rgba(255,255,255,.72); font-size: 12px; }
-.card-bio { max-width: 360px; margin-top: 17px; color: rgba(255,255,255,.68); font-size: 12px; line-height: 1.5; }
-.card-bottomline { margin-top: auto; padding-top: 23px; color: rgba(255,255,255,.53); font-size: 10px; }
+.card-role { margin-top: 4px; color: rgba(255,255,255,.86); font-size: 12px; }
+.card-bio { max-width: 360px; margin-top: 17px; color: rgba(255,255,255,.84); font-size: 12px; line-height: 1.5; }
+.card-bottomline { margin-top: auto; padding-top: 23px; color: rgba(255,255,255,.8); font-size: 10px; text-shadow: 0 1px 2px rgba(0,0,0,.25); }
 .card-visual-compact { min-height: 210px; padding: 18px; }
 .card-visual-compact .card-avatar { width: 38px; height: 38px; margin: 30px 0 11px; border-radius: 12px; font-size: 11px; }
 .card-visual-compact .card-name { font-size: 19px; }
@@ -1673,3 +1673,8 @@ main[tabindex="-1"]:focus { outline: 0; }
   * { box-shadow: none !important; animation: none !important; transition: none !important; }
 }
 
+.card-visual .eyebrow { opacity: .9; }
+/* WCAG AA: card text stays >= 4.5:1 on every theme (checked in client/src/lib/contrast.test.ts). Users who ask the OS for more contrast get solid text. */
+@media (prefers-contrast: more) {
+  .card-role, .card-bio, .card-bottomline, .card-visual .eyebrow { color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.45); }
+}

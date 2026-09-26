@@ -30,7 +30,11 @@ const securityHeaders: RequestHandler = (_req, res, next) => {
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   // Vite's dev server injects inline scripts for HMR, so only enforce CSP on built output.
-  if (process.env.NODE_ENV !== "development") res.setHeader("Content-Security-Policy", CONTENT_SECURITY_POLICY);
+  if (process.env.NODE_ENV !== "development") {
+    res.setHeader("Content-Security-Policy", CONTENT_SECURITY_POLICY);
+    // Same value as vercel.json. No includeSubDomains/preload: other subdomains (mail) are not ours to pin.
+    res.setHeader("Strict-Transport-Security", "max-age=63072000");
+  }
   next();
 };
 

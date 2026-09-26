@@ -59,6 +59,19 @@ function clip(value: unknown, max: number): string | undefined {
   return typeof value === "string" ? value.slice(0, max) : undefined;
 }
 
+/**
+ * Strips contact details and secrets a crash message may quote (form values, URLs with tokens) before logging.
+ * ponytail: pattern-based, so it catches common shapes (emails, phone-length digit runs, JWTs, long tokens), not all PII.
+ */
+export function redactClientText(value: string | undefined): string | undefined {
+  return value
+    ?.replace(/[^\s@"'<>()]+@[^\s@"'<>()]+\.[a-z]{2,}/gi, "[email]")
+    .replace(/\beyJ[\w-]+\.[\w-]+\.[\w-]+/g, "[token]")
+    .replace(/([?&#])[^\s"'#]*/g, "$1[redacted]")
+    .replace(/\+?\d[\d\s().-]{6,}\d/g, (run) => (run.replace(/\D/g, "").length >= 7 ? "[number]" : run))
+    .replace(/\b[A-Za-z0-9_-]{32,}\b/g, "[token]");
+}
+
 function getRequestHost(req: Request): string {
   const forwarded = req.get("x-forwarded-host");
   const host = forwarded ? forwarded.split(",")[0].trim() : (req.get("host") || "");
@@ -199,10 +212,10 @@ export function registerSeoRoutes(app: Express) {
         const body = req.body as Record<string, unknown>;
         logJson("error", "client error", {
           source: clip(body.source, 20),
-          message: clip(body.message, 500),
-          stack: clip(body.stack, 4000),
-          componentStack: clip(body.componentStack, 4000),
-          path: clip(body.path, 300),
+          message: redactClientText(clip(body.message, 500)),
+          stack: redactClientText(clip(body.stack, 4000)),
+          componentStack: redactClientText(clip(body.componentStack, 4000)),
+          path: clip(body.path, 300)?.replace(/[?#].*$/, ""),
           userAgent: clip(body.userAgent, 300),
           release: clip(body.release, 40),
         });

@@ -46,3 +46,24 @@ export function isReservedSlug(slug: string): boolean {
   return RESERVED_SLUGS.includes(slug.toLowerCase().trim() as any);
 }
 
+
+/** Placeholder names that would make every such card look like the same unfinished page. */
+const PLACEHOLDER_NAMES = new Set(["your-name", "untitled", "untitled-card", "name", "card"]);
+
+/**
+ * Builds a new card slug from its display name plus a random suffix.
+ * Only used at creation: published slugs are never rewritten, so printed QR codes keep working.
+ * Accents are folded ("José" -> "jose"); names with no Latin letters fall back to "card".
+ * The prefix is capped so the slug always fits the 120-character column.
+ */
+export function makeCardSlug(displayName: string, suffix: string): string {
+  let prefix = displayName
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .slice(0, 48)
+    .replace(/^-+|-+$/g, "");
+  if (!prefix || PLACEHOLDER_NAMES.has(prefix) || isReservedSlug(prefix)) prefix = "card";
+  return `${prefix}-${suffix.toLowerCase()}`;
+}

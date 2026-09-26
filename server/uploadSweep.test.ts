@@ -47,6 +47,19 @@ describe("sweepUnusedUploads", () => {
     expect(mocks.storageDelete).toHaveBeenCalledWith(["7-portfolio/never-saved.jpg"]);
   });
 
+  it("keeps portfolio and unpublished-card media and never touches another owner's keys", async () => {
+    mocks.getCardsByOwner.mockResolvedValue([
+      { avatarUrl: null, portfolio: JSON.stringify([{ kind: "pdf", url: "https://heyitsme.fyi/api/storage/7-portfolio/deck.pdf" }]), published: false },
+    ]);
+    mocks.storageList.mockResolvedValue([
+      { key: "7-portfolio/deck.pdf", createdAt: old },
+      { key: "70-portfolio/someone-else.jpg", createdAt: old },
+      { key: "7-portfolio/../70-portfolio/escape.jpg", createdAt: old },
+    ]);
+
+    expect(await sweepUnusedUploads(7, NOW)).toEqual([]);
+  });
+
   it("deletes nothing when the owner has more cards than the list returns", async () => {
     mocks.getCardsByOwner.mockResolvedValue([{}, {}, {}]);
 
