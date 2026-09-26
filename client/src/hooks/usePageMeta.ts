@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 
-export const DEFAULT_DESCRIPTION = "heyitsme is a free digital business card for professional introductions that feel like you.";
+export const DEFAULT_DESCRIPTION = "A free digital business card. Share one link or QR code, collect contacts, and see what gets tapped.";
 
 type PageMeta = {
   title: string;
@@ -45,9 +45,11 @@ export function usePageMeta({ title, description = DEFAULT_DESCRIPTION, canonica
     setMeta("name", "description", description);
     setMeta("property", "og:title", title);
     setMeta("property", "og:description", description);
+    setMeta("name", "twitter:title", title);
+    setMeta("name", "twitter:description", description);
     setMeta("name", "robots", noindex ? "noindex" : null);
-    const url = canonicalPath ? `${window.location.origin}${canonicalPath}` : null;
+    const url = !noindex && canonicalPath ? `${window.location.origin}${canonicalPath}` : null;
     setCanonical(url);
-    if (url) setMeta("property", "og:url", url);
+    setMeta("property", "og:url", url);
   }, [title, description, canonicalPath, noindex]);
 }

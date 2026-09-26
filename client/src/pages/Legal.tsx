@@ -7,7 +7,7 @@ import { Link } from "wouter";
 
 const LAST_UPDATED = "September 24, 2026";
 
-function ContactLine() {
+export function ContactLine() {
   return SUPPORT_EMAIL ? (
     <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
   ) : (
@@ -15,7 +15,17 @@ function ContactLine() {
   );
 }
 
-function LegalShell({ title, intro, children }: { title: string; intro: string; children: ReactNode }) {
+export function LegalShell({
+  title,
+  intro,
+  updated = LAST_UPDATED,
+  children,
+}: {
+  title: string;
+  intro: string;
+  updated?: string | null;
+  children: ReactNode;
+}) {
   return (
     <div className="legal-page">
       <header className="legal-nav">
@@ -23,7 +33,7 @@ function LegalShell({ title, intro, children }: { title: string; intro: string; 
       </header>
       <main id="main" tabIndex={-1}>
         <article className="legal-doc">
-          <p className="legal-updated">Last updated {LAST_UPDATED}</p>
+          {updated ? <p className="legal-updated">Last updated {updated}</p> : null}
           <h1>{title}</h1>
           <p className="legal-intro">{intro}</p>
           {children}

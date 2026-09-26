@@ -1,4 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
+import { DEMO_CARD_ID } from "@shared/demoCard";
+import { isReservedSlug } from "@shared/routes";
+import { serverCardFields, validateCardData } from "@shared/cardValidation";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
 import { z } from "zod";
@@ -193,11 +196,20 @@ export const appRouter = router({
       getCardByIdForOwner(input.id, ctx.user.id),
     ),
     create: protectedProcedure
-      .input(z.object({ ...cardFields, published: z.boolean().optional() }))
+      .input(z.object({ ...serverCardFields, published: z.boolean().optional() }))
       .mutation(async ({ ctx, input }) => {
-        const slug = `${input.displayName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "card"}-${nanoid(6).toLowerCase()}`;
+        const validation = validateCardData(input);
+        if (!validation.isValid) {
+          const firstError = Object.values(validation.errors)[0];
+          throw new TRPCError({ code: "BAD_REQUEST", message: firstError });
+        }
+        let slug = `${input.displayName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "card"}-${nanoid(6).toLowerCase()}`;
+        if (isReservedSlug(slug)) {
+          slug = `card-${nanoid(6).toLowerCase()}`;
+        }
         const created = await createCard({
           ...input,
+          title: input.title ?? "",
           ownerUserId: ctx.user.id,
           slug,
           published: input.published ?? false,
@@ -210,23 +222,53 @@ export const appRouter = router({
         return created;
       }),
     update: protectedProcedure
-      .input(z.object({ id: z.number().int().positive(), ...cardFields, published: z.boolean().optional() }))
+      .input(z.object({ id: z.number().int().positive(), ...serverCardFields, published: z.boolean().optional() }))
       .mutation(async ({ ctx, input }) => {
         const { id, ...rest } = input;
+        const validation = validateCardData(rest);
+        if (!validation.isValid) {
+          const firstError = Object.values(validation.errors)[0];
+          throw new TRPCError({ code: "BAD_REQUEST", message: firstError });
+        }
         const before = await getCardByIdForOwner(id, ctx.user.id);
-        const updated = await updateCard(id, ctx.user.id, rest);
+        if (!before) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Card not found." });
+        }
+        const updated = await updateCard(id, ctx.user.id, {
+          ...rest,
+          title: rest.title ?? "",
+        });
         // A replaced or removed photo or file is no longer linked anywhere, so it can go.
         if (before && updated) await tidyOwnerUploads(ctx.user.id, before);
         return updated;
       }),
     publish: protectedProcedure
       .input(z.object({ id: z.number().int().positive(), published: z.boolean() }))
-      .mutation(({ ctx, input }) => updateCard(input.id, ctx.user.id, { published: input.published })),
+      .mutation(async ({ ctx, input }) => {
+        const card = await getCardByIdForOwner(input.id, ctx.user.id);
+        if (!card) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Card not found." });
+        }
+        if (input.published) {
+          const validation = validateCardData(card);
+          if (!validation.isValid) {
+            const firstError = Object.values(validation.errors)[0];
+            throw new TRPCError({ code: "BAD_REQUEST", message: `Cannot publish: ${firstError}` });
+          }
+        }
+        const updated = await updateCard(input.id, ctx.user.id, { published: input.published });
+        if (!updated) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Card not found." });
+        }
+        return updated;
+      }),
     delete: protectedProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .mutation(async ({ ctx, input }) => {
         const card = await deleteCard(input.id, ctx.user.id);
-        if (!card) return false;
+        if (!card) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Card not found." });
+        }
         // The card is already gone, so a storage hiccup only leaves unused files behind.
         await tidyOwnerUploads(ctx.user.id, card);
         return true;
@@ -324,7 +366,7 @@ export const appRouter = router({
       const ip = clientIp(ctx.req);
       await enforceRateLimit("card-read", ip, 120, MINUTE);
       const card = await getPublicCardBySlug(input.slug);
-      if (card) {
+      if (card && card.id !== DEMO_CARD_ID) {
         // Count a visitor once per half hour, so refreshes and retries do not inflate Insights.
         const firstView = await rateLimit(`view:${card.id}:${hashIdentifier(ip)}`, 1, 30 * MINUTE);
         if (firstView.allowed) await recordAnalytics(card.id, "view", "public_card");
@@ -334,7 +376,7 @@ export const appRouter = router({
     }),
     exchange: publicProcedure
       .input(z.object({
-        cardId: z.number().int().positive(),
+        cardId: z.number().int(),
         name: z.string().min(1).max(160),
         email: z.string().email().optional().nullable(),
         phone: z.string().max(64).optional().nullable(),
@@ -348,6 +390,26 @@ export const appRouter = router({
         // If honeypot is filled by bot, drop silently
         if (input.website) {
           return { id: 0, name: input.name, source: "exchange_form" };
+        }
+        if (input.cardId === DEMO_CARD_ID) {
+          // Simulated exchange on demo card: no DB write, no owner email, no analytics
+          return {
+            id: -999,
+            cardId: DEMO_CARD_ID,
+            ownerUserId: 0,
+            name: input.name,
+            email: input.email ?? null,
+            phone: input.phone ?? null,
+            company: input.company ?? null,
+            title: input.title ?? null,
+            notes: input.notes ?? null,
+            tags: "[]",
+            source: "exchange_form",
+            followedUp: false,
+            seenAt: null,
+            followUpOn: null,
+            createdAt: new Date(),
+          };
         }
         const card = await getCardById(input.cardId);
         if (!card || !card.published || card.deletedAt) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
@@ -370,11 +432,12 @@ export const appRouter = router({
     // Fire-and-forget visitor actions for the owner's Insights. Public, like views, so counts are best-effort.
     track: publicProcedure
       .input(z.object({
-        cardId: z.number().int().positive(),
+        cardId: z.number().int(),
         type: z.enum(["vcard", "link", "share"]),
         target: z.string().trim().max(80).optional().nullable(),
       }))
       .mutation(async ({ ctx, input }) => {
+        if (input.cardId === DEMO_CARD_ID) return { ok: true };
         const limit = await rateLimit(`track:${hashIdentifier(clientIp(ctx.req))}`, 60, MINUTE);
         if (!limit.allowed) return { ok: false };
         const card = await getCardById(input.cardId);

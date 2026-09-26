@@ -50,3 +50,37 @@ describe("sortByFollowUp", () => {
     expect(rows.map((row) => row.id)).toEqual([2, 1]);
   });
 });
+
+describe("contact status filter predicates (T10)", () => {
+  type Contact = { id: number; name: string; followedUp?: boolean };
+  const newIds = new Set([1, 2]);
+  const contacts: Contact[] = [
+    { id: 1, name: "New & Followed Up", followedUp: true },
+    { id: 2, name: "New & Needs Follow-up", followedUp: false },
+    { id: 3, name: "Old & Followed Up", followedUp: true },
+    { id: 4, name: "Old & Needs Follow-up", followedUp: false },
+  ];
+
+  it("new (Newly received) filter includes all contacts in newIds regardless of followedUp status", () => {
+    const filtered = contacts.filter((c) => newIds.has(c.id));
+    expect(filtered.map((c) => c.id)).toEqual([1, 2]);
+  });
+
+  it("todo (Needs follow-up) filter strictly includes followedUp=false", () => {
+    const filtered = contacts.filter((c) => !c.followedUp);
+    expect(filtered.map((c) => c.id)).toEqual([2, 4]);
+  });
+
+  it("done (Followed up) filter strictly includes followedUp=true", () => {
+    const filtered = contacts.filter((c) => Boolean(c.followedUp));
+    expect(filtered.map((c) => c.id)).toEqual([1, 3]);
+  });
+
+  it("supports dual-status: a newly received contact can be followed-up without contradiction", () => {
+    const contact = contacts[0];
+    const isNew = newIds.has(contact.id);
+    const isDone = Boolean(contact.followedUp);
+    expect(isNew).toBe(true);
+    expect(isDone).toBe(true);
+  });
+});

@@ -1,7 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { BrandMark } from "@/components/BrandMark";
 import { LoopVideo } from "@/components/LoopVideo";
-import { ShareDemo } from "@/components/ShareDemo";
 import { VelocityMarquee } from "@/components/VelocityMarquee";
 import { startGoogleLogin } from "@/const";
 import { landingMedia } from "@/lib/media";
@@ -9,11 +8,14 @@ import { AnimatePresence, motion, useReducedMotion, useScroll, useSpring, useTra
 import {
   ArrowRight,
   ArrowUpRight,
+  BarChart3,
   BriefcaseBusiness,
   Check,
   Download,
   FileSpreadsheet,
   Link2,
+  Mail,
+  Menu,
   MessageCircle,
   Palette,
   PenLine,
@@ -23,30 +25,33 @@ import {
   Sparkles,
   UserRoundPlus,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { CardVisual, TiltCard } from "@/components/CardVisual";
 import { LegalLinks } from "@/components/LegalLinks";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { themeOptions, type CardDraft } from "@/lib/card";
+
+const ShareDemo = lazy(() => import("@/components/ShareDemo").then((m) => ({ default: m.ShareDemo })));
 
 const demoCard: CardDraft = {
   id: -1,
   displayName: "Alex Morgan",
   title: "Creative director",
   company: "Studio North",
-  email: "hello@studionorth.co",
-  phone: "",
+  email: "alex@example.com",
+  phone: "+1 555-0100",
   location: "San Francisco, CA",
   bio: "I help small teams find the one sentence that makes their brand click.",
-  links: JSON.stringify(["studionorth.co"]),
+  links: JSON.stringify(["https://example.com"]),
   portfolio: "[]",
   channels: "[]",
   theme: "midnight",
   avatarUrl: "",
   coverUrl: "",
   backgroundUrl: "",
-  slug: "alex-morgan",
+  slug: "demo",
   published: true,
   contactHeading: "",
   galleryHeading: "",
@@ -95,6 +100,23 @@ function KineticLine({ words, delay = 0 }: { words: string[]; delay?: number }) 
 function FilmSection() {
   const ref = useRef<HTMLElement>(null);
   const reduceMotion = useReducedMotion();
+  const [nearView, setNearView] = useState(false);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setNearView(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "300px 0px" }
+    );
+    observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, []);
+
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "center center"] });
   const scale = useTransform(scrollYProgress, [0, 1], [reduceMotion ? 1 : 0.86, 1]);
   const rotateX = useTransform(scrollYProgress, [0, 1], [reduceMotion ? 0 : 16, 0]);
@@ -108,7 +130,13 @@ function FilmSection() {
       <motion.div className="lp-film" style={{ scale, rotateX, borderRadius: radius }}>
         <LoopVideo className="lp-film-backdrop" src={landingMedia.filmBackdrop} fallback={<div className="lp-aurora"><i /><i /><i /></div>} />
         <div className="lp-film-veil" aria-hidden="true" />
-        <ShareDemo />
+        {nearView ? (
+          <Suspense fallback={<div className="sd-placeholder" aria-hidden="true" />}>
+            <ShareDemo />
+          </Suspense>
+        ) : (
+          <div className="sd-placeholder" aria-hidden="true" />
+        )}
       </motion.div>
     </section>
   );
@@ -186,6 +214,7 @@ export default function Landing() {
   const [, navigate] = useLocation();
   const { isAuthenticated } = useAuth();
   const [theme, setTheme] = useState("midnight");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { scrollYProgress } = useScroll();
   const progress = useSpring(scrollYProgress, { stiffness: 140, damping: 26 });
   const howRef = useRef<HTMLElement>(null);
@@ -214,9 +243,70 @@ export default function Landing() {
           ) : (
             <>
               <button className="lp-signin" onClick={startGoogleLogin}>Sign in</button>
-              <motion.button whileTap={{ scale: 0.95 }} className="lp-btn lp-btn-dark" onClick={start}>Make your card</motion.button>
+              <motion.button whileTap={{ scale: 0.95 }} className="lp-btn lp-btn-dark" onClick={start}>Create your card</motion.button>
             </>
           )}
+
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetTrigger asChild>
+              <button
+                type="button"
+                className="lp-mobile-menu-trigger"
+                aria-label="Open navigation menu"
+                aria-expanded={mobileMenuOpen}
+                aria-controls="lp-mobile-menu"
+              >
+                <Menu size={18} />
+              </button>
+            </SheetTrigger>
+            <SheetContent side="right" id="lp-mobile-menu" className="lp-mobile-sheet-content">
+              <div>
+                <SheetHeader>
+                  <SheetTitle className="brand-lockup" style={{ fontSize: "16px", marginBottom: "8px" }}>
+                    <BrandMark />
+                    <span>heyitsme</span>
+                  </SheetTitle>
+                </SheetHeader>
+                <nav className="lp-mobile-links" aria-label="Mobile page sections">
+                  <a href="#film" onClick={() => setMobileMenuOpen(false)}>See it</a>
+                  <a href="#how" onClick={() => setMobileMenuOpen(false)}>How it works</a>
+                  <a href="#inside" onClick={() => setMobileMenuOpen(false)}>What’s inside</a>
+                  <a href="#free" onClick={() => setMobileMenuOpen(false)}>Pricing</a>
+                </nav>
+                <div className="lp-mobile-actions">
+                  {isAuthenticated ? (
+                    <button
+                      type="button"
+                      className="lp-btn lp-btn-dark lp-mobile-cta"
+                      onClick={() => { setMobileMenuOpen(false); openApp(); }}
+                    >
+                      Open my cards <ArrowRight size={15} />
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className="lp-mobile-signin"
+                        onClick={() => { setMobileMenuOpen(false); startGoogleLogin(); }}
+                      >
+                        Sign in
+                      </button>
+                      <button
+                        type="button"
+                        className="lp-btn lp-btn-dark lp-mobile-cta"
+                        onClick={() => { setMobileMenuOpen(false); start(); }}
+                      >
+                        Create your card <ArrowRight size={15} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div style={{ paddingTop: "20px", borderTop: "1px solid var(--line)" }}>
+                <LegalLinks />
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
       </header>
 
@@ -237,9 +327,11 @@ export default function Landing() {
             </motion.p>
             <motion.div className="lp-hero-actions" variants={reveal}>
               <motion.button whileHover={{ y: -3 }} whileTap={{ scale: 0.96 }} className="lp-btn lp-btn-primary" onClick={start}>
-                Create your page <ArrowRight size={16} />
+                Create your card <ArrowRight size={16} />
               </motion.button>
-              <button className="lp-btn lp-btn-ghost" onClick={() => howRef.current?.scrollIntoView({ behavior: "smooth" })}>See how it works</button>
+              <a className="lp-btn lp-btn-ghost" href="/c/demo" style={{ display: "inline-flex", alignItems: "center" }}>
+                View demo card
+              </a>
             </motion.div>
             <motion.p className="lp-micro" variants={reveal}>Try it in preview mode. Sign in with Google when you’re ready to publish.</motion.p>
             <motion.div className="lp-theme-row" variants={reveal} role="radiogroup" aria-label="Preview card theme">
@@ -322,6 +414,16 @@ export default function Landing() {
               <h3>Contacts that stick</h3>
               <p>Exchanged details land in a searchable list. Export to CSV whenever you like.</p>
             </motion.article>
+            <motion.article className="lp-tile" variants={reveal}>
+              <BarChart3 size={20} />
+              <h3>See what gets tapped</h3>
+              <p>Track page views, contact saves, and link taps in aggregate. Zero third-party trackers.</p>
+            </motion.article>
+            <motion.article className="lp-tile" variants={reveal}>
+              <Mail size={20} />
+              <h3>Email signatures</h3>
+              <p>Generate clean HTML and rich text email signatures that link directly to your card.</p>
+            </motion.article>
             <motion.article className="lp-tile lp-tile-wide lp-tile-share" variants={reveal}>
               <div>
                 <QrCode size={20} />
@@ -330,7 +432,7 @@ export default function Landing() {
               </div>
               <div className="lp-share-pills" aria-hidden="true">
                 <span><QrCode size={13} /> QR code</span>
-                <span><Link2 size={13} /> heyitsme/c/you</span>
+                <span><Link2 size={13} /> heyitsme.fyi/c/demo</span>
                 <span><Send size={13} /> SMS · Email</span>
               </div>
             </motion.article>
@@ -345,11 +447,19 @@ export default function Landing() {
         <motion.section id="free" className="lp-free" initial={{ opacity: 0, y: 60 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-100px" }} transition={{ type: "spring", stiffness: 80, damping: 18 }}>
           <div>
             <span className="section-kicker">Pricing</span>
-            <h2>Everything is free.<br /><em>No plans. No limits.</em></h2>
-            <p>No trial, no upgrade screen, no card on file. Every feature is included.</p>
+            <h2>Everything is free.<br /><em>All current features are free.</em></h2>
+            <p>No subscriptions, no trials, no credit card required. Full functionality included.</p>
           </div>
           <ul>
-            {["Unlimited cards", "Portfolio uploads", "Client references", "QR and share helpers", "Contact exchange", "CSV export"].map((item, index) => (
+            {[
+              "Multiple cards per account",
+              "Portfolio & photo uploads",
+              "Client references & quotes",
+              "QR codes & share helpers",
+              "Contact exchange & CSV export",
+              "Visitor insights & metrics",
+              "Email signature generator",
+            ].map((item, index) => (
               <motion.li key={item} initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.15 + index * 0.06 }}>
                 <Check size={15} /> {item}
               </motion.li>
@@ -365,7 +475,7 @@ export default function Landing() {
           </motion.h2>
           <p>Send them your page.</p>
           <motion.button whileHover={{ y: -3 }} whileTap={{ scale: 0.96 }} className="lp-btn lp-btn-primary" onClick={isAuthenticated ? openApp : start}>
-            {isAuthenticated ? "Open my cards" : "Create your page"} <ArrowUpRight size={16} />
+            {isAuthenticated ? "Open my cards" : "Create your card"} <ArrowUpRight size={16} />
           </motion.button>
         </section>
       </main>

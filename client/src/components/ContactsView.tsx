@@ -1,6 +1,6 @@
 import { buildContactVCard, copyToClipboard, csvCell, downloadBlob, followUpDay, formatDate, formatFollowUp, getInitials, parseTags, safeFileName, sortByFollowUp } from "@/lib/cardKit";
 import { AnimatePresence, motion } from "framer-motion";
-import { AtSign, CalendarClock, Check, Copy, Download, Mail, Phone, Tag, Trash2, UserRoundPlus, UsersRound, X } from "lucide-react";
+import { AtSign, CalendarClock, Check, Copy, Download, Mail, Phone, Sparkles, Tag, Trash2, UserRoundPlus, UsersRound, X } from "lucide-react";
 import { useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
 import { toast } from "sonner";
 
@@ -152,7 +152,7 @@ function ContactSheet({
           <div className="contact-sheet-identity">
             <div className="contact-avatar">{getInitials(contact.name)}</div>
             <div>
-              <span className="mini-label">{isNew ? "New contact" : contact.source === "exchange_form" ? "Exchanged details" : "Contact"}</span>
+              <span className="mini-label">{isNew ? "Newly received" : contact.source === "exchange_form" ? "Exchanged details" : "Contact"}{contact.followedUp ? " · Followed up" : ""}</span>
               <h2 id={titleId}>{contact.name}</h2>
               <p>{contact.title || "Contact"}{contact.company ? ` · ${contact.company}` : ""}</p>
             </div>
@@ -206,12 +206,47 @@ function ContactSheet({
   );
 }
 
+export const SAMPLE_GUEST_CONTACTS: ContactRow[] = [
+  {
+    id: -101,
+    name: "Jordan Lee",
+    title: "Product Designer",
+    company: "Acme Studio",
+    email: "jordan@example.com",
+    phone: "+1 415 555 0142",
+    tags: JSON.stringify(["design", "collaborator"]),
+    notes: "Met at Design Systems meetup. Interested in brand refresh.",
+    source: "exchange_form",
+    followedUp: false,
+    followUpOn: null,
+    seenAt: new Date(),
+    createdAt: new Date(Date.now() - 86400000),
+  },
+  {
+    id: -102,
+    name: "Morgan Taylor",
+    title: "Founder & CEO",
+    company: "North Star Labs",
+    email: "morgan@example.com",
+    phone: "+1 415 555 0188",
+    tags: JSON.stringify(["founder", "client"]),
+    notes: "Saved your contact and sent details via QR scan.",
+    source: "vcard_download",
+    followedUp: true,
+    followUpOn: null,
+    seenAt: new Date(),
+    createdAt: new Date(Date.now() - 172800000),
+  },
+];
+
 export function ContactsView({
-  contacts,
+  contacts: rawContacts,
   cards,
-  newIds,
+  newIds: rawNewIds,
   onUpdate,
   onDelete,
+  isAuthenticated = true,
+  onSignIn,
 }: {
   contacts: ContactRow[];
   cards: { id: number; displayName: string }[];
@@ -219,7 +254,12 @@ export function ContactsView({
   newIds: Set<number>;
   onUpdate: (id: number, patch: ContactPatch) => Promise<boolean>;
   onDelete: (id: number) => Promise<void>;
+  isAuthenticated?: boolean;
+  onSignIn?: () => void;
 }) {
+  const [guestContacts, setGuestContacts] = useState<ContactRow[]>(SAMPLE_GUEST_CONTACTS);
+  const contacts = isAuthenticated ? rawContacts : guestContacts;
+  const newIds = isAuthenticated ? rawNewIds : useMemo(() => new Set([-101]), []);
   const [search, setSearch] = useState("");
   const [cardFilter, setCardFilter] = useState("all");
   const [tagFilter, setTagFilter] = useState("all");
@@ -262,7 +302,40 @@ export function ContactsView({
   const filtersActive = Boolean(search.trim()) || cardFilter !== "all" || tagFilter !== "all" || status !== "all";
   const openContact = contacts.find((contact) => contact.id === openId) ?? null;
 
+  const handleUpdate = async (id: number, patch: ContactPatch) => {
+    if (!isAuthenticated) {
+      setGuestContacts((prev) =>
+        prev.map((c) =>
+          c.id === id
+            ? {
+                ...c,
+                ...patch,
+                tags: patch.tags ? JSON.stringify(patch.tags) : c.tags,
+                followUpOn: patch.followUpOn !== undefined ? patch.followUpOn : c.followUpOn,
+              }
+            : c
+        )
+      );
+      toast.success("Updated sample contact.");
+      return true;
+    }
+    return onUpdate(id, patch);
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!isAuthenticated) {
+      setGuestContacts((prev) => prev.filter((c) => c.id !== id));
+      toast.success("Sample contact removed.");
+      return;
+    }
+    return onDelete(id);
+  };
+
   const exportContacts = () => {
+    if (!isAuthenticated) {
+      toast.info("This is sample preview data. Sign in with Google to collect and export real contacts.");
+      return;
+    }
     const header = ["name", "email", "phone", "company", "title", "tags", "notes", "followed_up", "follow_up_on", "card", "source", "met_on"].join(",");
     const rows = visible.map((contact) => [
       contact.name,
@@ -292,7 +365,7 @@ export function ContactsView({
 
   const statusTabs: { id: StatusFilter; label: string }[] = [
     { id: "all", label: "All" },
-    { id: "new", label: "New" },
+    { id: "new", label: "Newly received" },
     { id: "todo", label: "Needs follow-up" },
     { id: "done", label: "Followed up" },
   ];
@@ -307,6 +380,21 @@ export function ContactsView({
         </div>
         <button type="button" className="outline-button" onClick={exportContacts} disabled={visible.length === 0}><Download size={15} /> Export CSV</button>
       </div>
+
+      {!isAuthenticated ? (
+        <div className="guest-sample-banner">
+          <Sparkles size={18} />
+          <div className="guest-sample-copy">
+            <strong>Sample contacts preview</strong>
+            <span>When people save your card or exchange details, they land here. Sign in to collect, tag, and export contacts.</span>
+          </div>
+          {onSignIn ? (
+            <button type="button" className="glass-button glass-button-primary" onClick={onSignIn}>
+              Continue with Google
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="contact-status-tabs" role="group" aria-label="Filter by follow-up status">
         {statusTabs.map((tab) => (
@@ -347,7 +435,11 @@ export function ContactsView({
               <button type="button" className="contact-open" onClick={() => setOpenId(contact.id)} aria-label={`Open ${contact.name}${isNew ? ", new" : ""}`}>
                 <div className="contact-avatar">{getInitials(contact.name)}</div>
                 <div className="contact-main">
-                  <strong>{contact.name}{isNew ? <span className="new-pill">New</span> : null}</strong>
+                  <strong>
+                    {contact.name}
+                    {isNew ? <span className="new-pill" title="Newly received this visit">New</span> : null}
+                    {contact.followedUp ? <span className="followed-pill" title="Followed up">Followed up</span> : null}
+                  </strong>
                   <span>{contact.title || "Contact"}{contact.company ? ` · ${contact.company}` : ""}</span>
                 </div>
                 <div className="contact-detail">
@@ -370,7 +462,7 @@ export function ContactsView({
                 aria-pressed={Boolean(contact.followedUp)}
                 aria-label={contact.followedUp ? `${contact.name}: followed up. Mark as needs follow-up` : `Mark ${contact.name} as followed up`}
                 title={contact.followedUp ? "Followed up" : "Mark as followed up"}
-                onClick={() => void onUpdate(contact.id, { followedUp: !contact.followedUp })}
+                onClick={() => void handleUpdate(contact.id, { followedUp: !contact.followedUp })}
               >
                 <Check size={16} />
               </button>
@@ -404,11 +496,11 @@ export function ContactsView({
             isNew={newIds.has(openContact.id)}
             suggestions={allTags}
             onClose={() => setOpenId(null)}
-            onSave={(patch) => onUpdate(openContact.id, patch)}
+            onSave={(patch) => handleUpdate(openContact.id, patch)}
             onDelete={() => {
               if (!window.confirm(`Delete ${openContact.name}? This cannot be undone.`)) return;
               setOpenId(null);
-              void onDelete(openContact.id);
+              void handleDelete(openContact.id);
             }}
           />
         ) : null}

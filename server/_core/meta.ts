@@ -136,3 +136,94 @@ export function renderCardNotFoundHtml(template: string): string {
     `<meta name="description" content="This heyitsme card is not available." />`,
   ]);
 }
+
+export type MarketingRoute = "/" | "/about" | "/faq" | "/pricing" | "/privacy" | "/terms";
+
+export type MarketingRouteMeta = {
+  title: string;
+  description: string;
+  canonicalPath: string;
+  ogType?: string;
+  jsonLd?: (siteUrl: string) => Record<string, unknown>;
+};
+
+export const MARKETING_METADATA: Record<MarketingRoute, MarketingRouteMeta> = {
+  "/": {
+    title: "Free Digital Business Card with QR Code | heyitsme",
+    description: "A free digital business card. Share one link or QR code, collect contacts, and see what gets tapped.",
+    canonicalPath: "/",
+    ogType: "website",
+    jsonLd: (siteUrl) => ({
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      name: "heyitsme",
+      url: siteUrl,
+      description: "Free digital business cards for professional introductions that feel like you.",
+    }),
+  },
+  "/about": {
+    title: "About — heyitsme",
+    description: "Learn about heyitsme: a fast, free, privacy-first digital business card that makes introductions simple, without apps or paywalls.",
+    canonicalPath: "/about",
+    ogType: "website",
+  },
+  "/faq": {
+    title: "Frequently Asked Questions — heyitsme",
+    description: "Find answers to common questions about heyitsme: compatibility, contact exchange, privacy, file limits, and free features.",
+    canonicalPath: "/faq",
+    ogType: "website",
+  },
+  "/pricing": {
+    title: "Pricing & Limits — 100% Free — heyitsme",
+    description: "heyitsme is 100% free with no subscriptions, trials, or paywalls. See all included features and technical limits.",
+    canonicalPath: "/pricing",
+    ogType: "website",
+  },
+  "/privacy": {
+    title: "Privacy — heyitsme",
+    description: "What heyitsme collects, why, who processes it, and how to get it removed. No ad trackers, no third-party scripts.",
+    canonicalPath: "/privacy",
+    ogType: "website",
+  },
+  "/terms": {
+    title: "Terms — heyitsme",
+    description: "Terms and conditions for using the heyitsme free digital business card platform.",
+    canonicalPath: "/terms",
+    ogType: "website",
+  },
+};
+
+export function renderMarketingHtml(template: string, route: string, siteUrl: string): string {
+  const site = siteUrl.replace(/\/$/, "");
+  const normalized = (route.replace(/\/$/, "") || "/") as MarketingRoute;
+  const meta = MARKETING_METADATA[normalized];
+  if (!meta) return template;
+
+  const url = meta.canonicalPath === "/" ? `${site}/` : `${site}${meta.canonicalPath}`;
+  const title = meta.title;
+  const description = meta.description;
+  const image = `${site}/og.png`;
+  const attr = escapeHtml;
+
+  const tags = [
+    `<meta name="description" content="${attr(description)}" />`,
+    `<link rel="canonical" href="${attr(url)}" />`,
+    `<meta property="og:type" content="${attr(meta.ogType || "website")}" />`,
+    `<meta property="og:site_name" content="heyitsme" />`,
+    `<meta property="og:title" content="${attr(title)}" />`,
+    `<meta property="og:description" content="${attr(description)}" />`,
+    `<meta property="og:url" content="${attr(url)}" />`,
+    `<meta property="og:image" content="${attr(image)}" />`,
+    `<meta name="twitter:card" content="summary_large_image" />`,
+    `<meta name="twitter:title" content="${attr(title)}" />`,
+    `<meta name="twitter:description" content="${attr(description)}" />`,
+    `<meta name="twitter:image" content="${attr(image)}" />`,
+  ];
+
+  if (meta.jsonLd) {
+    tags.push(`<script type="application/ld+json">${safeJsonForScript(meta.jsonLd(site))}</script>`);
+  }
+
+  return injectHead(setTitle(template, title), tags);
+}
+

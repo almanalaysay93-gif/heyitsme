@@ -13,6 +13,9 @@ const PublicCardPage = lazy(() => import("./pages/PublicCard"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const PrivacyPage = lazy(() => import("./pages/Legal").then((m) => ({ default: m.PrivacyPage })));
 const TermsPage = lazy(() => import("./pages/Legal").then((m) => ({ default: m.TermsPage })));
+const AboutPage = lazy(() => import("./pages/Info").then((m) => ({ default: m.AboutPage })));
+const FaqPage = lazy(() => import("./pages/Info").then((m) => ({ default: m.FaqPage })));
+const PricingPage = lazy(() => import("./pages/Info").then((m) => ({ default: m.PricingPage })));
 
 function RouteLoading() {
   return <div className="loading-screen" role="status" aria-label="Loading"><LogoLoader /></div>;
@@ -23,6 +26,9 @@ function Router() {
     <Suspense fallback={<RouteLoading />}>
       <Switch>
         <Route path="/" component={Landing} />
+        <Route path="/about" component={AboutPage} />
+        <Route path="/faq" component={FaqPage} />
+        <Route path="/pricing" component={PricingPage} />
         <Route path="/app" component={Home} />
         <Route path="/app/cards" component={Home} />
         <Route path="/app/cards/new" component={Home} />

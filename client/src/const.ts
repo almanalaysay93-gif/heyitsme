@@ -12,15 +12,16 @@ export const SUPPORT_EMAIL = ((import.meta.env.VITE_SUPPORT_EMAIL as string | un
 // cookie, and navigates immediately - so the cookie nonce always matches the
 // `state` it sends. Do NOT call it during render (no `href={startLogin()}` /
 // `loginUrl={...}`).
-export const startLogin = () => {
+export const startLogin = (returnTo?: string | unknown) => {
   const redirectUri = `${window.location.origin}/api/oauth/callback`;
+  const safeReturn = typeof returnTo === "string" ? returnTo : undefined;
 
   const nonce = crypto.randomUUID();
   // Lax still rides along on Google's top-level redirect back to /api/oauth/callback.
   document.cookie = `${OAUTH_STATE_COOKIE}=${nonce}; Path=/; Max-Age=600; SameSite=Lax; Secure`;
-  const state = encodeOAuthState({ redirectUri, nonce });
+  const state = encodeOAuthState({ redirectUri, nonce, returnTo: safeReturn });
 
   window.location.href = `/api/oauth/login?state=${encodeURIComponent(state)}`;
 };
 
-export const startGoogleLogin = () => startLogin();
+export const startGoogleLogin = (returnTo?: string | unknown) => startLogin(returnTo);

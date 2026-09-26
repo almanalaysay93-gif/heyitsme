@@ -16,10 +16,12 @@ import {
   PREVIEW_CARD_STORAGE_KEY,
   portfolioStoredLength,
   readPreviewCard,
+  resolveActiveCard,
   splitHeading,
   toDraft,
   toHref,
   uploadInlineMedia,
+  validateCardData,
   websiteShotFrom,
   websiteShotRequest,
   type PortfolioItem,
@@ -134,14 +136,21 @@ describe("buildVCard", () => {
 });
 
 describe("cardPayload", () => {
-  it("fills required fields and turns blanks and bad emails into null", () => {
-    const payload = cardPayload({ ...emptyCard, displayName: "  ", email: "not-an-email", company: " Northwind ", links: "a.com, b.com" });
-    expect(payload.displayName).toBe("Untitled card");
-    expect(payload.title).toBe("Professional");
-    expect(payload.email).toBeNull();
+  it("trims fields without inventing fake defaults or deleting invalid email", () => {
+    const payload = cardPayload({
+      ...emptyCard,
+      displayName: "  Ada Lane  ",
+      title: "",
+      email: "not-an-email",
+      company: " Northwind ",
+      links: "a.design, b.com",
+    });
+    expect(payload.displayName).toBe("Ada Lane");
+    expect(payload.title).toBe("");
+    expect(payload.email).toBe("not-an-email");
     expect(payload.company).toBe("Northwind");
     expect(payload.avatarUrl).toBeNull();
-    expect(payload.links).toBe('["a.com","b.com"]');
+    expect(payload.links).toBe('["https://a.design","https://b.com"]');
     expect(payload.contactHeading).toBeNull();
     expect(payload.galleryHeading).toBeNull();
     expect(payload.portfolioHeading).toBeNull();
@@ -157,6 +166,74 @@ describe("cardPayload", () => {
     expect(payload.contactHeading).toBe("Let's chat directly!");
     expect(payload.galleryHeading).toBe("Selected shots");
     expect(payload.portfolioHeading).toBe("Featured projects");
+  });
+});
+
+describe("validateCardData", () => {
+  it("requires a non-empty displayName", () => {
+    const emptyName = validateCardData({ displayName: "   " });
+    expect(emptyName.isValid).toBe(false);
+    expect(emptyName.errors.displayName).toBeDefined();
+
+    const validName = validateCardData({ displayName: "Ada Lane" });
+    expect(validName.isValid).toBe(true);
+    expect(validName.errors.displayName).toBeUndefined();
+  });
+
+  it("keeps role/title optional and allows blank title", () => {
+    const res = validateCardData({ displayName: "Ada Lane", title: "" });
+    expect(res.isValid).toBe(true);
+    expect(res.errors.title).toBeUndefined();
+  });
+
+  it("validates email when provided and rejects malformed email", () => {
+    const invalid = validateCardData({ displayName: "Ada", email: "not-an-email" });
+    expect(invalid.isValid).toBe(false);
+    expect(invalid.errors.email).toBe("Please enter a valid email address.");
+
+    const valid = validateCardData({ displayName: "Ada", email: "ada@example.com" });
+    expect(valid.isValid).toBe(true);
+    expect(valid.errors.email).toBeUndefined();
+
+    const blank = validateCardData({ displayName: "Ada", email: "" });
+    expect(blank.isValid).toBe(true);
+  });
+
+  it("rejects unsafe URL schemes in links", () => {
+    const unsafe = validateCardData({
+      displayName: "Ada",
+      links: JSON.stringify(["javascript:alert(1)"]),
+    });
+    expect(unsafe.isValid).toBe(false);
+    expect(unsafe.errors.links).toBeDefined();
+
+    const badUrl = validateCardData({
+      displayName: "Ada",
+      links: JSON.stringify(["not a valid domain url"]),
+    });
+    expect(badUrl.isValid).toBe(false);
+    expect(badUrl.errors.links).toBeDefined();
+
+    const valid = validateCardData({
+      displayName: "Ada",
+      links: JSON.stringify(["https://ada.design", "github.com/ada"]),
+    });
+    expect(valid.isValid).toBe(true);
+  });
+
+  it("validates channels with provider-specific rules", () => {
+    const validPhone = validateCardData({
+      displayName: "Ada",
+      channels: JSON.stringify([{ provider: "whatsapp", url: "+1 415 555 0183" }]),
+    });
+    expect(validPhone.isValid).toBe(true);
+
+    const unsafeChannel = validateCardData({
+      displayName: "Ada",
+      channels: JSON.stringify([{ provider: "x", url: "javascript:alert(1)" }]),
+    });
+    expect(unsafeChannel.isValid).toBe(false);
+    expect(unsafeChannel.errors.channels).toBeDefined();
   });
 });
 
@@ -467,3 +544,62 @@ describe("preview-mode portfolio uploads", () => {
     expect(portfolioStoredLength(items)).toBe(JSON.stringify(items).length);
   });
 });
+
+describe("resolveActiveCard", () => {
+  const fallback = { id: 0, displayName: "Fallback Draft", published: false, deletedAt: null };
+  const draft1 = { id: 1, displayName: "Draft One", published: false, deletedAt: null };
+  const live1 = { id: 2, displayName: "Live One", published: true, deletedAt: null };
+  const live2 = { id: 3, displayName: "Live Two", published: true, deletedAt: null };
+  const archived = { id: 4, displayName: "Archived", published: true, deletedAt: new Date() };
+
+  it("returns fallbackDraft when cards array is empty", () => {
+    expect(resolveActiveCard([], 0, fallback)).toBe(fallback);
+    expect(resolveActiveCard([], 5, fallback)).toBe(fallback);
+  });
+
+  it("returns explicitly selected non-deleted card", () => {
+    expect(resolveActiveCard([draft1, live1], 1, fallback)).toBe(draft1);
+    expect(resolveActiveCard([draft1, live1], 2, fallback)).toBe(live1);
+  });
+
+  it("falls back to first published card if explicit selection was deleted", () => {
+    expect(resolveActiveCard([draft1, live1, archived], 4, fallback)).toBe(live1);
+  });
+
+  it("falls back to first published card if explicit selection does not exist", () => {
+    expect(resolveActiveCard([draft1, live1, live2], 99, fallback)).toBe(live1);
+  });
+
+  it("falls back to first non-deleted draft when no published cards exist", () => {
+    expect(resolveActiveCard([draft1], 0, fallback)).toBe(draft1);
+    expect(resolveActiveCard([archived, draft1], 0, fallback)).toBe(draft1);
+  });
+
+  it("returns fallbackDraft if all cards are deleted", () => {
+    expect(resolveActiveCard([archived], 0, fallback)).toBe(fallback);
+  });
+});
+
+describe("splitHeading and card headings regression", () => {
+  it("splits single-line heading on last word boundary", () => {
+    expect(splitHeading("Pick the easiest way in", "Fallback 1", "Fallback 2")).toEqual({
+      title: "Pick the easiest way",
+      emphasis: "in",
+    });
+  });
+
+  it("splits two-line heading on newline", () => {
+    expect(splitHeading("Selected\nClient Work", "Fallback 1", "Fallback 2")).toEqual({
+      title: "Selected Client",
+      emphasis: "Work",
+    });
+  });
+
+  it("falls back cleanly on empty string", () => {
+    expect(splitHeading("", "Default Lead", "Default Tail")).toEqual({
+      title: "Default Lead",
+      emphasis: "Default Tail",
+    });
+  });
+});
+

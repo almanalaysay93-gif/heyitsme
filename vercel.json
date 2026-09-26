@@ -4,6 +4,19 @@
   "functions": {
     "api/index.js": { "includeFiles": "dist/{server/**,public/index.html}" }
   },
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "heyitsme-ecru.vercel.app"
+        }
+      ],
+      "destination": "https://heyitsme.fyi/$1",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api" },
     { "source": "/storage/(.*)", "destination": "/api" },
@@ -12,8 +25,11 @@
     { "source": "/sitemap.xml", "destination": "/api" },
     { "source": "/app", "destination": "/index.html" },
     { "source": "/app/(.*)", "destination": "/index.html" },
-    { "source": "/privacy", "destination": "/index.html" },
-    { "source": "/terms", "destination": "/index.html" }
+    { "source": "/about", "destination": "/about/index.html" },
+    { "source": "/faq", "destination": "/faq/index.html" },
+    { "source": "/pricing", "destination": "/pricing/index.html" },
+    { "source": "/privacy", "destination": "/privacy/index.html" },
+    { "source": "/terms", "destination": "/terms/index.html" }
   ],
   "headers": [
     {

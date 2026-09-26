@@ -7,7 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getDb, getPublicCardBySlug } from "../db";
 import { ENV } from "./env";
-import { renderCardHtml, renderCardNotFoundHtml } from "./meta";
+import { renderCardHtml, renderCardNotFoundHtml, renderMarketingHtml } from "./meta";
 import { clientIp, hashIdentifier, rateLimit } from "./rateLimit";
 
 export function siteOrigin(req: Request): string {
@@ -59,8 +59,31 @@ function clip(value: unknown, max: number): string | undefined {
   return typeof value === "string" ? value.slice(0, max) : undefined;
 }
 
+function getRequestHost(req: Request): string {
+  const forwarded = req.get("x-forwarded-host");
+  const host = forwarded ? forwarded.split(",")[0].trim() : (req.get("host") || "");
+  return host.toLowerCase().split(":")[0];
+}
+
 export function registerSeoRoutes(app: Express) {
+  // Legacy production host redirect: preserve path and query
+  app.use((req, res, next) => {
+    const host = getRequestHost(req);
+    if (host === "heyitsme-ecru.vercel.app") {
+      return res.redirect(301, `https://heyitsme.fyi${req.originalUrl}`);
+    }
+    next();
+  });
+
   app.get("/robots.txt", (req, res) => {
+    const host = getRequestHost(req);
+    if (host.endsWith(".vercel.app")) {
+      res
+        .type("text/plain")
+        .set("Cache-Control", "public, max-age=3600")
+        .send(["User-agent: *", "Disallow: /", ""].join("\n"));
+      return;
+    }
     const origin = siteOrigin(req);
     res
       .type("text/plain")
@@ -76,6 +99,20 @@ export function registerSeoRoutes(app: Express) {
       .set("Cache-Control", "public, max-age=3600")
       .send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`);
   });
+
+  const MARKETING_ROUTES = ["/about", "/faq", "/pricing", "/privacy", "/terms"] as const;
+  for (const route of MARKETING_ROUTES) {
+    app.get(route, async (req, res, next) => {
+      if (process.env.NODE_ENV === "development") return next();
+      const template = await loadTemplate(req);
+      if (!template) return next();
+      res
+        .status(200)
+        .set("Cache-Control", "public, max-age=3600")
+        .type("html")
+        .send(renderMarketingHtml(template, route, siteOrigin(req)));
+    });
+  }
 
   // The card as a contact file. A real URL, not a blob, so iPhone Safari opens its "add contact" sheet.
   // Registered before /c/:slug, which would otherwise take "name.vcf" as a slug.
@@ -99,7 +136,7 @@ export function registerSeoRoutes(app: Express) {
         .set({
           "Content-Type": "text/vcard; charset=utf-8",
           "Content-Disposition": `inline; filename="${fileName}.vcf"`,
-          "Cache-Control": "public, max-age=0, s-maxage=60, stale-while-revalidate=60",
+          "Cache-Control": "no-cache, no-store, must-revalidate",
         })
         .send(buildVCard(card, `${origin}/c/${card.slug}`, origin));
     } catch (error) {
@@ -111,11 +148,11 @@ export function registerSeoRoutes(app: Express) {
   // Public cards get real <head> tags so shared links unfurl with the person's name and photo.
   // In development Vite serves the page instead, so there is no built template to fill.
   app.get("/c/:slug", async (req, res, next) => {
-    if (process.env.NODE_ENV === "development" || !ENV.databaseUrl) return next();
+    if (process.env.NODE_ENV === "development") return next();
+    const slug = String(req.params.slug ?? "").slice(0, 120);
+    if (!ENV.databaseUrl && slug.toLowerCase() !== "demo") return next();
     const template = await loadTemplate(req);
     if (!template) return next();
-
-    const slug = String(req.params.slug ?? "").slice(0, 120);
     try {
       const card = await getPublicCardBySlug(slug);
       if (!card) {
@@ -124,7 +161,7 @@ export function registerSeoRoutes(app: Express) {
       }
       res
         .status(200)
-        .set("Cache-Control", "public, max-age=0, s-maxage=60, stale-while-revalidate=60")
+        .set("Cache-Control", "no-cache, no-store, must-revalidate")
         .type("html")
         .send(renderCardHtml(template, card, siteOrigin(req)));
     } catch (error) {

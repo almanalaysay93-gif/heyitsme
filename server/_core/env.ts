@@ -12,8 +12,8 @@ export const ENV = {
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
   googleRedirectUri: process.env.GOOGLE_REDIRECT_URI ?? "",
-  // Public origin, e.g. https://heyitsme.example, used for canonical URLs, sitemap, and link previews.
-  siteUrl: (process.env.SITE_URL ?? "").trim().replace(/\/$/, ""),
+  // Public origin, e.g. https://heyitsme.fyi, used for canonical URLs, sitemap, and link previews.
+  siteUrl: (process.env.SITE_URL || (process.env.NODE_ENV === "production" ? "https://heyitsme.fyi" : "")).trim().replace(/\/$/, ""),
   s3Bucket: process.env.S3_BUCKET ?? "",
   s3Region: process.env.S3_REGION ?? "us-east-1",
   awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID ?? "",

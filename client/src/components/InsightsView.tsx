@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { motion } from "framer-motion";
-import { BarChart3, Download, Eye, Link2, Moon, Share2, Sun, UserRoundPlus } from "lucide-react";
+import { BarChart3, Download, Eye, Link2, Moon, Share2, Sparkles, Sun, UserRoundPlus } from "lucide-react";
 import { useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 type Range = 7 | 30 | 90;
@@ -112,6 +112,41 @@ function TableThemeToggle({ value, onChange }: { value: TableTheme; onChange: (v
   );
 }
 
+export const SAMPLE_GUEST_INSIGHTS = {
+  days: 30,
+  from: "2026-08-28",
+  to: "2026-09-26",
+  totals: { views: 142, vcard: 38, exchanges: 12, links: 45, shares: 9 },
+  exchangeRate: 12 / 142,
+  daily: [
+    { day: "2026-09-20", views: 12 },
+    { day: "2026-09-21", views: 18 },
+    { day: "2026-09-22", views: 24 },
+    { day: "2026-09-23", views: 15 },
+    { day: "2026-09-24", views: 32 },
+    { day: "2026-09-25", views: 21 },
+    { day: "2026-09-26", views: 20 },
+  ],
+  cards: [
+    {
+      id: -1,
+      displayName: "Alex Morgan",
+      slug: "alex-morgan",
+      published: true,
+      views: 142,
+      vcard: 38,
+      exchanges: 12,
+      links: 45,
+      shares: 9,
+    },
+  ],
+  topLinks: [
+    { label: "Portfolio website", count: 24 },
+    { label: "LinkedIn profile", count: 16 },
+    { label: "Book a time", count: 5 },
+  ],
+};
+
 export function InsightsView({ isAuthenticated, onSignIn }: { isAuthenticated: boolean; onSignIn: () => void }) {
   const [days, setDays] = useState<Range>(30);
   const [tableTheme, setTableThemeState] = useState<TableTheme>(readTableTheme);
@@ -123,7 +158,7 @@ export function InsightsView({ isAuthenticated, onSignIn }: { isAuthenticated: b
   };
   const tableScrollClass = `insight-table-scroll${tableTheme === "dark" ? " is-dark" : ""}`;
   const summaryQuery = trpc.insights.summary.useQuery({ days }, { enabled: isAuthenticated, retry: false, placeholderData: (previous) => previous });
-  const summary = summaryQuery.data;
+  const summary = isAuthenticated ? summaryQuery.data : SAMPLE_GUEST_INSIGHTS;
   const topLinkMax = useMemo(() => Math.max(1, ...(summary?.topLinks ?? []).map((link) => link.count)), [summary?.topLinks]);
 
   const heading = (
@@ -131,7 +166,7 @@ export function InsightsView({ isAuthenticated, onSignIn }: { isAuthenticated: b
       <div>
         <span className="section-kicker"><BarChart3 size={14} /> Insights</span>
         <h1>See what<br /><em>lands.</em></h1>
-        <p>Views, saves, and taps from people who open your cards.</p>
+        <p>Views, contact-save actions, and link taps from people who open your cards.</p>
       </div>
       {isAuthenticated ? (
         <div className="range-toggle" role="group" aria-label="Date range">
@@ -145,21 +180,7 @@ export function InsightsView({ isAuthenticated, onSignIn }: { isAuthenticated: b
     </div>
   );
 
-  if (!isAuthenticated) {
-    return (
-      <motion.div className="page-stack" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-        {heading}
-        <div className="empty-state glass-panel">
-          <BarChart3 size={24} />
-          <strong>Insights start when your card is live.</strong>
-          <span>Sign in and publish a card to see who views it and what they tap.</span>
-          <button type="button" className="glass-button glass-button-primary" onClick={onSignIn}>Continue with Google</button>
-        </div>
-      </motion.div>
-    );
-  }
-
-  if (summaryQuery.isError) {
+  if (isAuthenticated && summaryQuery.isError) {
     return (
       <motion.div className="page-stack" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
         {heading}
@@ -175,7 +196,7 @@ export function InsightsView({ isAuthenticated, onSignIn }: { isAuthenticated: b
   const totals = summary?.totals;
   const tiles = [
     { key: "views", label: "Views", icon: Eye, value: totals?.views, caption: "Times your pages were opened." },
-    { key: "vcard", label: "Saved to phone", icon: Download, value: totals?.vcard, caption: "Contact files downloaded." },
+    { key: "vcard", label: "Contact saves", icon: Download, value: totals?.vcard, caption: "Contact file (.vcf) downloads." },
     {
       key: "exchanges",
       label: "Exchanged details",
@@ -190,6 +211,21 @@ export function InsightsView({ isAuthenticated, onSignIn }: { isAuthenticated: b
   return (
     <motion.div className="page-stack" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} aria-busy={summaryQuery.isFetching}>
       {heading}
+
+      {!isAuthenticated ? (
+        <div className="guest-sample-banner">
+          <Sparkles size={18} />
+          <div className="guest-sample-copy">
+            <strong>Sample insights preview</strong>
+            <span>See what gets tapped and track views, contact saves, and link taps once your card is published.</span>
+          </div>
+          {onSignIn ? (
+            <button type="button" className="glass-button glass-button-primary" onClick={onSignIn}>
+              Continue with Google
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="insight-tiles">
         {tiles.map((tile) => (

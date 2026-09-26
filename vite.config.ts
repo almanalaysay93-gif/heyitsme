@@ -5,7 +5,34 @@ import fs from "node:fs";
 import path from "node:path";
 import { defineConfig, type Plugin } from "vite";
 
+import { MARKETING_METADATA, renderMarketingHtml } from "./server/_core/meta";
+
 const outDir = path.resolve(import.meta.dirname, "dist/public");
+
+// Generate pre-rendered static HTML with full metadata and JSON-LD for all public marketing pages
+function marketingPagesPlugin(): Plugin {
+  return {
+    name: "heyitsme-marketing-pages",
+    apply: "build",
+    closeBundle() {
+      const indexPath = path.join(outDir, "index.html");
+      if (!fs.existsSync(indexPath)) return;
+      const rawTemplate = fs.readFileSync(indexPath, "utf-8");
+      const siteUrl = (process.env.SITE_URL || (process.env.NODE_ENV === "production" ? "https://heyitsme.fyi" : "https://heyitsme.fyi")).trim().replace(/\/$/, "");
+
+      for (const [route] of Object.entries(MARKETING_METADATA)) {
+        const pageHtml = renderMarketingHtml(rawTemplate, route, siteUrl);
+        if (route === "/") {
+          fs.writeFileSync(indexPath, pageHtml);
+        } else {
+          const dir = path.join(outDir, route.replace(/^\//, ""));
+          fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(path.join(dir, "index.html"), pageHtml);
+        }
+      }
+    },
+  };
+}
 
 // Vercel serves 404.html for any path no rewrite matches, with a real 404 status.
 // It is the app shell (so the branded NotFound page renders) marked noindex.
@@ -27,7 +54,7 @@ function notFoundPage(): Plugin {
 
 // Link-preview scrapers want absolute image URLs. SITE_URL comes from the Vercel project env.
 function absoluteSocialImages(): Plugin {
-  const siteUrl = (process.env.SITE_URL ?? "").trim().replace(/\/$/, "");
+  const siteUrl = (process.env.SITE_URL || (process.env.NODE_ENV === "production" ? "https://heyitsme.fyi" : "")).trim().replace(/\/$/, "");
   return {
     name: "heyitsme-absolute-social-images",
     apply: "build",
@@ -38,7 +65,7 @@ function absoluteSocialImages(): Plugin {
 }
 
 // jsx-loc stamps source file paths onto every element; keep that to the dev server.
-const plugins = [react(), tailwindcss(), { ...jsxLocPlugin(), apply: "serve" as const }, absoluteSocialImages(), notFoundPage()];
+const plugins = [react(), tailwindcss(), { ...jsxLocPlugin(), apply: "serve" as const }, absoluteSocialImages(), notFoundPage(), marketingPagesPlugin()];
 
 export default defineConfig({
   plugins,

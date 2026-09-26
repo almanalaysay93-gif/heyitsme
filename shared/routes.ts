@@ -5,6 +5,9 @@
  */
 export const SPA_ROUTES: readonly RegExp[] = [
   /^\/$/,
+  /^\/about\/?$/,
+  /^\/faq\/?$/,
+  /^\/pricing\/?$/,
   /^\/app\/?$/,
   /^\/app\/cards\/?$/,
   /^\/app\/cards\/new\/?$/,
@@ -21,4 +24,25 @@ export function isSpaRoute(pathname: string): boolean {
 }
 
 /** Public pages listed in sitemap.xml. Cards stay out until owners can opt in. */
-export const SITEMAP_PATHS = ["/", "/privacy", "/terms"] as const;
+export const SITEMAP_PATHS = ["/", "/about", "/faq", "/pricing", "/privacy", "/terms"] as const;
+
+export const RESERVED_SLUGS = [
+  "demo",
+  "admin",
+  "app",
+  "api",
+  "auth",
+  "login",
+  "logout",
+  "privacy",
+  "terms",
+  "faq",
+  "pricing",
+  "about",
+  "c",
+] as const;
+
+export function isReservedSlug(slug: string): boolean {
+  return RESERVED_SLUGS.includes(slug.toLowerCase().trim() as any);
+}
+

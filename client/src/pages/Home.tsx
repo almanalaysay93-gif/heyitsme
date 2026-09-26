@@ -1,11 +1,18 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { startGoogleLogin } from "@/const";
+import { startGoogleLogin, SUPPORT_EMAIL } from "@/const";
 import { BrandMark, LogoLoader } from "@/components/BrandMark";
 import { CardVisual, Field } from "@/components/CardVisual";
 import type { ContactPatch, ContactRow } from "@/components/ContactsView";
 import { LegalLinks } from "@/components/LegalLinks";
 import { isVideoUrl } from "@/components/LoopVideo";
 import { ShareSheet } from "@/components/ShareSheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import {
   executeBatchUpload,
@@ -13,6 +20,7 @@ import {
   MAX_PORTFOLIO_LENGTH,
   cardPayload,
   channelOptions,
+  createClientDraft,
   emptyCard,
   channelPlaceholder,
   parseChannels,
@@ -21,9 +29,11 @@ import {
   portfolioStoredLength,
   PREVIEW_CARD_STORAGE_KEY,
   readPreviewCard,
+  resolveActiveCard,
   themeOptions,
   toDraft,
   uploadInlineMedia,
+  validateCardData,
   type CardDraft,
   type ChannelItem,
   type PortfolioItem,
@@ -42,16 +52,21 @@ import {
   ChevronUp,
   CircleUserRound,
   Copy,
+  Eye,
   FileText,
+  HelpCircle,
   Home as HomeIcon,
   Image as ImageIcon,
   LayoutGrid,
   Link2,
+  LogIn,
   LogOut,
+  Mail,
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
   Pencil,
+  PenLine,
   Plus,
   Play,
   Quote,
@@ -150,9 +165,21 @@ export default function Home() {
   });
   const [localContacts, setLocalContacts] = useState<ContactRow[]>([]);
   const [selectedId, setSelectedId] = useState<number>(() => readPreviewCard()?.id ?? 0);
-  const [draft, setDraft] = useState<CardDraft>(() => readPreviewCard() ?? emptyCard);
+  const [draft, setDraft] = useState<CardDraft>(() => readPreviewCard() ?? createClientDraft());
+  const [initialDraftBaseline, setInitialDraftBaseline] = useState<string>(() => JSON.stringify(readPreviewCard() ?? createClientDraft()));
   const [showShare, setShowShare] = useState(false);
   const [sharingCard, setSharingCard] = useState<CardDraft | null>(null);
+  const [showGuestPublishModal, setShowGuestPublishModal] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const isSavingRef = useRef(false);
+  const clearFieldError = (key: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
 
   const cardsQuery = trpc.cards.list.useQuery(undefined, { enabled: isAuthenticated, retry: false });
   const contactsQuery = trpc.contacts.list.useInfiniteQuery(CONTACTS_PAGE, {
@@ -179,6 +206,10 @@ export default function Home() {
   const [newContactIds, setNewContactIds] = useState<Set<number>>(() => new Set());
   const markingSeen = useRef(false);
 
+  const isCardsLoading = isAuthenticated && cardsQuery.isLoading && !cardsQuery.data;
+  const isCardsError = isAuthenticated && cardsQuery.isError && !cardsQuery.data;
+  const cardsErrorMessage = cardsQuery.error?.message ?? "Could not load cards.";
+
   const cards = useMemo(() => {
     if (isAuthenticated) return cardsQuery.data ? cardsQuery.data.map(toDraft) : [];
     return localCards;
@@ -194,9 +225,29 @@ export default function Home() {
   useEffect(() => {
     if (contactsQuery.hasNextPage && !contactsQuery.isFetchingNextPage && !contactsQuery.isError) void contactsQuery.fetchNextPage();
   }, [contactsQuery.hasNextPage, contactsQuery.isFetchingNextPage, contactsQuery.isError]);
-  const activeCard = cards.find((card) => card.id === selectedId) ?? cards[0] ?? draft;
+
+  // T09: Respect valid explicit user selection; otherwise select non-deleted published card, then non-deleted draft, then draft
+  const activeCard = useMemo(() => resolveActiveCard(cards, selectedId, draft), [cards, selectedId, draft]);
+
   const path = window.location.pathname;
   const mode = path.includes("/contacts") ? "contacts" : path.includes("/insights") ? "insights" : path.includes("/cards") ? "cards" : "overview";
+  const isBuilder = path.includes("/new") || path.includes("/edit");
+
+  // T08: Track dirty state against saved baseline and prompt on browser unload
+  const isDirty = useMemo(() => {
+    if (!isBuilder) return false;
+    return JSON.stringify(draft) !== initialDraftBaseline;
+  }, [draft, initialDraftBaseline, isBuilder]);
+
+  useEffect(() => {
+    if (!isBuilder || !isDirty) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isBuilder, isDirty]);
   const unseenCount = contacts.filter((contact) => !contact.seenAt).length;
 
   // Opening Contacts marks everyone as seen, but keeps this visit's arrivals flagged "New" until you leave the page.
@@ -216,66 +267,93 @@ export default function Home() {
       },
     });
   }, [mode, isAuthenticated, serverContacts]);
-  const isBuilder = path.includes("/new") || path.includes("/edit");
 
   const editMatch = path.match(/^\/app\/cards\/(\d+)\/edit/);
   const editId = editMatch ? Number(editMatch[1]) : 0;
 
   useEffect(() => {
     if (editId > 0) {
+      if (isAuthenticated && cardsQuery.isLoading && !cardsQuery.data) return;
+      if (isAuthenticated && cardsQuery.isError && !cardsQuery.data) return;
       const found = cards.find((c) => c.id === editId);
       if (found && draft.id !== editId) {
         setSelectedId(found.id);
         setDraft(found);
-      } else if (!found && (!isAuthenticated || cardsQuery.isFetched)) {
+        setInitialDraftBaseline(JSON.stringify(found));
+      } else if (!found && (!isAuthenticated || cardsQuery.isSuccess)) {
         toast.error("Card not found.");
         navigate("/app/cards");
       }
     } else if (activeCard && !isBuilder) {
       setDraft(activeCard);
     }
-  }, [editId, cards, activeCard?.id, isBuilder, isAuthenticated, cardsQuery.isFetched]);
+  }, [editId, cards, activeCard?.id, isBuilder, isAuthenticated, cardsQuery.isLoading, cardsQuery.isError, cardsQuery.isSuccess, cardsQuery.data]);
 
   // Preview mode promises "sign in to sync it", so the first signed-in visit moves that card into the account.
   const importingPreview = useRef(false);
   useEffect(() => {
-    if (!isAuthenticated || !cardsQuery.isSuccess || importingPreview.current) return;
+    if (!isAuthenticated || !cardsQuery.isSuccess || importingPreview.current || isSavingRef.current) return;
     const preview = readPreviewCard();
     if (!preview) return;
     importingPreview.current = true;
+    isSavingRef.current = true;
     void (async () => {
       try {
         const uploaded = await uploadInlineMedia(preview, async (file) => (await uploadMedia.mutateAsync(file)).url);
         const created = await createCard.mutateAsync(cardPayload(uploaded));
-        window.localStorage.removeItem(PREVIEW_CARD_STORAGE_KEY);
-        setLocalCards([]);
-        await utils.cards.list.invalidate();
         if (created) {
           const next = toDraft(created);
           setSelectedId((current) => (current === preview.id ? next.id : current));
           setDraft((current) => (current.id === preview.id ? next : current));
+          setInitialDraftBaseline(JSON.stringify(next));
+          if (window.location.pathname.includes("/new") || window.location.pathname.includes("/edit")) {
+            navigate(`/app/cards/${next.id}/edit`);
+          }
         }
-        toast.success("Your preview card is now saved to your account.");
+        window.localStorage.removeItem(PREVIEW_CARD_STORAGE_KEY);
+        setLocalCards([]);
+        await utils.cards.list.invalidate();
+        toast.success("Your draft is now in your account. Ready to publish whenever you are.");
       } catch (error: any) {
         // Kept in storage, so the next visit tries again.
         toast.error(`Could not move your preview card into your account. ${error?.message ?? "Please try again."}`);
+      } finally {
+        importingPreview.current = false;
+        isSavingRef.current = false;
       }
     })();
   }, [isAuthenticated, cardsQuery.isSuccess]);
 
   const openBuilder = (card?: CardDraft) => {
-    const next = card ?? { ...emptyCard, updatedAt: new Date() };
+    const next = card ?? createClientDraft({ updatedAt: new Date() });
+    setFieldErrors({});
     setSelectedId(next.id);
     setDraft(next);
+    setInitialDraftBaseline(JSON.stringify(next));
     navigate(card ? `/app/cards/${card.id}/edit` : "/app/cards/new");
   };
 
   const saveDraft = async (options?: { publish?: boolean; redirect?: boolean; silent?: boolean }) => {
-    const payload = cardPayload(draft);
-    const shouldRedirect = options?.redirect ?? true;
+    if (isSavingRef.current || importingPreview.current) return null;
+    isSavingRef.current = true;
+    try {
+      const validation = validateCardData(draft);
+      if (!validation.isValid) {
+        setFieldErrors(validation.errors);
+        const firstError = Object.values(validation.errors)[0];
+        toast.error(firstError);
+        const firstKey = Object.keys(validation.errors)[0];
+        const el = document.getElementById(`field-${firstKey.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`) ||
+                   document.getElementById(firstKey);
+        if (el) (el as HTMLElement).focus();
+        return null;
+      }
+      setFieldErrors({});
 
-    if (isAuthenticated) {
-      try {
+      const payload = cardPayload(draft);
+      const shouldRedirect = options?.redirect ?? true;
+
+      if (isAuthenticated) {
         let savedCard: CardDraft | null = null;
         // A preview card lives in this browser and is not a row in this account, so it is created, not updated.
         // Checked against the preview cards, not the card list: the list reloads after a create, and saving again
@@ -288,6 +366,7 @@ export default function Home() {
           });
           savedCard = toDraft(updated ?? { ...draft, ...payload });
           setDraft(savedCard);
+          setSelectedId(savedCard.id);
         } else {
           const created = await createCard.mutateAsync({
             ...payload,
@@ -298,47 +377,53 @@ export default function Home() {
             savedCard = next;
             setSelectedId(next.id);
             setDraft(next);
+            window.localStorage.removeItem(PREVIEW_CARD_STORAGE_KEY);
+            setLocalCards([]);
           }
         }
         await utils.cards.list.invalidate();
+        setInitialDraftBaseline(JSON.stringify(savedCard));
         toast.success(options?.publish ? "Your card is live." : "Your card is in sync.");
         if (shouldRedirect) {
           navigate("/app/cards");
         }
         return savedCard;
-      } catch (error: any) {
-        toast.error(error?.message ?? "Could not save that card.");
+      }
+      // toDraft turns the payload's nulls back into "", which the share sheet, vCard, and builder inputs expect.
+      const next = toDraft({
+        ...draft,
+        ...payload,
+        // A preview has no public URL. Keep it unpublished until the owner signs in.
+        published: false,
+        updatedAt: new Date(),
+        id: draft.id || Date.now(),
+      });
+      // Preview photos are stored inline, so a few large ones can fill the browser's ~5MB storage.
+      try {
+        window.localStorage.setItem(PREVIEW_CARD_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        toast.error("This browser has no room left for preview photos. Remove a photo or sign in to save it.");
         return null;
       }
-    }
-    // toDraft turns the payload's nulls back into "", which the share sheet, vCard, and builder inputs expect.
-    const next = toDraft({
-      ...draft,
-      ...payload,
-      // A preview has no public URL. Keep it unpublished until the owner signs in.
-      published: false,
-      updatedAt: new Date(),
-      id: draft.id || Date.now(),
-    });
-    // Preview photos are stored inline, so a few large ones can fill the browser's ~5MB storage.
-    try {
-      window.localStorage.setItem(PREVIEW_CARD_STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      toast.error("This browser has no room left for preview photos. Remove a photo or sign in to save it.");
+      setLocalCards((current) =>
+        current.some((item) => item.id === draft.id)
+          ? current.map((item) => (item.id === draft.id ? next : item))
+          : [next, ...current]
+      );
+      setSelectedId(next.id);
+      setDraft(next);
+      setInitialDraftBaseline(JSON.stringify(next));
+      if (!options?.silent) toast.success("Saved on this browser. Sign in to publish and sync.");
+      if (shouldRedirect) {
+        navigate("/app/cards");
+      }
+      return next;
+    } catch (error: any) {
+      toast.error(error?.message ?? "Could not save that card.");
       return null;
+    } finally {
+      isSavingRef.current = false;
     }
-    setLocalCards((current) =>
-      current.some((item) => item.id === draft.id)
-        ? current.map((item) => (item.id === draft.id ? next : item))
-        : [next, ...current]
-    );
-    setSelectedId(next.id);
-    setDraft(next);
-    if (!options?.silent) toast.success("Saved in preview mode. Sign in to sync it.");
-    if (shouldRedirect) {
-      navigate("/app/cards");
-    }
-    return next;
   };
 
   const copyPublicLink = async (card = activeCard): Promise<boolean> => {
@@ -369,8 +454,7 @@ export default function Home() {
     if (!isAuthenticated) {
       const saved = await saveDraft({ redirect: false, silent: true });
       if (!saved) return;
-      toast.error("Sign in to publish this card and get a shareable link.");
-      navigate("/app/cards");
+      setShowGuestPublishModal(true);
       return;
     }
     const saved = await saveDraft({ publish: true, redirect: false });
@@ -378,6 +462,56 @@ export default function Home() {
       await copyPublicLink(saved);
       navigate("/app/cards");
     }
+  };
+
+  const handleDiscardOrCancel = () => {
+    if (isDirty) {
+      if (!window.confirm("You have unsaved changes. Discard them and return to cards?")) {
+        return;
+      }
+    }
+    navigate("/app/cards");
+  };
+
+  const handleNewCard = () => {
+    if (!isAuthenticated && localCards.length > 0) {
+      if (!window.confirm("Guest mode keeps one draft card in this browser. Creating a new card will replace your current draft. Continue?")) {
+        return;
+      }
+      window.localStorage.removeItem(PREVIEW_CARD_STORAGE_KEY);
+      setLocalCards([]);
+    }
+    openBuilder();
+  };
+
+  const handleShareCard = (card = activeCard) => {
+    if (!card) {
+      toast.info("Build your card first, then share it from here.");
+      openBuilder();
+      return;
+    }
+    setSelectedId(card.id);
+    setDraft(card);
+    setSharingCard(card);
+    setShowShare(true);
+  };
+
+  const handlePublishCard = (card: CardDraft) => {
+    if (!isAuthenticated) {
+      setSelectedId(card.id);
+      setDraft(card);
+      setShowGuestPublishModal(true);
+      return;
+    }
+    void togglePublish(card);
+  };
+
+  const handleCopyLink = (card = activeCard) => {
+    if (!isAuthenticated) {
+      toast.info("This card is saved on this browser. Sign in to publish and get a public link.");
+      return;
+    }
+    void copyPublicLink(card);
   };
 
   const togglePublish = async (card: CardDraft) => {
@@ -401,8 +535,16 @@ export default function Home() {
       return;
     }
     try {
-      await publishCard.mutateAsync({ id: card.id, published });
-      await utils.cards.list.invalidate();
+      const updated = await publishCard.mutateAsync({ id: card.id, published });
+      if (updated) {
+        const next = toDraft(updated);
+        if (draft.id === card.id) setDraft(next);
+        if (sharingCard?.id === card.id) setSharingCard(next);
+      }
+      await Promise.all([
+        utils.cards.list.invalidate(),
+        utils.insights.summary.invalidate(),
+      ]);
       toast.success(published ? "Your card is live." : "Your card is hidden.");
     } catch (error: any) {
       toast.error(error?.message ?? "Could not update that card.");
@@ -414,14 +556,21 @@ export default function Home() {
     try {
       if (isAuthenticated && card.id > 0) {
         await deleteCardMutation.mutateAsync({ id: card.id });
-        await utils.cards.list.invalidate();
+        await Promise.all([
+          utils.cards.list.invalidate(),
+          utils.insights.summary.invalidate(),
+        ]);
       } else {
         setLocalCards((current) => current.filter((item) => item.id !== card.id));
         if (readPreviewCard()?.id === card.id) window.localStorage.removeItem(PREVIEW_CARD_STORAGE_KEY);
       }
+      if (sharingCard?.id === card.id) {
+        setShowShare(false);
+        setSharingCard(null);
+      }
       if (selectedId === card.id) {
         setSelectedId(0);
-        setDraft({ ...emptyCard, updatedAt: new Date() });
+        setDraft(createClientDraft({ updatedAt: new Date() }));
       }
       toast.success("Card deleted.");
     } catch (error: any) {
@@ -540,17 +689,12 @@ export default function Home() {
           />
           <NavItem label="Insights" icon={BarChart3} active={mode === "insights"} onClick={() => { navigate("/app/insights"); setMobileNavOpen(false); }} />
         </nav>
-        <div className="nav-section-label nav-section-spaced">Keep exploring</div>
-        <nav>
-          <NavItem label="Share moments" icon={Share2} badge="Soon" disabled />
-          <NavItem label="Profile settings" icon={Settings2} badge="Soon" disabled />
-        </nav>
         <div className="sidebar-bottom">
           <div className="free-pod">
             <Sparkles size={15} />
             <div>
               <strong>Everything is free</strong>
-              <span>No plans. No limits.</span>
+              <span>All current features are free.</span>
             </div>
           </div>
           {isAuthenticated ? (
@@ -605,53 +749,100 @@ export default function Home() {
               <HomeIcon size={17} />
             </button>
             {isAuthenticated ? (
-              <button
-                className="topbar-avatar"
-                onClick={() => {
-                  if (window.confirm("Sign out of heyitsme?")) void logout();
-                }}
-                title="Click to sign out"
-                aria-label="Sign out"
-                type="button"
-              >
-                {getInitials(user?.name || "You")}
-              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="topbar-avatar"
+                    aria-label={`Account menu for ${user?.name || "you"}`}
+                    type="button"
+                  >
+                    {getInitials(user?.name || "You")}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="account-dropdown-content">
+                  <div className="account-dropdown-identity">
+                    <strong>{user?.name || "You"}</strong>
+                    {user?.email ? <span className="account-dropdown-email">{user.email}</span> : null}
+                    <span className="account-dropdown-badge">All access · free</span>
+                  </div>
+                  <DropdownMenuSeparator />
+                  {SUPPORT_EMAIL ? (
+                    <DropdownMenuItem asChild>
+                      <a href={`mailto:${SUPPORT_EMAIL}?subject=heyitsme%20Support`} className="account-menu-link">
+                        <Mail size={14} /> Help & support
+                      </a>
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem asChild>
+                      <a href="/faq" className="account-menu-link">
+                        <HelpCircle size={14} /> Help & FAQ
+                      </a>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => void logout()}
+                    className="account-menu-signout"
+                  >
+                    <LogOut size={14} /> Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : null}
           </div>
         </header>
         <div className="content-wrap">
           {isBuilder ? (
-            <BuilderView
-              draft={draft}
-              setDraft={setDraft}
-              onSave={() => saveDraft()}
-              onPublishAndCopy={saveAndCopyLink}
-              onCancel={() => navigate("/app/cards")}
-              saving={createCard.isPending || updateCard.isPending || publishCard.isPending}
-              onUpload={addMediaFile}
-              isAuthenticated={isAuthenticated}
-              onAddReference={async (reference: Omit<ReferenceRow, "id">) => {
-                if (isAuthenticated && draft.id > 0) {
-                  try {
-                    await createReference.mutateAsync({ cardId: draft.id, ...reference });
-                    toast.success("Reference added to your card.");
-                  } catch (error: any) {
-                    toast.error(error?.message ?? "Could not add that reference.");
-                    throw error;
+            editId > 0 && isCardsLoading ? (
+              <ViewLoading />
+            ) : editId > 0 && isCardsError ? (
+              <motion.div className="page-stack" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+                <div className="empty-state glass-panel">
+                  <CircleUserRound size={24} />
+                  <strong>Could not load this card.</strong>
+                  <span>{cardsErrorMessage}</span>
+                  <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
+                    <GlassButton onClick={() => cardsQuery.refetch()}>Try again</GlassButton>
+                    <button type="button" className="text-button" onClick={() => navigate("/app/cards")}>Back to cards</button>
+                  </div>
+                </div>
+              </motion.div>
+            ) : (
+              <BuilderView
+                draft={draft}
+                setDraft={setDraft}
+                onSave={() => saveDraft()}
+                onPublishAndCopy={saveAndCopyLink}
+                onCancel={handleDiscardOrCancel}
+                saving={createCard.isPending || updateCard.isPending || publishCard.isPending}
+                onUpload={addMediaFile}
+                isAuthenticated={isAuthenticated}
+                fieldErrors={fieldErrors}
+                onClearError={clearFieldError}
+                isDirty={isDirty}
+                onAddReference={async (reference: Omit<ReferenceRow, "id">) => {
+                  if (isAuthenticated && draft.id > 0) {
+                    try {
+                      await createReference.mutateAsync({ cardId: draft.id, ...reference });
+                      toast.success("Reference added to your card.");
+                    } catch (error: any) {
+                      toast.error(error?.message ?? "Could not add that reference.");
+                      throw error;
+                    }
                   }
-                }
-              }}
-              onDeleteReference={async (id: number) => {
-                if (isAuthenticated && draft.id > 0) {
-                  try {
-                    await deleteReferenceMutation.mutateAsync({ id });
-                    toast.success("Reference removed.");
-                  } catch (error: any) {
-                    toast.error(error?.message ?? "Could not remove that reference.");
+                }}
+                onDeleteReference={async (id: number) => {
+                  if (isAuthenticated && draft.id > 0) {
+                    try {
+                      await deleteReferenceMutation.mutateAsync({ id });
+                      toast.success("Reference removed.");
+                    } catch (error: any) {
+                      toast.error(error?.message ?? "Could not remove that reference.");
+                    }
                   }
-                }
-              }}
-            />
+                }}
+              />
+            )
           ) : mode === "contacts" ? (
             <Suspense fallback={<ViewLoading />}>
               <ContactsView
@@ -660,6 +851,8 @@ export default function Home() {
                 newIds={newContactIds}
                 onUpdate={updateContact}
                 onDelete={deleteContact}
+                isAuthenticated={isAuthenticated}
+                onSignIn={startGoogleLogin}
               />
             </Suspense>
           ) : mode === "insights" ? (
@@ -670,62 +863,75 @@ export default function Home() {
             <CardsView
               cards={cards}
               isAuthenticated={isAuthenticated}
-              onNew={isAuthenticated ? () => openBuilder() : startGoogleLogin}
-              onEdit={isAuthenticated ? openBuilder : startGoogleLogin}
-              onShare={(card: CardDraft) => {
-                if (!isAuthenticated) {
-                  startGoogleLogin();
-                  return;
-                }
-                setSelectedId(card.id);
-                setDraft(card);
-                setSharingCard(card);
-                setShowShare(true);
-              }}
-              onPublish={isAuthenticated ? togglePublish : startGoogleLogin}
+              isLoading={isCardsLoading}
+              isError={isCardsError}
+              errorMessage={cardsErrorMessage}
+              onRetry={() => cardsQuery.refetch()}
+              onNew={handleNewCard}
+              onEdit={openBuilder}
+              onShare={handleShareCard}
+              onPublish={handlePublishCard}
               publishing={publishCard.isPending}
-              onDelete={isAuthenticated ? removeCard : startGoogleLogin}
+              onDelete={removeCard}
             />
           ) : (
             <OverviewView
               cards={cards}
               contacts={contacts}
+              cardsLoading={isCardsLoading}
+              cardsError={isCardsError}
+              cardsErrorMessage={cardsErrorMessage}
+              onRetryCards={() => cardsQuery.refetch()}
               activeCard={cards.length ? activeCard : null}
-              onNew={isAuthenticated ? () => openBuilder() : startGoogleLogin}
-              onEdit={() => {
-                if (!isAuthenticated) {
-                  startGoogleLogin();
-                  return;
-                }
-                openBuilder(activeCard);
-              }}
-              onShare={() => {
-                if (!isAuthenticated) {
-                  startGoogleLogin();
-                  return;
-                }
-                if (!cards.length) {
-                  toast.info("Make your first card, then share it from here.");
-                  openBuilder();
-                  return;
-                }
-                setSharingCard(activeCard);
-                setShowShare(true);
-              }}
+              onNew={handleNewCard}
+              onEdit={() => openBuilder(activeCard)}
+              onShare={() => handleShareCard(activeCard)}
               onViewContacts={() => navigate("/app/contacts")}
-              onCopy={() => {
-                if (!isAuthenticated) {
-                  startGoogleLogin();
-                  return;
-                }
-                copyPublicLink(activeCard);
-              }}
+              onCopy={() => handleCopyLink(activeCard)}
               weekViews={weekInsights.data?.daily}
               onInsights={() => navigate("/app/insights")}
             />
           )}
         </div>
       </main>
+      {showGuestPublishModal ? (
+        <div
+          className="guest-modal-backdrop"
+          onClick={() => setShowGuestPublishModal(false)}
+          role="presentation"
+        >
+          <div
+            className="guest-modal-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="guest-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="guest-modal-title">Sign in to publish your card</h2>
+            <p>
+              Your card draft is safely saved on this browser. Sign in with Google to get your permanent public link, generate your live QR code, and sync your card across devices.
+            </p>
+            <div className="guest-modal-actions">
+              <button
+                type="button"
+                className="google-button"
+                onClick={() => startGoogleLogin(window.location.pathname)}
+                style={{ justifyContent: "center" }}
+              >
+                <span className="google-glyph">G</span> Continue with Google
+              </button>
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => setShowGuestPublishModal(false)}
+                style={{ textAlign: "center", padding: "10px" }}
+              >
+                Keep editing
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {showShare && (sharingCard || activeCard) ? (
         <ShareSheet
           card={sharingCard ?? activeCard}
@@ -758,36 +964,67 @@ function WeekViews({ daily, onOpen }: { daily?: { day: string; views: number }[]
   );
 }
 
-function OverviewView({ cards, contacts, activeCard, onNew, onEdit, onShare, onCopy, onViewContacts, weekViews, onInsights }: any) {
+function OverviewView({
+  cards,
+  contacts,
+  cardsLoading,
+  cardsError,
+  cardsErrorMessage,
+  onRetryCards,
+  activeCard,
+  onNew,
+  onEdit,
+  onShare,
+  onCopy,
+  onViewContacts,
+  weekViews,
+  onInsights,
+}: any) {
   return (
     <motion.div className="page-stack" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }}>
-      <div className="hero-row"><div><span className="section-kicker"><Sparkles size={14} /> Your presence, in motion</span><h1>Make the introduction<br /><em>feel like you.</em></h1><p className="hero-copy">Create a living professional card that carries your context into every room — no app, no awkward handoff.</p><div className="hero-actions"><GlassButton onClick={onNew}><Plus size={16} /> Create a new card</GlassButton><button className="text-button" onClick={onShare}><QrCode size={16} /> Share your card</button></div></div><div className="hero-note"><span>01</span><p>One link.<br />Every detail.</p><ArrowUpRight size={20} /></div></div>
+      <div className="hero-row"><div><span className="section-kicker"><Sparkles size={14} /> Your presence, in motion</span><h1>Make the introduction<br /><em>feel like you.</em></h1><p className="hero-copy">Create a living professional card that carries your context into every room — no app, no awkward handoff.</p><div className="hero-actions"><GlassButton onClick={onNew}><Plus size={16} /> Create your card</GlassButton><button className="text-button" onClick={onShare}><QrCode size={16} /> Share your card</button></div></div><div className="hero-note"><span>01</span><p>One link.<br />Every detail.</p><ArrowUpRight size={20} /></div></div>
       <div className="overview-grid">
         <div className="feature-panel glass-panel">
           <div className="panel-header">
             <div>
               <span className="mini-label">{activeCard?.published ? "Your live card" : "Your card"}</span>
-              <h2>{activeCard?.displayName || "Your first card"}</h2>
+              <h2>{cardsLoading ? "Loading card…" : activeCard?.displayName || "Your first card"}</h2>
             </div>
-            {activeCard ? <button type="button" className="icon-button" onClick={onEdit} aria-label="Edit card" title="Edit card"><Pencil size={16} /></button> : null}
+            {activeCard && !cardsLoading ? <button type="button" className="icon-button" onClick={onEdit} aria-label="Edit card" title="Edit card"><Pencil size={16} /></button> : null}
           </div>
-          {activeCard ? (
+          {cardsLoading ? (
+            <div className="empty-state" style={{ minHeight: 180, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <LogoLoader />
+            </div>
+          ) : cardsError ? (
+            <div className="empty-state" style={{ minHeight: 180, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              <CircleUserRound size={24} />
+              <span>Could not load card.</span>
+              <GlassButton onClick={onRetryCards} variant="secondary">Try again</GlassButton>
+            </div>
+          ) : activeCard ? (
             <CardVisual card={activeCard} onClick={onEdit} label={`Edit ${activeCard.displayName || "your card"}`} />
           ) : (
-            <button type="button" className="new-card-tile" onClick={onNew}><span><Plus size={20} /></span><strong>Build your first card</strong><small>It takes about a minute.</small></button>
+            <button type="button" className="new-card-tile" onClick={onNew}><span><Plus size={20} /></span><strong>Create your first card</strong><small>It takes about a minute.</small></button>
           )}
           <div className="panel-footer">
             <span>
               <span className={`status-dot ${activeCard?.published ? "is-live" : ""}`} />
-              {activeCard?.published ? "Live on the web" : "Not published yet"}
+              {cardsLoading ? "Loading…" : cardsError ? "Unavailable" : activeCard?.published ? "Live on the web" : "Not published yet"}
             </span>
-            {activeCard ? <button type="button" className="link-button" onClick={onCopy}><Copy size={14} /> Copy link</button> : null}
+            {activeCard && !cardsLoading ? (
+              activeCard.published ? (
+                <button type="button" className="link-button" onClick={onCopy}><Copy size={14} /> Copy link</button>
+              ) : (
+                <button type="button" className="link-button" onClick={onShare}><Share2 size={14} /> Share</button>
+              )
+            ) : null}
           </div>
         </div>
         <div className="stats-column">
           <div className="stat-panel glass-panel">
             <span className="mini-label">Cards in orbit</span>
-            <strong>{cards.length}</strong>
+            <strong>{cardsLoading ? "…" : cardsError ? "—" : cards.length}</strong>
             <span className="stat-caption">All yours. Unlimited.</span>
             <WeekViews daily={weekViews} onOpen={onInsights} />
           </div>
@@ -815,13 +1052,341 @@ function OverviewView({ cards, contacts, activeCard, onNew, onEdit, onShare, onC
   );
 }
 
-function CardsView({ cards, onNew, onEdit, onShare, onPublish, publishing, onDelete, isAuthenticated }: any) {
-  return <motion.div className="page-stack" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}><div className="page-heading-row"><div><span className="section-kicker"><CircleUserRound size={14} /> Your cards</span><h1>Different room,<br /><em>different signal.</em></h1><p>Keep the right version of you close at hand.</p></div><GlassButton onClick={onNew}><Plus size={16} /> New card</GlassButton></div>{cards.length === 0 ? <div className="empty-state glass-panel"><CircleUserRound size={24} /><strong>No cards yet.</strong><span>Create your first card to share your details and portfolio.</span><GlassButton onClick={onNew}><Plus size={15} /> Create a card</GlassButton></div> : <div className="cards-grid">{cards.map((card: CardDraft, index: number) => { const archived = Boolean(card.deletedAt); const status = archived ? "Archived" : card.published ? "Live" : "Private"; return <motion.div key={card.id} className={`card-list-item glass-panel ${archived ? "is-archived" : ""}`} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.07 }}><CardVisual card={card} compact onClick={archived ? undefined : () => onEdit(card)} label={`Edit ${card.displayName || "untitled card"}`} /><div className="card-list-meta"><div><strong>{card.displayName || "Untitled card"}</strong><span>{card.title}{card.company ? ` · ${card.company}` : ""}</span></div><span className={`tiny-status ${status.toLowerCase()}`}><span className="status-dot" />{status}</span></div><div className="card-list-actions">{archived ? null : <><button onClick={() => onEdit(card)}><Pencil size={14} /> Edit</button><button onClick={() => onShare(card)}><Share2 size={14} /> Share</button><button onClick={() => onPublish(card)} disabled={publishing}><span className="publish-toggle" />{card.published ? "Unpublish" : "Publish"}</button></>}<button className="danger-action" onClick={() => onDelete(card)}><Trash2 size={14} /> Delete</button></div></motion.div>; })}<button className="new-card-tile" onClick={onNew}><span><Plus size={20} /></span><strong>Make another version</strong><small>Same you. New context.</small></button></div>}</motion.div>;
+function CardsView({
+  cards,
+  onNew,
+  onEdit,
+  onShare,
+  onPublish,
+  publishing,
+  onDelete,
+  isAuthenticated,
+  isLoading,
+  isError,
+  errorMessage,
+  onRetry,
+}: any) {
+  return (
+    <motion.div className="page-stack" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+      <div className="page-heading-row">
+        <div>
+          <span className="section-kicker"><CircleUserRound size={14} /> Your cards</span>
+          <h1>Different room,<br /><em>different signal.</em></h1>
+          <p>Keep the right version of you close at hand.</p>
+        </div>
+        <GlassButton onClick={onNew}><Plus size={16} /> New card</GlassButton>
+      </div>
+      {isLoading ? (
+        <div className="empty-state glass-panel" style={{ padding: "48px 24px" }}>
+          <LogoLoader />
+          <span style={{ marginTop: 12 }}>Loading your cards…</span>
+        </div>
+      ) : isError ? (
+        <div className="empty-state glass-panel">
+          <CircleUserRound size={24} />
+          <strong>Could not load your cards.</strong>
+          <span>{errorMessage}</span>
+          <GlassButton onClick={onRetry}>Try again</GlassButton>
+        </div>
+      ) : cards.length === 0 ? (
+        <div className="empty-state glass-panel">
+          <CircleUserRound size={24} />
+          <strong>No cards yet.</strong>
+          <span>Create your first card to share your details and portfolio.</span>
+          <GlassButton onClick={onNew}><Plus size={15} /> Create your card</GlassButton>
+        </div>
+      ) : (
+        <div className="cards-grid">
+          {cards.map((card: CardDraft, index: number) => {
+            const archived = Boolean(card.deletedAt);
+            const status = archived ? "Archived" : card.published ? "Live" : "Private";
+            return (
+              <motion.div
+                key={card.id}
+                className={`card-list-item glass-panel ${archived ? "is-archived" : ""}`}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.07 }}
+              >
+                <CardVisual card={card} compact onClick={archived ? undefined : () => onEdit(card)} label={`Edit ${card.displayName || "untitled card"}`} />
+                <div className="card-list-meta">
+                  <div>
+                    <strong>{card.displayName || "Untitled card"}</strong>
+                    <span>{card.title}{card.company ? ` · ${card.company}` : ""}</span>
+                  </div>
+                  <span className={`tiny-status ${status.toLowerCase()}`}>
+                    <span className="status-dot" />{status}
+                  </span>
+                </div>
+                <div className="card-list-actions">
+                  {archived ? null : (
+                    <>
+                      <button onClick={() => onEdit(card)}><Pencil size={14} /> Edit</button>
+                      <button onClick={() => onShare(card)}><Share2 size={14} /> Share</button>
+                      <button onClick={() => onPublish(card)} disabled={publishing}>
+                        <span className="publish-toggle" />{card.published ? "Unpublish" : "Publish"}
+                      </button>
+                    </>
+                  )}
+                  <button className="danger-action" onClick={() => onDelete(card)}>
+                    <Trash2 size={14} /> Delete
+                  </button>
+                </div>
+              </motion.div>
+            );
+          })}
+          <button className="new-card-tile" onClick={onNew}>
+            <span><Plus size={20} /></span>
+            <strong>Create another card</strong>
+            <small>{!isAuthenticated ? "Guest mode keeps one draft. Sign in for all features." : "Same you. New context."}</small>
+          </button>
+        </div>
+      )}
+    </motion.div>
+  );
 }
 
-function BuilderView({ draft, setDraft, onSave, onPublishAndCopy, onCancel, saving, onUpload, onAddReference, onDeleteReference, isAuthenticated }: any) {
+function BuilderView({
+  draft,
+  setDraft,
+  onSave,
+  onPublishAndCopy,
+  onCancel,
+  saving,
+  onUpload,
+  onAddReference,
+  onDeleteReference,
+  isAuthenticated,
+  fieldErrors = {},
+  onClearError,
+  isDirty = false,
+}: any) {
+  const [mobileTab, setMobileTab] = useState<"edit" | "preview">("edit");
   const update = (key: keyof CardDraft, value: string) => setDraft((current: CardDraft) => ({ ...current, [key]: value }));
-  return <motion.div className="builder-page" initial={{ opacity: 0 }} animate={{ opacity: 1 }}><div className="page-heading-row builder-heading"><div><button className="back-button" onClick={onCancel}>← Back to cards</button><span className="section-kicker"><Sparkles size={14} /> Card builder</span><h1>Make it<br /><em>unmistakably you.</em></h1></div><div className="builder-save-actions"><button className="text-button" onClick={onCancel}>Discard</button><button className="publish-copy-button" onClick={onPublishAndCopy} disabled={saving}><Share2 size={15} /> {saving ? "Publishing…" : "Publish & copy link"}</button><GlassButton onClick={onSave} disabled={saving}>{saving ? "Saving…" : <><Check size={16} /> Save card</>}</GlassButton></div></div><div className="builder-layout"><div className="builder-form glass-panel"><div className="form-section"><div className="form-section-heading"><span>01</span><div><h2>The essentials</h2><p>Enough context to make the hello feel natural.</p></div></div><div className="media-picker-row"><ImagePicker label="Profile photo" hint="Square works best" shape="round" value={draft.avatarUrl} onChange={(value) => update("avatarUrl", value)} onUpload={onUpload} /><ImagePicker label="Cover" hint="Wide image, or a muted video loop up to 3MB" shape="wide" allowVideo value={draft.coverUrl} onChange={(value) => update("coverUrl", value)} onUpload={onUpload} /></div><div className="field-grid"><Field label="Your name" value={draft.displayName} onChange={(value: string) => update("displayName", value)} placeholder="Alex Morgan" /><Field label="Role / title" value={draft.title} onChange={(value: string) => update("title", value)} placeholder="Creative director" /><Field label="Company" value={draft.company} onChange={(value: string) => update("company", value)} placeholder="Studio North" /><Field label="Location" value={draft.location} onChange={(value: string) => update("location", value)} placeholder="San Francisco, CA" /><Field label="Email" value={draft.email} onChange={(value: string) => update("email", value)} placeholder="hello@you.co" type="email" /><Field label="Phone" value={draft.phone} onChange={(value: string) => update("phone", value)} placeholder="+1 415 555 0183" /></div><label className="field-label">A little context<textarea value={draft.bio} onChange={(event) => update("bio", event.target.value)} placeholder="What do you want people to remember about you?" /></label></div><div className="form-section"><div className="form-section-heading"><span>02</span><div><h2>Your links</h2><p>Add a few places for the conversation to continue.</p></div></div><label className="field-label">Links <input value={parseLinks(draft.links).join(", ")} onChange={(event) => update("links", JSON.stringify(event.target.value.split(",").map((item) => item.trim()).filter(Boolean)))} placeholder="yourwebsite.com, linkedin.com/in/you" /></label></div><div className="form-section"><div className="form-section-heading"><span>03</span><div><h2>Portfolio, in motion</h2><p>Add images, videos, files, or a project link. Uploads are served from secure storage.</p></div></div><div className="field-grid"><Field label="Gallery heading" value={draft.galleryHeading || ""} onChange={(value: string) => update("galleryHeading", value)} placeholder="Moments & work in focus." /><Field label="Portfolio heading" value={draft.portfolioHeading || ""} onChange={(value: string) => update("portfolioHeading", value)} placeholder="A little proof of the practice." /></div><PortfolioEditor raw={draft.portfolio} onChange={(value: string) => update("portfolio", value)} onUpload={onUpload} /></div><div className="form-section"><div className="form-section-heading"><span>04</span><div><h2>Make it easy to reach you</h2><p>Add social profiles and direct channels — Viber, WhatsApp, Telegram, and more.</p></div></div><Field label="Contact heading" value={draft.contactHeading || ""} onChange={(value: string) => update("contactHeading", value)} placeholder="Pick the easiest way in." /><ChannelsEditor raw={draft.channels} onChange={(value: string) => update("channels", value)} /></div><div className="form-section"><div className="form-section-heading"><span>05</span><div><h2>Client references</h2><p>Show the thoughtful words people remember after the work is done.</p></div></div><ReferencesEditor cardId={draft.id} onAddReference={onAddReference} onDeleteReference={onDeleteReference} isAuthenticated={isAuthenticated} /></div><div className="form-section"><div className="form-section-heading"><span>06</span><div><h2>Set the tone</h2><p>Choose a palette that feels like your current chapter.</p></div></div><div className="theme-picker">{themeOptions.map((theme) => <button type="button" key={theme.id} onClick={() => update("theme", theme.id)} className={`theme-swatch theme-${theme.id} ${draft.theme === theme.id ? "is-selected" : ""}`}><span className="swatch-colors"><i style={{ background: theme.colors[0] }} /><i style={{ background: theme.colors[1] }} /><i style={{ background: theme.colors[2] }} /></span><span>{theme.label}</span>{draft.theme === theme.id ? <Check size={14} /> : null}</button>)}</div><div className="media-picker-row"><ImagePicker label="Page background" hint="Fills your page behind everything. Image up to 3MB" shape="wide" value={draft.backgroundUrl} onChange={(value) => update("backgroundUrl", value)} onUpload={onUpload} /></div></div></div><div className="builder-preview-column"><div className={`preview-sticky${draft.backgroundUrl ? " has-page-bg" : ""}`}>{draft.backgroundUrl ? <div className="preview-page-bg" aria-hidden="true"><img src={draft.backgroundUrl} alt="" /></div> : null}<div className="preview-label"><span>Live preview</span><span><span className="status-dot" /> updates as you type</span></div><CardVisual card={{ ...draft, displayName: draft.displayName || "Your name", title: draft.title || "Your title" }} /><div className="preview-tip"><Sparkles size={15} /><span>Keep it light. Your card can do the talking.</span></div></div></div></div></motion.div>;
+  return (
+    <motion.div className="builder-page" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      <div className="page-heading-row builder-heading">
+        <div>
+          <button className="back-button" onClick={onCancel}>← Back to cards</button>
+          <span className="section-kicker"><Sparkles size={14} /> Card builder</span>
+          <h1>Make it<br /><em>unmistakably you.</em></h1>
+          {!isAuthenticated ? (
+            <div className="guest-builder-banner">
+              <span className="status-dot" />
+              <span>Saved on this browser. Sign in to publish and sync.</span>
+            </div>
+          ) : null}
+        </div>
+        <div className="builder-save-actions">
+          {!isDirty ? (
+            <span className="save-status-indicator" title="All changes saved in this browser">
+              <Check size={14} /> Saved
+            </span>
+          ) : null}
+          <button className="text-button" onClick={onCancel}>Discard</button>
+          <button className="publish-copy-button" onClick={onPublishAndCopy} disabled={saving}>
+            {!isAuthenticated ? (
+              <><LogIn size={15} /> Sign in to publish</>
+            ) : (
+              <><Share2 size={15} /> {saving ? "Publishing…" : "Publish & copy link"}</>
+            )}
+          </button>
+          <GlassButton onClick={onSave} disabled={saving}>
+            {saving ? "Saving…" : <><Check size={16} /> Save card</>}
+          </GlassButton>
+        </div>
+      </div>
+
+      <div className="mobile-builder-tabs" role="tablist" aria-label="Builder view">
+        <button
+          type="button"
+          role="tab"
+          id="mobile-tab-edit"
+          aria-selected={mobileTab === "edit"}
+          aria-controls="builder-form-panel"
+          className={`mobile-tab-btn ${mobileTab === "edit" ? "is-active" : ""}`}
+          onClick={() => setMobileTab("edit")}
+        >
+          <PenLine size={15} /> Edit
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="mobile-tab-preview"
+          aria-selected={mobileTab === "preview"}
+          aria-controls="builder-preview-panel"
+          className={`mobile-tab-btn ${mobileTab === "preview" ? "is-active" : ""}`}
+          onClick={() => setMobileTab("preview")}
+        >
+          <Eye size={15} /> Preview
+        </button>
+      </div>
+
+      <div className={`builder-layout mobile-view-${mobileTab}`}>
+        <div id="builder-form-panel" className="builder-form glass-panel" role="tabpanel" aria-labelledby="mobile-tab-edit">
+          <div className="form-section">
+            <div className="form-section-heading">
+              <span>01</span>
+              <div>
+                <h2>Essentials</h2>
+                <p>Enough context to make the hello feel natural.</p>
+              </div>
+            </div>
+            <div className="media-picker-row">
+              <ImagePicker label="Profile photo" hint="Square works best" shape="round" value={draft.avatarUrl} onChange={(value) => update("avatarUrl", value)} onUpload={onUpload} />
+              <ImagePicker label="Cover" hint="Wide image, or a muted video loop up to 3MB" shape="wide" allowVideo value={draft.coverUrl} onChange={(value) => update("coverUrl", value)} onUpload={onUpload} />
+            </div>
+            <div className="field-grid">
+              <Field label="Your name" value={draft.displayName} onChange={(value: string) => { update("displayName", value); onClearError?.("displayName"); }} error={fieldErrors.displayName} placeholder="Alex Morgan" required />
+              <Field label="Role / title" value={draft.title} onChange={(value: string) => { update("title", value); onClearError?.("title"); }} error={fieldErrors.title} placeholder="Creative director" />
+              <Field label="Company" value={draft.company} onChange={(value: string) => { update("company", value); onClearError?.("company"); }} error={fieldErrors.company} placeholder="Studio North" />
+              <Field label="Location" value={draft.location} onChange={(value: string) => { update("location", value); onClearError?.("location"); }} error={fieldErrors.location} placeholder="San Francisco, CA" />
+              <Field label="Email" value={draft.email} onChange={(value: string) => { update("email", value); onClearError?.("email"); }} error={fieldErrors.email} placeholder="hello@you.co" type="email" />
+              <Field label="Phone" value={draft.phone} onChange={(value: string) => { update("phone", value); onClearError?.("phone"); }} error={fieldErrors.phone} placeholder="+1 415 555 0183" />
+            </div>
+            <label className="field-label">
+              <span>A little context</span>
+              <textarea value={draft.bio} onChange={(event) => update("bio", event.target.value)} placeholder="What do you want people to remember about you?" />
+            </label>
+          </div>
+
+          <div className="form-section">
+            <div className="form-section-heading">
+              <span>02</span>
+              <div>
+                <h2>Links</h2>
+                <p>Add a few places for the conversation to continue.</p>
+              </div>
+            </div>
+            <label className="field-label" htmlFor="field-links">
+              <span>Links</span>
+              <input
+                id="field-links"
+                value={parseLinks(draft.links).join(", ")}
+                onChange={(event) => { update("links", JSON.stringify(event.target.value.split(",").map((item) => item.trim()).filter(Boolean))); onClearError?.("links"); }}
+                aria-invalid={Boolean(fieldErrors.links)}
+                aria-describedby={fieldErrors.links ? "field-links-error" : undefined}
+                className={fieldErrors.links ? "has-error" : undefined}
+                placeholder="yourwebsite.com, linkedin.com/in/you"
+              />
+              {fieldErrors.links ? <span id="field-links-error" className="field-error-text" role="alert">{fieldErrors.links}</span> : null}
+            </label>
+          </div>
+
+          <div className="form-section">
+            <div className="form-section-heading">
+              <span>03</span>
+              <div>
+                <h2>Portfolio</h2>
+                <p>Add images, videos, files, or a project link. Uploads are served from secure storage.</p>
+              </div>
+            </div>
+            <div className="field-grid">
+              <Field
+                label="Image gallery heading"
+                value={draft.galleryHeading || ""}
+                onChange={(value: string) => update("galleryHeading", value)}
+                placeholder="Moments & work in focus."
+                hint="Heading shown above your photo gallery."
+              />
+              <Field
+                label="Project list heading"
+                value={draft.portfolioHeading || ""}
+                onChange={(value: string) => update("portfolioHeading", value)}
+                placeholder="A little proof of the practice."
+                hint="Heading shown above project links, documents, and videos."
+              />
+            </div>
+            {fieldErrors.portfolio ? <span className="field-error-text" role="alert">{fieldErrors.portfolio}</span> : null}
+            <PortfolioEditor raw={draft.portfolio} onChange={(value: string) => { update("portfolio", value); onClearError?.("portfolio"); }} onUpload={onUpload} />
+          </div>
+
+          <div className="form-section">
+            <div className="form-section-heading">
+              <span>04</span>
+              <div>
+                <h2>Contact buttons</h2>
+                <p>Add social profiles and direct channels — Viber, WhatsApp, Telegram, and more.</p>
+              </div>
+            </div>
+            <Field label="Contact heading" value={draft.contactHeading || ""} onChange={(value: string) => update("contactHeading", value)} placeholder="Pick the easiest way in." />
+            {fieldErrors.channels ? <span className="field-error-text" role="alert">{fieldErrors.channels}</span> : null}
+            <ChannelsEditor raw={draft.channels} onChange={(value: string) => { update("channels", value); onClearError?.("channels"); }} />
+          </div>
+
+          <div className="form-section">
+            <div className="form-section-heading">
+              <span>05</span>
+              <div>
+                <h2>Client references</h2>
+                <p>Show the thoughtful words people remember after the work is done.</p>
+              </div>
+            </div>
+            <ReferencesEditor cardId={draft.id} onAddReference={onAddReference} onDeleteReference={onDeleteReference} isAuthenticated={isAuthenticated} />
+          </div>
+
+          <div className="form-section">
+            <div className="form-section-heading">
+              <span>06</span>
+              <div>
+                <h2>Appearance</h2>
+                <p>Choose a palette and page background that fits your style.</p>
+              </div>
+            </div>
+            <div className="theme-picker">
+              {themeOptions.map((theme) => (
+                <button
+                  type="button"
+                  key={theme.id}
+                  onClick={() => update("theme", theme.id)}
+                  className={`theme-swatch theme-${theme.id} ${draft.theme === theme.id ? "is-selected" : ""}`}
+                >
+                  <span className="swatch-colors">
+                    <i style={{ background: theme.colors[0] }} />
+                    <i style={{ background: theme.colors[1] }} />
+                    <i style={{ background: theme.colors[2] }} />
+                  </span>
+                  <span>{theme.label}</span>
+                  {draft.theme === theme.id ? <Check size={14} /> : null}
+                </button>
+              ))}
+            </div>
+            <div className="media-picker-row">
+              <ImagePicker label="Page background" hint="Fills your page behind everything. Image up to 3MB" shape="wide" value={draft.backgroundUrl} onChange={(value) => update("backgroundUrl", value)} onUpload={onUpload} />
+            </div>
+          </div>
+        </div>
+
+        <div id="builder-preview-panel" className="builder-preview-column" role="tabpanel" aria-labelledby="mobile-tab-preview">
+          <div className={`preview-sticky${draft.backgroundUrl ? " has-page-bg" : ""}`}>
+            {draft.backgroundUrl ? (
+              <div className="preview-page-bg" aria-hidden="true">
+                <img src={draft.backgroundUrl} alt="" />
+              </div>
+            ) : null}
+            <div className="preview-label">
+              <span>Live preview</span>
+              <span><span className="status-dot" /> updates as you type</span>
+            </div>
+            <CardVisual card={{ ...draft, displayName: draft.displayName || "Your name", title: draft.title || "Your title" }} />
+            <div className="preview-tip">
+              <Sparkles size={15} />
+              <span>Keep it light. Your card can do the talking.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        className="mobile-floating-preview-btn"
+        onClick={() => setMobileTab((tab) => (tab === "edit" ? "preview" : "edit"))}
+        aria-label={mobileTab === "edit" ? "Preview card" : "Back to editing"}
+      >
+        {mobileTab === "edit" ? <><Eye size={16} /> Preview card</> : <><PenLine size={16} /> Back to editing</>}
+      </button>
+    </motion.div>
+  );
 }
 
 function ImagePicker({ label, hint, shape, value, onChange, onUpload, allowVideo = false }: { label: string; hint: string; shape: "round" | "wide"; value: string; onChange: (value: string) => void; onUpload: (file: File) => Promise<string>; allowVideo?: boolean }) {

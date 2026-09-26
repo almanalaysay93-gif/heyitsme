@@ -1,7 +1,7 @@
 {
   "name": "heyitsme",
   "short_name": "heyitsme",
-  "description": "A free digital business card. Share one link or QR code, collect contacts, and see who tapped what.",
+  "description": "A free digital business card. Share one link or QR code, collect contacts, and see what gets tapped.",
   "start_url": "/app",
   "scope": "/",
   "display": "standalone",

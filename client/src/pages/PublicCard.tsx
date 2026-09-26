@@ -46,6 +46,7 @@ import {
   Quote,
   Send,
   Share2,
+  Sparkles,
   UserRoundPlus,
   X,
 } from "lucide-react";
@@ -277,10 +278,20 @@ export default function PublicCardPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [showForm]);
 
+  const isDemo = card?.slug === "demo" || card?.id === -1;
+
   // The server already rendered these tags for crawlers; this keeps them right after client-side navigation.
   usePageMeta({
-    title: card?.displayName ? `${card.displayName}${card.title ? ` · ${card.title}` : ""} — heyitsme` : "heyitsme",
-    description: card ? (card.bio || `${card.displayName}${card.title ? `, ${card.title}` : ""}${card.company ? ` at ${card.company}` : ""}. Save my contact or exchange details.`).slice(0, 200) : undefined,
+    title: isDemo
+      ? "Alex Morgan (Demo Card) — heyitsme"
+      : card?.displayName
+        ? `${card.displayName}${card.title ? ` · ${card.title}` : ""} — heyitsme`
+        : "heyitsme",
+    description: isDemo
+      ? "Explore a live demo card on heyitsme. See how links, portfolio items, vCard download, and details exchange work."
+      : card
+        ? (card.bio || `${card.displayName}${card.title ? `, ${card.title}` : ""}${card.company ? ` at ${card.company}` : ""}. Save my contact or exchange details.`).slice(0, 200)
+        : undefined,
     canonicalPath: rawCard ? `/c/${rawCard.slug}` : undefined,
     noindex: !rawCard,
   });
@@ -383,20 +394,60 @@ export default function PublicCardPage() {
         website: form.website || null,
       });
       setSent(true);
-      toast.success("Details exchanged.");
+      toast.success(isDemo ? "Details exchanged (demo simulation). No real emails sent." : "Details exchanged.");
     } catch (error: any) {
       toast.error(error?.message ?? "Could not send your details.");
     }
   };
 
   const contactRows = [
-    card.email ? { key: "email", icon: Mail, label: "Email", value: card.email, href: `mailto:${card.email}`, target: "Email" } : null,
-    card.phone ? { key: "phone", icon: Phone, label: "Call or text", value: card.phone, href: `tel:${card.phone.replace(/\s+/g, "")}`, target: "Phone" } : null,
+    card.email
+      ? {
+          key: "email",
+          icon: Mail,
+          label: "Email",
+          value: card.email,
+          href: `mailto:${encodeURIComponent(card.email)}`,
+          target: "Email",
+          canCopy: true,
+          copyValue: card.email,
+        }
+      : null,
+    card.phone
+      ? {
+          key: "phone",
+          icon: Phone,
+          label: "Call or text",
+          value: card.phone,
+          href: `tel:${encodeURIComponent(card.phone.replace(/\s+/g, ""))}`,
+          target: "Phone",
+          canCopy: true,
+          copyValue: card.phone,
+        }
+      : null,
     ...links.map((link: string) => {
       const value = link.replace(/^https?:\/\//, "").replace(/\/$/, "");
-      return { key: `link-${link}`, icon: Globe2, label: "Website", value, href: toHref(link), external: true, target: value.replace(/^www\./, "") };
+      return {
+        key: `link-${link}`,
+        icon: Globe2,
+        label: "Website",
+        value,
+        href: toHref(link),
+        external: true,
+        target: value.replace(/^www\./, ""),
+      };
     }),
-  ].filter(Boolean) as { key: string; icon: any; label: string; value: string; href: string; external?: boolean; target: string }[];
+  ].filter(Boolean) as {
+    key: string;
+    icon: any;
+    label: string;
+    value: string;
+    href: string;
+    external?: boolean;
+    target: string;
+    canCopy?: boolean;
+    copyValue?: string;
+  }[];
 
   const contactHeading = splitHeading(card.contactHeading, "Pick the easiest", "way in.");
 
@@ -415,6 +466,13 @@ export default function PublicCardPage() {
         </motion.div>
       </div>
 
+      {isDemo ? (
+        <aside className="pl-demo-banner" role="status" aria-label="Demo card">
+          <Sparkles size={14} aria-hidden="true" />
+          <span>Demo card · Sample identity &amp; details. No real emails or data sent.</span>
+        </aside>
+      ) : null}
+
       <header className="pl-nav">
         <a className="brand-lockup" href="/"><BrandMark /><span>heyitsme</span></a>
         <motion.button whileTap={{ scale: 0.94 }} type="button" className="pl-nav-share" onClick={() => void shareLink()}>
@@ -431,7 +489,7 @@ export default function PublicCardPage() {
             transition={{ type: "spring", stiffness: 220, damping: 16, delay: 0.05 }}
           >
             {card.avatarUrl ? <img src={card.avatarUrl} alt={card.displayName} /> : <span>{getInitials(card.displayName)}</span>}
-            {card.published ? <span className="pl-avatar-live" title="Live card" /> : null}
+            {card.published ? <span className="pl-avatar-live" title={isDemo ? "Demo card" : "Live card"} /> : null}
           </motion.div>
           <motion.span className="pl-hello" variants={revealUp}>Hey, it’s</motion.span>
           <motion.h1 variants={revealUp}>{card.displayName}</motion.h1>
@@ -484,11 +542,29 @@ export default function PublicCardPage() {
               <PublicSection kicker="Reach me" icon={MessageCircle} title={contactHeading.title} emphasis={contactHeading.emphasis} className="pl-links">
                 <div className="pl-link-list">
                   {contactRows.map((row) => (
-                    <motion.a variants={revealUp} whileTap={{ scale: 0.98 }} className="pl-link" href={row.href} key={row.key} onClick={() => track("link", row.target)} {...(row.external ? { target: "_blank", rel: "noreferrer" } : {})}>
-                      <span className="pl-link-icon"><row.icon size={17} /></span>
-                      <span className="pl-link-copy"><small>{row.label}</small><strong>{row.value}</strong></span>
-                      <ArrowUpRight size={16} className="pl-link-arrow" />
-                    </motion.a>
+                    <motion.div variants={revealUp} className="pl-link-wrapper" key={row.key}>
+                      <a className="pl-link" href={row.href} onClick={() => track("link", row.target)} {...(row.external ? { target: "_blank", rel: "noreferrer" } : {})}>
+                        <span className="pl-link-icon"><row.icon size={17} /></span>
+                        <span className="pl-link-copy"><small>{row.label}</small><strong>{row.value}</strong></span>
+                        <ArrowUpRight size={16} className="pl-link-arrow" />
+                      </a>
+                      {row.canCopy ? (
+                        <button
+                          type="button"
+                          className="pl-link-copy-btn"
+                          title={`Copy ${row.label}`}
+                          aria-label={`Copy ${row.value}`}
+                          onClick={async (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            await copyToClipboard(row.copyValue || row.value);
+                            toast.success(`${row.label} copied to clipboard.`);
+                          }}
+                        >
+                          <Copy size={13} />
+                        </button>
+                      ) : null}
+                    </motion.div>
                   ))}
                   {channels.map((channel, index) => (
                     <motion.a variants={revealUp} whileTap={{ scale: 0.98 }} className="pl-link" href={channelHref(channel)} target="_blank" rel="noreferrer" key={`row-${channel.provider}-${index}`} onClick={() => track("link", channelLabel(channel))}>

@@ -6,6 +6,7 @@ import {
   serial,
   text,
   timestamp,
+  uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
 
@@ -24,6 +25,7 @@ export const users = pgTable("users", {
 export const cards = pgTable("cards", {
   id: serial("id").primaryKey(),
   ownerUserId: integer("ownerUserId").notNull(),
+  creationKey: varchar("creationKey", { length: 64 }),
   displayName: varchar("displayName", { length: 160 }).notNull(),
   title: varchar("title", { length: 160 }).notNull(),
   company: varchar("company", { length: 160 }),
@@ -47,7 +49,10 @@ export const cards = pgTable("cards", {
   deletedAt: timestamp("deletedAt", { mode: "date" }),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
-}, (table) => [index("cards_owner_updated_idx").on(table.ownerUserId, table.updatedAt)]).enableRLS();
+}, (table) => [
+  index("cards_owner_updated_idx").on(table.ownerUserId, table.updatedAt),
+  uniqueIndex("cards_owner_creation_key_idx").on(table.ownerUserId, table.creationKey),
+]).enableRLS();
 
 export const contacts = pgTable("contacts", {
   id: serial("id").primaryKey(),

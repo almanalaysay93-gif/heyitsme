@@ -31,7 +31,7 @@ type VelocityMarqueeProps = {
 export function VelocityMarquee({ children, speed = 3, className = "" }: VelocityMarqueeProps) {
   const reduceMotion = useReducedMotion();
   const rootRef = useRef<HTMLDivElement>(null);
-  const inView = useInView(rootRef);
+  const inView = useInView(rootRef, { margin: "100px 0px" });
   const hovered = useRef(false);
   const direction = useRef(1);
 
@@ -45,12 +45,15 @@ export function VelocityMarquee({ children, speed = 3, className = "" }: Velocit
 
   useAnimationFrame((_, delta) => {
     if (!inView) return;
-    // Reduced motion keeps the gentle base drift but drops scroll boost, reversal, and skew.
-    const factor = reduceMotion ? 0 : velocityFactor.get();
-    if (factor < 0) direction.current = -1;
-    else if (factor > 0) direction.current = 1;
+    if (reduceMotion) {
+      baseX.set(baseX.get() - direction.current * speed * (delta / 1000));
+      return;
+    }
+    const factor = velocityFactor.get();
+    if (factor < -0.05) direction.current = -1;
+    else if (factor > 0.05) direction.current = 1;
     let moveBy = direction.current * speed * (delta / 1000);
-    moveBy += moveBy * Math.abs(factor);
+    if (Math.abs(factor) > 0.05) moveBy += moveBy * Math.abs(factor);
     if (hovered.current) moveBy *= 0.2;
     baseX.set(baseX.get() - moveBy);
   });

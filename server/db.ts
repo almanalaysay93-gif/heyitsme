@@ -12,10 +12,16 @@ import {
   users,
   references,
 } from "../drizzle/schema";
+import { DEMO_CARD, DEMO_CARD_ID, DEMO_REFERENCES, DEMO_SLUG } from "@shared/demoCard";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _schemaReady: Promise<void> | null = null;
+
+export function setTestDb(db: any) {
+  _db = db;
+  _schemaReady = Promise.resolve();
+}
 
 // Deploys have no migration step, so bring an older database up to drizzle/0002 on first use:
 // columns added after drizzle/0000, then the lookup indexes. Every statement is idempotent.
@@ -24,6 +30,7 @@ let _schemaReady: Promise<void> | null = null;
 // owner/superuser role (e.g. Supabase's SQL Editor, which runs as `postgres`) after each deploy that adds a table.
 const SCHEMA_INDEXES = [
   ["cards_owner_updated_idx", 'create index if not exists "cards_owner_updated_idx" on "cards" ("ownerUserId", "updatedAt")'],
+  ["cards_owner_creation_key_idx", 'create unique index if not exists "cards_owner_creation_key_idx" on "cards" ("ownerUserId", "creationKey") where "creationKey" is not null'],
   ["contacts_owner_id_idx", 'create index if not exists "contacts_owner_id_idx" on "contacts" ("ownerUserId", "id")'],
   ["analytics_card_created_idx", 'create index if not exists "analytics_card_created_idx" on "analyticsEvents" ("cardId", "createdAt")'],
   ["references_card_created_idx", 'create index if not exists "references_card_created_idx" on "references" ("cardId", "createdAt")'],
@@ -33,9 +40,10 @@ async function ensureSchema(client: postgres.Sql) {
   const existing = await client<{ table_name: string; column_name: string }[]>`
     select table_name, column_name from information_schema.columns
     where table_schema = current_schema()
-      and ((table_name = 'cards' and column_name in ('avatarUrl', 'coverUrl', 'backgroundUrl', 'contactHeading', 'galleryHeading', 'portfolioHeading'))
+      and ((table_name = 'cards' and column_name in ('avatarUrl', 'coverUrl', 'backgroundUrl', 'contactHeading', 'galleryHeading', 'portfolioHeading', 'creationKey'))
         or (table_name = 'contacts' and column_name in ('followedUp', 'seenAt', 'followUpOn')))`;
-  if (existing.length < 9) {
+  if (existing.length < 10) {
+    await client`alter table "cards" add column if not exists "creationKey" varchar(64)`;
     await client`alter table "cards" add column if not exists "avatarUrl" text`;
     await client`alter table "cards" add column if not exists "coverUrl" text`;
     await client`alter table "cards" add column if not exists "backgroundUrl" text`;
@@ -133,11 +141,12 @@ export const OWNER_CARD_LIMIT = 500;
 
 export async function getCardsByOwner(ownerUserId: number) {
   const db = await getDb();
-  if (!db) return [];
+  if (!db) throw new Error("Database unavailable");
   return db.select().from(cards).where(eq(cards.ownerUserId, ownerUserId)).orderBy(desc(cards.updatedAt)).limit(OWNER_CARD_LIMIT);
 }
 
 export async function getCardById(id: number) {
+  if (id === DEMO_CARD_ID) return DEMO_CARD as any;
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(cards).where(eq(cards.id, id)).limit(1);
@@ -156,6 +165,7 @@ export async function getCardByIdForOwner(id: number, ownerUserId: number) {
 }
 
 export async function getPublicCardBySlug(slug: string) {
+  if (slug.toLowerCase() === DEMO_SLUG) return DEMO_CARD as any;
   const db = await getDb();
   if (!db) return undefined;
   const result = await db
@@ -169,8 +179,28 @@ export async function getPublicCardBySlug(slug: string) {
 export async function createCard(input: InsertCard) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const created = await db.insert(cards).values(input).returning();
-  return created[0];
+  if (input.creationKey) {
+    const existing = await db
+      .select()
+      .from(cards)
+      .where(and(eq(cards.ownerUserId, input.ownerUserId), eq(cards.creationKey, input.creationKey)))
+      .limit(1);
+    if (existing[0]) return existing[0];
+  }
+  try {
+    const created = await db.insert(cards).values(input).returning();
+    return created[0];
+  } catch (err: any) {
+    if (input.creationKey) {
+      const existing = await db
+        .select()
+        .from(cards)
+        .where(and(eq(cards.ownerUserId, input.ownerUserId), eq(cards.creationKey, input.creationKey)))
+        .limit(1);
+      if (existing[0]) return existing[0];
+    }
+    throw err;
+  }
 }
 
 export async function updateCard(id: number, ownerUserId: number, input: Partial<InsertCard>) {
@@ -194,6 +224,7 @@ export async function deleteCard(id: number, ownerUserId: number) {
 }
 
 export async function getReferencesByCard(cardId: number, approvedOnly = false) {
+  if (cardId === DEMO_CARD_ID) return DEMO_REFERENCES as any;
   const db = await getDb();
   if (!db) return [];
   const filters = approvedOnly

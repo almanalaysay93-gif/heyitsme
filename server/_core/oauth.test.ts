@@ -63,4 +63,40 @@ describe("GET /api/oauth/callback", () => {
     const response = await callback(`${OAUTH_STATE_COOKIE}=n1`);
     expect(response.status).toBe(500);
   });
+
+  it("redirects to allowed returnTo on success", async () => {
+    sdk.exchangeCodeForToken.mockResolvedValue({ accessToken: "tok1" });
+    sdk.getUserInfo.mockResolvedValue({ openId: "usr1", name: "Alice", email: "alice@test.com" });
+    sdk.createSessionToken.mockResolvedValue("sess1");
+
+    const customState = encodeOAuthState({
+      redirectUri: "https://heyitsme.test/api/oauth/callback",
+      nonce: "n2",
+      returnTo: "/app/cards/new",
+    });
+    const response = await fetch(`${base}/api/oauth/callback?code=c2&state=${encodeURIComponent(customState)}`, {
+      redirect: "manual",
+      headers: { cookie: `${OAUTH_STATE_COOKIE}=n2` },
+    });
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe("/app/cards/new");
+  });
+
+  it("sanitizes unsafe open-redirect returnTo to /app", async () => {
+    sdk.exchangeCodeForToken.mockResolvedValue({ accessToken: "tok2" });
+    sdk.getUserInfo.mockResolvedValue({ openId: "usr2", name: "Bob", email: "bob@test.com" });
+    sdk.createSessionToken.mockResolvedValue("sess2");
+
+    const evilState = encodeOAuthState({
+      redirectUri: "https://heyitsme.test/api/oauth/callback",
+      nonce: "n3",
+      returnTo: "//evil.com/phish",
+    });
+    const response = await fetch(`${base}/api/oauth/callback?code=c3&state=${encodeURIComponent(evilState)}`, {
+      redirect: "manual",
+      headers: { cookie: `${OAUTH_STATE_COOKIE}=n3` },
+    });
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe("/app");
+  });
 });

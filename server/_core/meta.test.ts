@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cardDescription, cardTitle, escapeHtml, renderCardHtml, renderCardNotFoundHtml, safeJsonForScript, type CardMeta } from "./meta";
+import { cardDescription, cardTitle, escapeHtml, renderCardHtml, renderCardNotFoundHtml, renderMarketingHtml, safeJsonForScript, type CardMeta } from "./meta";
 
 const template = `<!doctype html>
 <html lang="en">
@@ -111,3 +111,46 @@ describe("renderCardNotFoundHtml", () => {
     expect(html).not.toContain("og:title");
   });
 });
+
+describe("renderMarketingHtml", () => {
+  const origin = "https://heyitsme.fyi";
+
+  it("renders homepage with WebSite structured data and canonical url", () => {
+    const html = renderMarketingHtml(template, "/", origin);
+    expect(html).toContain("<title>Free Digital Business Card with QR Code | heyitsme</title>");
+    expect(html).toContain('<link rel="canonical" href="https://heyitsme.fyi/" />');
+    expect(html).toContain('<meta property="og:url" content="https://heyitsme.fyi/" />');
+    expect(html).toContain('<meta property="og:image" content="https://heyitsme.fyi/og.png" />');
+    expect(html).toContain('<meta name="twitter:image" content="https://heyitsme.fyi/og.png" />');
+    expect(html).toContain("see what gets tapped");
+
+    const ld = html.match(/<script type="application\/ld\+json">(.*?)<\/script>/)?.[1];
+    expect(ld).toBeDefined();
+    const parsed = JSON.parse(ld ?? "{}");
+    expect(parsed["@type"]).toBe("WebSite");
+    expect(parsed.name).toBe("heyitsme");
+    expect(parsed.url).toBe(origin);
+  });
+
+  it("renders distinct marketing metadata for each public info page", () => {
+    const routes = ["/about", "/faq", "/pricing", "/privacy", "/terms"] as const;
+    const titles: string[] = [];
+
+    for (const route of routes) {
+      const html = renderMarketingHtml(template, route, origin);
+      expect(html).toContain(`<link rel="canonical" href="${origin}${route}" />`);
+      expect(html).toContain(`<meta property="og:url" content="${origin}${route}" />`);
+      expect(html).toContain('<meta property="og:image" content="https://heyitsme.fyi/og.png" />');
+      expect(html.match(/property="og:title"/g)).toHaveLength(1);
+      expect(html.match(/name="description"/g)).toHaveLength(1);
+
+      const titleMatch = html.match(/<title>(.*?)<\/title>/)?.[1];
+      expect(titleMatch).toBeDefined();
+      titles.push(titleMatch!);
+    }
+
+    // Verify all titles are unique
+    expect(new Set(titles).size).toBe(routes.length);
+  });
+});
+

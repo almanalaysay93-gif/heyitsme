@@ -1,8 +1,9 @@
-// Card data shapes and pure helpers shared by the dashboard, the public card page, and the landing demo.
-// Kept free of React so every route can import it without pulling in the dashboard bundle.
+import { normalizeWebsiteUrl, validateCardData, isUnsafeUrl } from "@shared/cardValidation";
+export { validateCardData, normalizeWebsiteUrl, isUnsafeUrl } from "@shared/cardValidation";
 
 export type CardDraft = {
   id: number;
+  creationKey?: string;
   displayName: string;
   title: string;
   company: string;
@@ -88,6 +89,7 @@ export function splitHeading(
 
 export const emptyCard: CardDraft = {
   id: 0,
+  creationKey: "",
   displayName: "",
   title: "",
   company: "",
@@ -109,6 +111,16 @@ export const emptyCard: CardDraft = {
   published: false,
   updatedAt: new Date(),
 };
+
+export function createClientDraft(base?: Partial<CardDraft>): CardDraft {
+  const randomSuffix = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : Math.random().toString(36).slice(2, 9);
+  return {
+    ...emptyCard,
+    ...base,
+    creationKey: base?.creationKey || `draft_${Date.now()}_${randomSuffix}`,
+    updatedAt: new Date(),
+  };
+}
 
 export const themeOptions = [
   { id: "midnight", label: "Midnight", colors: ["#11152b", "#6b5cff", "#c2b7ff"] },
@@ -154,6 +166,11 @@ export function readPreviewCard(): CardDraft | null {
     if (!raw) return null;
     // Normalized because older previews were saved with null fields.
     const draft = toDraft(JSON.parse(raw));
+    if (!draft.creationKey) {
+      const randomSuffix = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : Math.random().toString(36).slice(2, 9);
+      draft.creationKey = `draft_${Date.now()}_${randomSuffix}`;
+      window.localStorage.setItem(PREVIEW_CARD_STORAGE_KEY, JSON.stringify(draft));
+    }
     // A preview has no public URL. Older saves marked these Live.
     if (draft.published) {
       draft.published = false;
@@ -168,6 +185,7 @@ export function readPreviewCard(): CardDraft | null {
 export function toDraft(card: any): CardDraft {
   return {
     id: Number(card.id ?? 0),
+    creationKey: card.creationKey ?? "",
     displayName: card.displayName ?? "",
     title: card.title ?? "",
     company: card.company ?? "",
@@ -192,18 +210,47 @@ export function toDraft(card: any): CardDraft {
   };
 }
 
+/**
+ * Resolves the active card following the T09 fallback rule:
+ * 1. An explicitly selected non-deleted card.
+ * 2. Otherwise the first published non-deleted card.
+ * 3. Otherwise the first non-deleted draft.
+ * 4. Otherwise the fallback draft (when empty).
+ */
+export function resolveActiveCard<T extends { id: number; published?: boolean | null; deletedAt?: string | Date | null }>(
+  cards: T[],
+  selectedId: number,
+  fallbackDraft: T,
+): T {
+  if (cards.length === 0) return fallbackDraft;
+  if (selectedId > 0) {
+    const explicit = cards.find((card) => card.id === selectedId && !card.deletedAt);
+    if (explicit) return explicit;
+  }
+  const published = cards.find((card) => card.published && !card.deletedAt);
+  if (published) return published;
+  const firstNonDeleted = cards.find((card) => !card.deletedAt);
+  if (firstNonDeleted) return firstNonDeleted;
+  return fallbackDraft;
+}
+
 /** What the server stores for a card: trimmed text, empty fields as null, and only well-formed JSON lists. */
 export function cardPayload(card: CardDraft) {
   const rawEmail = card.email.trim();
+  const normalizedLinks = parseLinks(card.links)
+    .map((link) => normalizeWebsiteUrl(link) || link)
+    .filter(Boolean);
+
   return {
-    displayName: card.displayName.trim() || "Untitled card",
-    title: card.title.trim() || "Professional",
+    creationKey: card.creationKey?.trim() || null,
+    displayName: card.displayName.trim(),
+    title: card.title.trim(),
     company: card.company.trim() || null,
-    email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail) ? rawEmail : null,
+    email: rawEmail || null,
     phone: card.phone.trim() || null,
     location: card.location.trim() || null,
     bio: card.bio.trim() || null,
-    links: JSON.stringify(parseLinks(card.links)),
+    links: JSON.stringify(normalizedLinks),
     portfolio: JSON.stringify(parsePortfolio(card.portfolio)),
     channels: JSON.stringify(parseChannels(card.channels)),
     theme: card.theme,
