@@ -4,7 +4,7 @@
 - Deploys run **no migration step**. On first DB use, `ensureSchema` in `server/db.ts` adds every column
   after `0000` and the lookup indexes (all `IF NOT EXISTS`, safe to rerun).
 - `drizzle/*.sql` mirror those changes for fresh/manual setups. `drizzle/meta/_journal.json` stops at `0004`;
-  `0005`–`0007` are plain idempotent SQL — run them by hand (SQL Editor) rather than via `drizzle-kit migrate`.
+  `0005`–`0008` are plain idempotent SQL — run them by hand (SQL Editor) rather than via `drizzle-kit migrate`.
 - New column? Add it to `drizzle/schema.ts`, `ensureSchema` (and its `existing.length` count), and a new `drizzle/000N_*.sql`.
 
 ## Row Level Security (drizzle/0003_enable_rls.sql) — manual, owner role

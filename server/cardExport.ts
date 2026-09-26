@@ -1,4 +1,5 @@
 import type { Card, Reference } from "../drizzle/schema";
+import { parsePageConfig } from "@shared/pageConfig";
 
 export const CARD_EXPORT_FORMAT = "heyitsme.card-export";
 export const CARD_EXPORT_VERSION = 1;
@@ -50,6 +51,7 @@ export function buildCardExport(cards: Card[], referencesByCard: Map<number, Ref
           logoUrl: card.logoUrl,
           backgroundUrl: card.backgroundUrl,
         },
+        page: parsePageConfig(card.page),
         links: parseJsonArray(card.links),
         channels: parseJsonArray(card.channels),
         portfolio: parseJsonArray(card.portfolio),

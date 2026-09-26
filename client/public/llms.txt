@@ -6,6 +6,7 @@ heyitsme is a free digital business card and professional presence web product.
 
 - Create and edit one or more digital cards.
 - Share a browser-first public card through a link or QR code.
+- Pick a page template (Professional, Business or Services), reorder or hide sections, set an accent color, and add services with prices, opening hours, an address, highlights and one primary button.
 - Let a recipient save or exchange contact details without installing an app.
 - Keep a personal contact list with search and CSV export.
 - Add an interactive photo carousel and visual gallery with expandable full-screen lightbox and image descriptions.
@@ -21,7 +22,8 @@ heyitsme is a free digital business card and professional presence web product.
 - `/app/cards/new` — card builder.
 - `/app/contacts` — contact list.
 - `/app/insights` — views, saves, exchanges, and link taps per card.
-- `/c/:slug` — public card, presented as a personal landing page (photo, image or looping video cover, links, work, references, QR).
+- `/c/:slug` — public card, presented as a landing page in the owner's chosen template (photo, image or looping video cover, services and prices, hours and address, links, work, references, QR).
+- `/c/demo?template=professional|business|services` — demo card in each template.
 - `/privacy` — privacy policy.
 - `/terms` — terms of use.
 

@@ -44,6 +44,8 @@ export const cards = pgTable("cards", {
   contactHeading: varchar("contactHeading", { length: 160 }),
   galleryHeading: varchar("galleryHeading", { length: 160 }),
   portfolioHeading: varchar("portfolioHeading", { length: 160 }),
+  // Landing-page template, section layout and template content as JSON. See shared/pageConfig.ts.
+  page: text("page"),
   slug: varchar("slug", { length: 120 }).notNull().unique(),
   published: boolean("published").default(false).notNull(),
   deletedAt: timestamp("deletedAt", { mode: "date" }),

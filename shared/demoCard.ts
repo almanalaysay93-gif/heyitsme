@@ -23,6 +23,7 @@ export interface DemoCardData {
   contactHeading: string | null;
   galleryHeading: string | null;
   portfolioHeading: string | null;
+  page: string;
   slug: string;
   published: boolean;
   deletedAt: Date | null;
@@ -63,6 +64,25 @@ export const DEMO_CARD: DemoCardData = {
   contactHeading: "Get in touch",
   galleryHeading: "Selected visuals",
   portfolioHeading: "Featured projects",
+  page: JSON.stringify({
+    template: "professional",
+    cta: { label: "Book an intro call", url: "https://example.com/book" },
+    stats: [
+      { value: "12 yrs", label: "Brand & identity work" },
+      { value: "140+", label: "Launches shipped" },
+      { value: "4.9", label: "Average client rating" },
+    ],
+    services: [
+      { name: "Brand sprint", description: "Two weeks to a name, a line and a visual system you can ship.", price: "from $4,800" },
+      { name: "Identity refresh", description: "Keep what works, sharpen what doesn't. Logo, type and color.", price: "from $2,400" },
+      { name: "Creative direction", description: "A standing seat at the table for launches and campaigns.", price: "$1,200 / mo" },
+    ],
+    hours: [
+      { days: "Mon – Thu", time: "9:00 – 17:00 PT" },
+      { days: "Fri", time: "By appointment" },
+    ],
+    address: "500 Example Street, San Francisco, CA",
+  }),
   slug: DEMO_SLUG,
   published: true,
   deletedAt: null,

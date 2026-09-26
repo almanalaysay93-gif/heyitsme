@@ -124,3 +124,10 @@ Verification: `pnpm check` clean, `pnpm test` 208 passed / 3 skipped (25 files),
 - Verified DB migration behavior: `server/db.ts` (`ensureSchema`) auto-applies 0005–0007 columns/indexes on first connection.
 - `drizzle/0003_enable_rls.sql` must be run manually as `postgres` in Supabase SQL Editor. Consolidated SQL query prepared to verify RLS and migrations 0005–0007.
 
+
+## 2026-09-26: Landing-page templates for /c/:slug (buildme v4 run)
+- Owner picks Professional / Business / Services template, reorders/hides sections, sets accent, adds headline (Services), CTA, highlights, services + prices, hours + address. Stored as JSON in new `cards.page` column (`shared/pageConfig.ts` contract; `drizzle/0008_card_page.sql`, also added at runtime by ensureSchema). Existing cards default to Professional.
+- Public render: `client/src/components/CardLanding.tsx` + `cardLanding.css` (editorial: Instrument Serif display, DM Sans body, container queries so the builder preview shows the phone layout). Builder editor: `PageDesigner.tsx` (first builder section) + live `LandingPreview`.
+- Demo shows each template: `/c/demo?template=professional|business|services`.
+- Gates (anti-slop, bug hunt, perf/a11y) run by review subagents; all blocker/P1/major findings fixed. Dead `.pl-*` CSS pruned (-16 KB).
+- Follow-up: throttled mobile LCP ~5.5s locally (SPA + data fetch); inline card JSON into SSR HTML next.

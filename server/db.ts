@@ -23,7 +23,7 @@ export function setTestDb(db: any) {
   _schemaReady = Promise.resolve();
 }
 
-// Deploys have no migration step, so bring an older database up to drizzle/0002 on first use:
+// Deploys have no migration step, so bring an older database up to drizzle/0008 on first use:
 // columns added after drizzle/0000, then the lookup indexes. Every statement is idempotent.
 // Row level security (drizzle/0003) is NOT applied here: the app's DB role isn't the tables' owner, so it has no
 // privilege to run ALTER TABLE ... ENABLE ROW LEVEL SECURITY. Apply drizzle/0003_enable_rls.sql by hand as an
@@ -40,9 +40,9 @@ async function ensureSchema(client: postgres.Sql) {
   const existing = await client<{ table_name: string; column_name: string }[]>`
     select table_name, column_name from information_schema.columns
     where table_schema = current_schema()
-      and ((table_name = 'cards' and column_name in ('avatarUrl', 'coverUrl', 'backgroundUrl', 'contactHeading', 'galleryHeading', 'portfolioHeading', 'creationKey'))
+      and ((table_name = 'cards' and column_name in ('avatarUrl', 'coverUrl', 'backgroundUrl', 'contactHeading', 'galleryHeading', 'portfolioHeading', 'creationKey', 'page'))
         or (table_name = 'contacts' and column_name in ('followedUp', 'seenAt', 'followUpOn')))`;
-  if (existing.length < 10) {
+  if (existing.length < 11) {
     await client`alter table "cards" add column if not exists "creationKey" varchar(64)`;
     await client`alter table "cards" add column if not exists "avatarUrl" text`;
     await client`alter table "cards" add column if not exists "coverUrl" text`;
@@ -50,6 +50,7 @@ async function ensureSchema(client: postgres.Sql) {
     await client`alter table "cards" add column if not exists "contactHeading" varchar(160)`;
     await client`alter table "cards" add column if not exists "galleryHeading" varchar(160)`;
     await client`alter table "cards" add column if not exists "portfolioHeading" varchar(160)`;
+    await client`alter table "cards" add column if not exists "page" text`;
     await client`alter table "contacts" add column if not exists "followedUp" boolean default false not null`;
     await client`alter table "contacts" add column if not exists "seenAt" timestamp`;
     await client`alter table "contacts" add column if not exists "followUpOn" timestamp`;

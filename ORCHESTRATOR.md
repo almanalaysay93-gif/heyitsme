@@ -100,3 +100,41 @@ User brief → original-brand / anti-slop rules → cited implementation princip
   - `client/src/lib/card.test.ts`: added test suite for gallery items with descriptions.
   - `client/public/llms.txt`: updated AI discoverability content.
 - Gates run: `tsc --noEmit`, `vitest run` (64/64 tests passed), `pnpm run build` (clean Vite + esbuild).
+
+
+---
+
+## 2026-09-26 — Buildme v4 run: premium landing-page templates for /c/:slug
+
+### Design Read (confirmed via Grill Me)
+Premium per-owner landing pages at `/c/:slug` for businesses, professionals and service providers, in an
+**editorial-luxury** language (serif display type, generous whitespace, restrained color), on the existing
+React 19 + Vite + tRPC + Drizzle stack. Owner picks a template, shows/hides and reorders sections, sets an accent,
+and adds services with prices, hours + address, a primary CTA and stats. Existing cards default to Professional.
+Ship live after gates pass.
+
+### Contract (produced first, read by all units)
+- `shared/pageConfig.ts`: `PageConfig`, `TEMPLATES`, `SECTION_IDS`, `SECTION_LABELS`, `PAGE_LIMITS`,
+  `parsePageConfig`, `resolveSections`, `switchTemplate`, `defaultPageConfig`, `mapLink`, `readableOn`.
+- Stored as JSON string in `cards.page` (`CardDraft.page`); empty = Professional default.
+
+### Work units (one owner each)
+| Unit | Owner | Files |
+|---|---|---|
+| Contract + data layer | main | shared/pageConfig.ts, schema, db ensureSchema, 0008 SQL, validation, card.ts, export, demo |
+| Public landing templates | main | client/src/pages/PublicCard.tsx, client/src/components/CardLanding.tsx, `pl-*` rules in client/src/index.css |
+| Builder page designer | subagent A | client/src/components/PageDesigner.tsx, client/src/components/pageDesigner.css, client/src/pages/Home.tsx (builder only) |
+| Gates (slop → bugs → perf/a11y) | review subagents | read-only reports |
+
+### Status
+- [x] Contract + tests (server/pageConfig.test.ts)
+- [x] Data layer (216 tests green)
+- [x] Builder designer (subagent A): PageDesigner + helpers + tests
+- [x] Public templates: CardLanding (container queries, 3 hero signatures, per-template section treatments)
+- [x] Gates round 1: anti-slop PASS (conditional, 4 majors), bug hunt FAIL (1 P1 hidden-address leak, 8 P2), perf/a11y FAIL (CTA contrast 2.87:1, LCP 6.1s)
+- [x] Fixes applied and re-verified: CTA 4.5:1+ (white on accent), ticket hidden with Visit, no 320px overflow, CardVisual chunk off public route, LCP 6.1s -> 5.5s local; 227 tests
+- [ ] Deploy + post-launch smoke
+
+### Open follow-ups
+- LCP still > 2.5s on throttled mobile: client-rendered SPA + data round trip. Next: inline card JSON in the server-rendered /c/:slug HTML (type="application/json", CSP-safe) as query initialData, or prerender the hero.
+- Guest (signed-out) builder preview shows no references (local-only references are not passed to the preview).

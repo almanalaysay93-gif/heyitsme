@@ -1,56 +1,13 @@
-import { BrandMark, LogoLoader } from "@/components/BrandMark";
-import { Field } from "@/components/CardVisual";
-import { GalleryLightbox } from "@/components/GalleryLightbox";
-import { LegalLinks } from "@/components/LegalLinks";
-import { LoopVideo, isVideoUrl } from "@/components/LoopVideo";
-import { PhotoCarousel } from "@/components/PhotoCarousel";
+import { LogoLoader } from "@/components/BrandMark";
+import { CardLanding } from "@/components/CardLanding";
+import { Field } from "@/components/Field";
 import { usePageMeta } from "@/hooks/usePageMeta";
-import {
-  buildVCard,
-  channelLabel,
-  channelHref,
-  parseChannels,
-  parseLinks,
-  parsePortfolio,
-  readPreviewCard,
-  splitHeading,
-  themeOptions,
-  toDraft,
-  toHref,
-  websiteShotFrom,
-  websiteShotRequest,
-  type CardDraft,
-  type PortfolioItem,
-  type ReferenceRow,
-} from "@/lib/card";
-import { copyToClipboard, downloadBlob, getInitials, safeFileName } from "@/lib/cardKit";
+import { buildVCard, readPreviewCard, toDraft, type CardDraft } from "@/lib/card";
+import { copyToClipboard, downloadBlob, safeFileName } from "@/lib/cardKit";
 import { trpc } from "@/lib/trpc";
-import { AnimatePresence, motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
-import {
-  ArrowUpRight,
-  BriefcaseBusiness,
-  Check,
-  Copy,
-  Download,
-  Facebook,
-  FileText,
-  Globe2,
-  Instagram,
-  Link2,
-  Linkedin,
-  Mail,
-  MapPin,
-  MessageCircle,
-  Phone,
-  QrCode,
-  Quote,
-  Send,
-  Share2,
-  Sparkles,
-  UserRoundPlus,
-  X,
-} from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
+import { parsePageConfig, switchTemplate, TEMPLATE_IDS, type TemplateId } from "@shared/pageConfig";
+import { AnimatePresence, motion } from "framer-motion";
+import { Check, Send, Sparkles, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Link, useLocation } from "wouter";
@@ -59,193 +16,6 @@ import { Link, useLocation } from "wouter";
 function downloadVCard(card: CardDraft) {
   downloadBlob(new Blob([buildVCard(card, window.location.href, window.location.origin)], { type: "text/vcard;charset=utf-8" }), `${safeFileName(card.displayName, "contact")}.vcf`);
   toast.success("Contact file (.vcf) downloaded.");
-}
-
-function ChannelIcon({ provider }: { provider: string }) {
-  if (provider === "linkedin") return <Linkedin size={16} />;
-  if (provider === "instagram") return <Instagram size={16} />;
-  if (provider === "facebook") return <Facebook size={16} />;
-  if (provider === "whatsapp" || provider === "telegram" || provider === "viber" || provider === "signal") return <MessageCircle size={16} />;
-  return <Link2 size={16} />;
-}
-
-const revealUp = {
-  hidden: { opacity: 0, y: 26 },
-  show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 140, damping: 20 } },
-};
-
-const staggerChildren = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.07, delayChildren: 0.12 } },
-};
-
-function PublicSection({ kicker, icon: Icon, title, emphasis, className = "", children }: any) {
-  return (
-    <motion.section
-      className={`pl-section ${className}`}
-      initial="hidden"
-      whileInView="show"
-      viewport={{ once: true, margin: "-80px" }}
-      variants={staggerChildren}
-    >
-      <motion.div className="pl-section-heading" variants={revealUp}>
-        <span className="section-kicker"><Icon size={13} /> {kicker}</span>
-        <h2>{title} <em>{emphasis}</em></h2>
-      </motion.div>
-      {children}
-    </motion.section>
-  );
-}
-
-/** A website tile: the plain tile until a screenshot of the site loads, and for good if the site can't be shown. */
-function WebsiteShot({ request, title }: { request: string; title: string }) {
-  const [src, setSrc] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    let active = true;
-    fetch(request)
-      .then((response) => response.json())
-      .then((answer) => { if (active) setSrc(websiteShotFrom(answer)); })
-      .catch(() => undefined);
-    return () => { active = false; };
-  }, [request]);
-  return (
-    <div className="pl-work-file pl-work-site">
-      <span><Globe2 size={22} /></span>
-      <small>Website</small>
-      {src ? (
-        <img
-          src={src}
-          alt={`Screenshot of ${title}`}
-          className={ready ? "is-ready" : undefined}
-          onLoad={() => setReady(true)}
-          onError={() => setSrc(null)}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-function PublicPortfolio({
-  items,
-  galleryHeading,
-  portfolioHeading,
-  onOpen,
-}: {
-  items: PortfolioItem[];
-  galleryHeading?: string | null;
-  portfolioHeading?: string | null;
-  onOpen?: (item: PortfolioItem) => void;
-}) {
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  if (!items.length) return null;
-
-  const photoItems = items.filter((item) => item.kind === "image");
-  const otherItems = items.filter((item) => item.kind !== "image");
-  const gallery = splitHeading(galleryHeading, "Moments & work in", "focus.");
-  const portfolio = splitHeading(portfolioHeading, "A little proof of", "the practice.");
-
-  return (
-    <>
-      {photoItems.length > 0 && (
-        <PublicSection
-          kicker="Visual Gallery"
-          icon={BriefcaseBusiness}
-          title={gallery.title}
-          emphasis={gallery.emphasis}
-          className="pl-portfolio-gallery-section"
-        >
-          <PhotoCarousel
-            items={photoItems}
-            onSelectPhoto={(index) => {
-              setLightboxIndex(index);
-              onOpen?.(photoItems[index]);
-            }}
-          />
-        </PublicSection>
-      )}
-
-      {otherItems.length > 0 && (
-        <PublicSection
-          kicker="Selected work"
-          icon={BriefcaseBusiness}
-          title={portfolio.title}
-          emphasis={portfolio.emphasis}
-          className="pl-portfolio"
-        >
-          <div className="pl-portfolio-grid">
-            {otherItems.map((item, index) => {
-              const href = toHref(item.url);
-              const linkProps = href === "#" ? {} : { href, target: "_blank", rel: "noreferrer", onClick: () => onOpen?.(item) };
-              const shot = item.kind === "link" ? websiteShotRequest(item.url) : null;
-              return (
-                <motion.a
-                  variants={revealUp}
-                  whileHover={{ y: -6 }}
-                  className={`pl-work ${index === 0 && otherItems.length > 2 ? "is-featured" : ""}`}
-                  key={item.id}
-                  {...linkProps}
-                >
-                  {item.kind === "video" ? (
-                    <video
-                      src={item.url}
-                      muted
-                      playsInline
-                      loop
-                      preload="metadata"
-                      onMouseEnter={(event) => void event.currentTarget.play().catch(() => undefined)}
-                      onMouseLeave={(event) => event.currentTarget.pause()}
-                    />
-                  ) : shot ? (
-                    <WebsiteShot request={shot} title={item.title} />
-                  ) : (
-                    <div className="pl-work-file">
-                      <span>{item.kind === "file" ? <FileText size={22} /> : <Globe2 size={22} />}</span>
-                      <small>{item.kind === "file" ? "Document" : "Website"}</small>
-                    </div>
-                  )}
-                  <div className="pl-work-caption">
-                    <div>
-                      <strong>{item.title}</strong>
-                      {item.description && <small className="pl-work-desc">{item.description}</small>}
-                    </div>
-                    <span className="pl-work-arrow"><ArrowUpRight size={15} /></span>
-                  </div>
-                </motion.a>
-              );
-            })}
-          </div>
-        </PublicSection>
-      )}
-
-      <GalleryLightbox
-        items={photoItems}
-        currentIndex={lightboxIndex}
-        onClose={() => setLightboxIndex(null)}
-        onNavigate={(index) => setLightboxIndex(index)}
-      />
-    </>
-  );
-}
-
-function PublicReferences({ references }: { references: ReferenceRow[] }) {
-  if (!references.length) return null;
-  return (
-    <PublicSection kicker="Kind words" icon={Quote} title="What past clients" emphasis="remember." className="pl-references">
-      <div className="pl-reference-grid">
-        {references.map((reference) => (
-          <motion.figure variants={revealUp} className="pl-reference" key={reference.id}>
-            <span className="pl-quote-mark" aria-hidden="true">“</span>
-            <blockquote>{reference.quote}</blockquote>
-            <figcaption>
-              <span className="reference-avatar">{getInitials(reference.clientName)}</span>
-              <span><strong>{reference.clientName}</strong><small>{reference.clientRole || "Client"}{reference.company ? ` · ${reference.company}` : ""}</small></span>
-            </figcaption>
-          </motion.figure>
-        ))}
-      </div>
-    </PublicSection>
-  );
 }
 
 export default function PublicCardPage() {
@@ -258,17 +28,9 @@ export default function PublicCardPage() {
   const [showForm, setShowForm] = useState(false);
   const [sent, setSent] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", phone: "", company: "", title: "", notes: "", website: "" });
-  const reduceMotion = useReducedMotion();
-  const { scrollY } = useScroll();
-  const coverY = useTransform(scrollY, [0, 500], [0, reduceMotion ? 0 : 160]);
-  const coverScale = useTransform(scrollY, [0, 500], [1, reduceMotion ? 1 : 1.12]);
-  const coverFade = useTransform(scrollY, [0, 420], [1, 0.35]);
   const rawCard = cardQuery.data as any;
   const previewCard = !rawCard && slug === "new-card" ? readPreviewCard() : null;
   const card = rawCard ? toDraft(rawCard) : previewCard;
-  const links = parseLinks(card?.links);
-  const portfolio = parsePortfolio(card?.portfolio);
-  const channels = parseChannels(card?.channels);
   const references = rawCard?.references ?? [];
 
   useEffect(() => {
@@ -326,8 +88,10 @@ export default function PublicCardPage() {
     );
   }
 
-  const theme = themeOptions.find((item) => item.id === card.theme) ?? themeOptions[0];
-  const firstName = card.displayName.split(" ")[0] || card.displayName;
+  // The demo can show any template (/c/demo?template=business) so people can compare them before signing up.
+  const demoTemplate = isDemo ? new URLSearchParams(window.location.search).get("template") : null;
+  const baseConfig = parsePageConfig(card.page);
+  const config = demoTemplate && (TEMPLATE_IDS as readonly string[]).includes(demoTemplate) ? switchTemplate(baseConfig, demoTemplate as TemplateId) : baseConfig;
   // Guest previews live in this browser only (their id is a timestamp), so nothing about them reaches the server.
   const canExchange = Boolean(rawCard);
 
@@ -400,222 +164,30 @@ export default function PublicCardPage() {
     }
   };
 
-  const contactRows = [
-    card.email
-      ? {
-          key: "email",
-          icon: Mail,
-          label: "Email",
-          value: card.email,
-          href: `mailto:${encodeURIComponent(card.email)}`,
-          target: "Email",
-          canCopy: true,
-          copyValue: card.email,
-        }
-      : null,
-    card.phone
-      ? {
-          key: "phone",
-          icon: Phone,
-          label: "Call or text",
-          value: card.phone,
-          href: `tel:${encodeURIComponent(card.phone.replace(/\s+/g, ""))}`,
-          target: "Phone",
-          canCopy: true,
-          copyValue: card.phone,
-        }
-      : null,
-    ...links.map((link: string) => {
-      const value = link.replace(/^https?:\/\//, "").replace(/\/$/, "");
-      return {
-        key: `link-${link}`,
-        icon: Globe2,
-        label: "Website",
-        value,
-        href: toHref(link),
-        external: true,
-        target: value.replace(/^www\./, ""),
-      };
-    }),
-  ].filter(Boolean) as {
-    key: string;
-    icon: any;
-    label: string;
-    value: string;
-    href: string;
-    external?: boolean;
-    target: string;
-    canCopy?: boolean;
-    copyValue?: string;
-  }[];
-
-  const contactHeading = splitHeading(card.contactHeading, "Pick the easiest", "way in.");
-
   return (
-    <div
-      className={`pl-page theme-${theme.id}`}
-      style={{ ["--pl-a" as string]: theme.colors[0], ["--pl-b" as string]: theme.colors[1], ["--pl-c" as string]: theme.colors[2] }}
-    >
-      {card.backgroundUrl ? <div className="pl-bg" aria-hidden="true"><img src={card.backgroundUrl} alt="" decoding="async" /></div> : null}
-      <div className="pl-backdrop" aria-hidden="true"><i /><i /><i /><i /></div>
-      <div className="pl-cover-wrap" aria-hidden="true">
-        <motion.div className="pl-cover" style={{ y: coverY, scale: coverScale, opacity: coverFade }}>
-          {isVideoUrl(card.coverUrl) ? (
-            <LoopVideo className="pl-cover-video" src={card.coverUrl} lazy={false} fallback={<div className="pl-cover-mesh"><i /><i /><i /></div>} />
-          ) : card.coverUrl ? <img src={card.coverUrl} alt="" /> : <div className="pl-cover-mesh"><i /><i /><i /></div>}
-        </motion.div>
-      </div>
-
+    <>
       {isDemo ? (
-        <aside className="pl-demo-banner" role="status" aria-label="Demo card">
+        <aside className="lx-demo-banner" role="status" aria-label="Demo card">
           <Sparkles size={14} aria-hidden="true" />
-          <span>Demo card · Sample identity &amp; details. No real emails or data sent.</span>
+          <span>Demo card · Sample details, nothing is sent.</span>
+          {TEMPLATE_IDS.map((id) => (
+            <a key={id} href={`/c/demo?template=${id}`} aria-current={config.template === id ? "page" : undefined}>{id[0].toUpperCase() + id.slice(1)}</a>
+          ))}
         </aside>
       ) : null}
-
-      <header className="pl-nav">
-        <a className="brand-lockup" href="/"><BrandMark /><span>heyitsme</span></a>
-        <motion.button whileTap={{ scale: 0.94 }} type="button" className="pl-nav-share" onClick={() => void shareLink()}>
-          <Share2 size={15} /> Share
-        </motion.button>
-      </header>
-
-      <main className="pl-main" id="main" tabIndex={-1}>
-        <motion.section className="pl-hero" initial="hidden" animate="show" variants={staggerChildren}>
-          <motion.div
-            className="pl-avatar"
-            initial={{ opacity: 0, scale: 0.6, rotate: -8 }}
-            animate={{ opacity: 1, scale: 1, rotate: 0 }}
-            transition={{ type: "spring", stiffness: 220, damping: 16, delay: 0.05 }}
-          >
-            {card.avatarUrl ? <img src={card.avatarUrl} alt={card.displayName} /> : <span>{getInitials(card.displayName)}</span>}
-            {card.published ? <span className="pl-avatar-live" title={isDemo ? "Demo card" : "Live card"} /> : null}
-          </motion.div>
-          <motion.span className="pl-hello" variants={revealUp}>Hey, it’s</motion.span>
-          <motion.h1 variants={revealUp}>{card.displayName}</motion.h1>
-          <motion.p className="pl-role" variants={revealUp}>
-            {card.title}
-            {card.company ? <> <span>at</span> {card.company}</> : null}
-          </motion.p>
-          {card.location ? <motion.p className="pl-location" variants={revealUp}><MapPin size={14} /> {card.location}</motion.p> : null}
-          <motion.p className="pl-bio" variants={revealUp}>{card.bio || "Nice to meet you. Let’s keep the conversation going."}</motion.p>
-
-          <motion.div className="pl-actions" variants={revealUp}>
-            <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }} type="button" className="pl-btn pl-btn-primary" onClick={saveContact}>
-              <Download size={16} /> Save contact
-            </motion.button>
-            {canExchange ? (
-              <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }} type="button" className="pl-btn pl-btn-ghost" onClick={openForm}>
-                <UserRoundPlus size={16} /> Exchange details
-              </motion.button>
-            ) : null}
-            <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.92 }} type="button" className="pl-btn pl-btn-icon" onClick={() => void copyLink()} aria-label="Copy link to this page">
-              <Copy size={16} />
-            </motion.button>
-          </motion.div>
-
-          {channels.length ? (
-            <motion.div className="pl-socials" variants={staggerChildren}>
-              {channels.map((channel, index) => (
-                <motion.a
-                  variants={revealUp}
-                  whileHover={{ y: -4, rotate: -4 }}
-                  whileTap={{ scale: 0.9 }}
-                  href={channelHref(channel)}
-                  target="_blank"
-                  rel="noreferrer"
-                  key={`${channel.provider}-${index}`}
-                  aria-label={channelLabel(channel)}
-                  title={channelLabel(channel)}
-                  onClick={() => track("link", channelLabel(channel))}
-                >
-                  <ChannelIcon provider={channel.provider} />
-                </motion.a>
-              ))}
-            </motion.div>
-          ) : null}
-        </motion.section>
-
-        <div className="pl-body">
-          <div className="pl-column">
-            {contactRows.length || channels.length ? (
-              <PublicSection kicker="Reach me" icon={MessageCircle} title={contactHeading.title} emphasis={contactHeading.emphasis} className="pl-links">
-                <div className="pl-link-list">
-                  {contactRows.map((row) => (
-                    <motion.div variants={revealUp} className="pl-link-wrapper" key={row.key}>
-                      <a className="pl-link" href={row.href} onClick={() => track("link", row.target)} {...(row.external ? { target: "_blank", rel: "noreferrer" } : {})}>
-                        <span className="pl-link-icon"><row.icon size={17} /></span>
-                        <span className="pl-link-copy"><small>{row.label}</small><strong>{row.value}</strong></span>
-                        <ArrowUpRight size={16} className="pl-link-arrow" />
-                      </a>
-                      {row.canCopy ? (
-                        <button
-                          type="button"
-                          className="pl-link-copy-btn"
-                          title={`Copy ${row.label}`}
-                          aria-label={`Copy ${row.value}`}
-                          onClick={async (e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            await copyToClipboard(row.copyValue || row.value);
-                            toast.success(`${row.label} copied to clipboard.`);
-                          }}
-                        >
-                          <Copy size={13} />
-                        </button>
-                      ) : null}
-                    </motion.div>
-                  ))}
-                  {channels.map((channel, index) => (
-                    <motion.a variants={revealUp} whileTap={{ scale: 0.98 }} className="pl-link" href={channelHref(channel)} target="_blank" rel="noreferrer" key={`row-${channel.provider}-${index}`} onClick={() => track("link", channelLabel(channel))}>
-                      <span className="pl-link-icon"><ChannelIcon provider={channel.provider} /></span>
-                      <span className="pl-link-copy"><small>{channel.provider === "calendly" ? "Book time" : "Message"}</small><strong>{channelLabel(channel)}</strong></span>
-                      <ArrowUpRight size={16} className="pl-link-arrow" />
-                    </motion.a>
-                  ))}
-                </div>
-              </PublicSection>
-            ) : null}
-            <PublicPortfolio
-              items={portfolio}
-              galleryHeading={card.galleryHeading}
-              portfolioHeading={card.portfolioHeading}
-              onOpen={(item) => track("link", `Work: ${item.title}`)}
-            />
-            <PublicReferences references={references} />
-          </div>
-
-          {/* The hero already shows the name and a Save button, so this panel is only the hand-off QR. */}
-          {canExchange ? (
-            <aside className="pl-aside">
-              <motion.div
-                className="pl-card-stage"
-                initial={{ opacity: 0, y: 40 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ type: "spring", stiffness: 120, damping: 16, delay: 0.35 }}
-              >
-                <span className="section-kicker">Take my card</span>
-                <div className="pl-qr">
-                  <QRCodeSVG value={window.location.href} size={132} bgColor="transparent" fgColor="#10152a" />
-                  <p><QrCode size={14} /> Scan to open this page on another phone.</p>
-                </div>
-              </motion.div>
-            </aside>
-          ) : null}
-        </div>
-      </main>
-
-      <footer className="pl-footer">
-        <span>{firstName}’s page on heyitsme</span>
-        <LegalLinks />
-        <a href="/">Make yours — it’s free <ArrowUpRight size={13} /></a>
-      </footer>
-
-      <div className="pl-dock" role="toolbar" aria-label="Quick actions">
-        <button type="button" className="pl-btn pl-btn-primary" onClick={saveContact}><Download size={16} /> Save contact</button>
-        {canExchange ? <button type="button" className="pl-btn pl-btn-ghost" onClick={openForm} aria-label="Exchange details"><UserRoundPlus size={16} /></button> : null}
-        <button type="button" className="pl-btn pl-btn-ghost" onClick={() => void shareLink()} aria-label="Share this page"><Share2 size={16} /></button>
-      </div>
+      <CardLanding
+        card={card}
+        config={config}
+        references={references}
+        interactive
+        canExchange={canExchange}
+        pageUrl={window.location.href}
+        onSaveContact={saveContact}
+        onExchange={openForm}
+        onShare={() => void shareLink()}
+        onCopyLink={() => void copyLink()}
+        track={track}
+      />
 
       <AnimatePresence>
         {showForm ? (
@@ -675,6 +247,6 @@ export default function PublicCardPage() {
           </motion.div>
         ) : null}
       </AnimatePresence>
-    </div>
+    </>
   );
 }

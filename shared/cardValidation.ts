@@ -1,3 +1,4 @@
+import { pageConfigField } from "./pageConfig";
 import { z } from "zod";
 
 export const MAX_PORTFOLIO_ITEMS = 20;
@@ -324,4 +325,5 @@ export const serverCardFields = {
   contactHeading: z.string().trim().max(160).optional().nullable(),
   galleryHeading: z.string().trim().max(160).optional().nullable(),
   portfolioHeading: z.string().trim().max(160).optional().nullable(),
+  page: pageConfigField,
 };

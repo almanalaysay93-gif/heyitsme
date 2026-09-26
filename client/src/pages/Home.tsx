@@ -1,10 +1,12 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startGoogleLogin, SUPPORT_EMAIL } from "@/const";
 import { BrandMark, LogoLoader } from "@/components/BrandMark";
+import { LandingPreview, themeAccent } from "@/components/CardLanding";
 import { CardVisual, Field } from "@/components/CardVisual";
 import type { ContactPatch, ContactRow } from "@/components/ContactsView";
 import { LegalLinks } from "@/components/LegalLinks";
 import { isVideoUrl } from "@/components/LoopVideo";
+import { PageDesigner } from "@/components/PageDesigner";
 import { ShareSheet } from "@/components/ShareSheet";
 import {
   DropdownMenu,
@@ -244,10 +246,12 @@ export default function Home() {
   const isBuilder = path.includes("/new") || path.includes("/edit");
 
   // T08: Track dirty state against saved baseline and prompt on browser unload
+  // Page rows still being typed (e.g. a service with no name yet) are not in the draft, but they are unsaved work.
+  const [pagePending, setPagePending] = useState(false);
   const isDirty = useMemo(() => {
     if (!isBuilder) return false;
-    return JSON.stringify(draft) !== initialDraftBaseline;
-  }, [draft, initialDraftBaseline, isBuilder]);
+    return pagePending || JSON.stringify(draft) !== initialDraftBaseline;
+  }, [draft, initialDraftBaseline, isBuilder, pagePending]);
 
   useEffect(() => {
     if (!isBuilder || !isDirty) return;
@@ -833,6 +837,7 @@ export default function Home() {
                 fieldErrors={fieldErrors}
                 onClearError={clearFieldError}
                 isDirty={isDirty}
+                onPagePending={setPagePending}
                 onAddReference={async (reference: Omit<ReferenceRow, "id">) => {
                   if (isAuthenticated && draft.id > 0) {
                     try {
@@ -1173,8 +1178,11 @@ function BuilderView({
   fieldErrors = {},
   onClearError,
   isDirty = false,
+  onPagePending,
 }: any) {
   const [mobileTab, setMobileTab] = useState<"edit" | "preview">("edit");
+  // Same query key as the references editor below, so this reuses its data rather than fetching twice.
+  const previewReferences = trpc.references.list.useQuery({ cardId: draft.id }, { enabled: isAuthenticated && draft.id > 0 });
   const update = (key: keyof CardDraft, value: string) => setDraft((current: CardDraft) => ({ ...current, [key]: value }));
   return (
     <motion.div className="builder-page" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -1241,6 +1249,17 @@ function BuilderView({
             <div className="form-section-heading">
               <span>01</span>
               <div>
+                <h2>Template & layout</h2>
+                <p>Pick how your page reads, then choose which sections show and in what order.</p>
+              </div>
+            </div>
+            <PageDesigner value={draft.page} onChange={(value) => update("page", value)} themeAccent={themeAccent(draft.theme)} onPendingChange={onPagePending} />
+          </div>
+
+          <div className="form-section">
+            <div className="form-section-heading">
+              <span>02</span>
+              <div>
                 <h2>Essentials</h2>
                 <p>Enough context to make the hello feel natural.</p>
               </div>
@@ -1265,7 +1284,7 @@ function BuilderView({
 
           <div className="form-section">
             <div className="form-section-heading">
-              <span>02</span>
+              <span>03</span>
               <div>
                 <h2>Links</h2>
                 <p>Add a few places for the conversation to continue.</p>
@@ -1288,7 +1307,7 @@ function BuilderView({
 
           <div className="form-section">
             <div className="form-section-heading">
-              <span>03</span>
+              <span>04</span>
               <div>
                 <h2>Portfolio</h2>
                 <p>Add images, videos, files, or a project link. Uploads are served from secure storage.</p>
@@ -1316,7 +1335,7 @@ function BuilderView({
 
           <div className="form-section">
             <div className="form-section-heading">
-              <span>04</span>
+              <span>05</span>
               <div>
                 <h2>Contact buttons</h2>
                 <p>Add social profiles and direct channels — Viber, WhatsApp, Telegram, and more.</p>
@@ -1329,7 +1348,7 @@ function BuilderView({
 
           <div className="form-section">
             <div className="form-section-heading">
-              <span>05</span>
+              <span>06</span>
               <div>
                 <h2>Client references</h2>
                 <p>Show the thoughtful words people remember after the work is done.</p>
@@ -1340,7 +1359,7 @@ function BuilderView({
 
           <div className="form-section">
             <div className="form-section-heading">
-              <span>06</span>
+              <span>07</span>
               <div>
                 <h2>Appearance</h2>
                 <p>Choose a palette and page background that fits your style.</p>
@@ -1381,7 +1400,7 @@ function BuilderView({
               <span>Live preview</span>
               <span><span className="status-dot" /> updates as you type</span>
             </div>
-            <CardVisual card={{ ...draft, displayName: draft.displayName || "Your name", title: draft.title || "Your title" }} />
+            <LandingPreview card={{ ...draft, displayName: draft.displayName || "Your name", title: draft.title || "Your title" }} references={(previewReferences.data as ReferenceRow[] | undefined) ?? []} />
             <div className="preview-tip">
               <Sparkles size={15} />
               <span>Keep it light. Your card can do the talking.</span>

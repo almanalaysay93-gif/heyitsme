@@ -1,0 +1,309 @@
+/*
+ * Public landing pages (/c/:slug): editorial templates.
+ * Layout responds to the page's own width via container queries, so the builder preview shows the real phone layout.
+ * Tokens: --paper / --ink / --muted per palette; --accent, --on-accent, --accent-text set inline from the owner's choice.
+ */
+
+.lx {
+  --paper: #f4f4f7;
+  --ink: #15162b;
+  --muted: #55576e;
+  --line: color-mix(in srgb, var(--ink) 12%, transparent);
+  --line-strong: color-mix(in srgb, var(--ink) 30%, transparent);
+  --tint: color-mix(in srgb, var(--accent) 9%, var(--paper));
+  /* Empty image slots stay neutral; the accent is kept for type and buttons. */
+  --placeholder: color-mix(in srgb, var(--ink) 6%, var(--paper));
+  --gutter: clamp(20px, 6cqi, 72px);
+  --serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --sans: "DM Sans Variable", "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  position: relative;
+  isolation: isolate;
+  overflow-x: clip;
+  min-height: 100vh;
+  color: var(--ink);
+  background: var(--paper);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+.lx-theme-tide { --paper: #eef5f3; --ink: #0b2a2d; --muted: #4a6466; }
+.lx-theme-sunset { --paper: #f9f1ee; --ink: #2b1b22; --muted: #6a5359; }
+
+.lx *, .lx *::before, .lx *::after { box-sizing: border-box; }
+.lx :where(a) { color: inherit; text-decoration: none; }
+.lx :focus-visible { outline: 2px solid var(--accent-text); outline-offset: 3px; border-radius: 6px; }
+.lx h1, .lx h2, .lx h3, .lx p, .lx dl, .lx dd, .lx figure, .lx blockquote, .lx ul { margin: 0; padding: 0; }
+.lx ul { list-style: none; }
+/* The app stylesheet colors headings globally; here they follow their section (e.g. the dark Business strip). */
+.lx h1, .lx h2, .lx h3 { color: inherit; }
+
+/* An owner's page background tints the paper instead of fighting the type. */
+.lx-bg { position: fixed; inset: 0; z-index: -1; }
+.lx-bg img { width: 100%; height: 100%; object-fit: cover; }
+.lx-bg::after { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--paper) 90%, transparent); }
+
+/* ---------- Nav ---------- */
+.lx-nav {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+  display: flex; align-items: center; justify-content: space-between;
+  max-width: 1200px; margin: 0 auto; padding: 16px var(--gutter);
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+}
+.lx-brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; letter-spacing: -.04em; }
+.lx-nav-share {
+  display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 0 16px;
+  color: var(--ink); font: 600 13px/1 var(--sans);
+  background: transparent; border: 1px solid var(--line-strong); border-radius: 999px; cursor: pointer;
+}
+.lx-nav-share:hover { background: var(--tint); }
+
+.lx-main { container-type: inline-size; max-width: 1200px; margin: 0 auto; padding: 0 var(--gutter) 40px; }
+
+/* ---------- Type ---------- */
+.lx-eyebrow {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
+}
+.lx-eyebrow span { color: var(--muted); font-weight: 400; }
+.lx-masthead {
+  margin-top: 18px;
+  font: 400 clamp(56px, 13cqi, 148px)/.88 var(--serif);
+  letter-spacing: -.035em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.lx-lead { max-width: 34ch; margin-top: 34px; font: 400 clamp(21px, 2.6cqi, 27px)/1.35 var(--serif); color: color-mix(in srgb, var(--ink) 86%, var(--paper)); }
+.lx-place { display: flex; align-items: center; gap: 6px; margin-top: 16px; color: var(--muted); font-size: 14px; }
+.lx-byline { margin-top: 22px; color: var(--muted); font-size: 14px; }
+.lx-byline strong { color: var(--ink); font-weight: 600; }
+
+/* ---------- Buttons ---------- */
+.lx-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 32px; }
+.lx-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 48px; padding: 0 22px;
+  font: 600 15px/1 var(--sans); letter-spacing: -.01em;
+  border: 1px solid transparent; border-radius: 999px; cursor: pointer;
+  transition: transform .2s ease, background-color .2s ease, border-color .2s ease;
+}
+.lx-btn:active { transform: scale(.97); }
+.lx-btn-primary { color: var(--on-accent); background: var(--accent); }
+.lx-btn-primary:hover { background: color-mix(in srgb, var(--accent) 88%, var(--ink)); }
+.lx-btn-ghost { color: var(--ink); background: transparent; border-color: var(--line-strong); }
+.lx-btn-ghost:hover { background: var(--tint); }
+
+.lx-socials { display: flex; gap: 8px; margin-top: 22px; }
+.lx-socials a { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 50%; transition: background-color .2s ease; }
+.lx-socials a:hover { background: var(--tint); }
+
+/* ---------- Heroes ---------- */
+.lx-hero { padding: clamp(40px, 9cqi, 110px) 0 clamp(36px, 6cqi, 72px); }
+
+/* Professional: masthead name beside an arched portrait. */
+.lx-hero-professional { display: grid; gap: 40px; }
+.lx-arch {
+  width: min(100%, 320px); aspect-ratio: 3 / 4; overflow: hidden;
+  display: grid; place-items: center;
+  background: var(--placeholder); border-radius: 999px 999px 20px 20px;
+}
+.lx-arch img, .lx-round-portrait img, .lx-services-image img { width: 100%; height: 100%; object-fit: cover; }
+.lx-arch span { font: 400 clamp(64px, 14cqi, 120px)/1 var(--serif); color: var(--accent-text); }
+
+/* Business: company masthead, then a full-bleed cover band carrying a visit ticket. */
+.lx-hero-business { max-width: 980px; }
+.lx-logo { width: 34px; height: 34px; object-fit: cover; border-radius: 8px; }
+.lx-band {
+  position: relative; overflow: hidden;
+  margin: 0 calc(var(--gutter) * -1) clamp(28px, 5cqi, 56px);
+  aspect-ratio: 4 / 3; background: var(--placeholder);
+}
+.lx-cover-media { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.lx-band .lx-cover-media video { width: 100%; height: 100%; object-fit: cover; }
+.lx-ticket {
+  position: absolute; left: var(--gutter); right: var(--gutter); bottom: 20px;
+  display: grid; gap: 6px; padding: 16px 18px;
+  background: var(--paper); border-radius: 14px; box-shadow: 0 18px 40px rgba(0,0,0,.12);
+  font-size: 14px;
+}
+.lx-ticket p span { color: var(--muted); margin-right: 6px; }
+.lx-ticket a { display: inline-flex; align-items: flex-start; gap: 6px; font-weight: 600; }
+.lx-ticket a svg { flex: none; margin-top: 3px; }
+
+/* Services: the offer is the headline; the price menu below is the page's centrepiece. */
+.lx-hero-services { display: grid; gap: 36px; }
+.lx-round-portrait, .lx-services-image {
+  display: grid; place-items: center; overflow: hidden;
+  width: min(100%, 360px); aspect-ratio: 1; border-radius: 50%; background: var(--placeholder);
+}
+.lx-services-image { border-radius: 24px; aspect-ratio: 4 / 5; }
+.lx-round-portrait span { font: 400 clamp(64px, 14cqi, 120px)/1 var(--serif); color: var(--accent-text); }
+
+/* ---------- Sections ---------- */
+.lx-section { padding: clamp(44px, 7cqi, 88px) 0; border-top: 1px solid var(--line); }
+.lx-section-head { max-width: 760px; margin-bottom: clamp(24px, 4cqi, 40px); }
+.lx-kicker { display: block; margin-bottom: 12px; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
+.lx-section-head h2 { font: 400 clamp(34px, 5.4cqi, 60px)/1 var(--serif); letter-spacing: -.02em; text-wrap: balance; }
+.lx-section-head em, .lx-lead em { color: var(--accent-text); font-style: italic; }
+
+/* Stats: big serif figures, label underneath. */
+.lx-section-stats { padding-top: clamp(28px, 4cqi, 48px); padding-bottom: clamp(28px, 4cqi, 48px); }
+.lx-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 28px 20px; }
+.lx-stats div { display: flex; flex-direction: column-reverse; gap: 6px; }
+.lx-stats dd { font: 400 clamp(44px, 7cqi, 72px)/.95 var(--serif); letter-spacing: -.03em; font-variant-numeric: lining-nums; }
+.lx-stats dt { color: var(--muted); font-size: 14px; }
+
+/* Services: a price menu with dotted leaders. */
+.lx-menu { display: grid; gap: 0; max-width: 880px; }
+.lx-menu li { padding: 22px 0; border-bottom: 1px solid var(--line); }
+.lx-menu li:first-child { border-top: 1px solid var(--line); }
+.lx-menu-row { display: flex; align-items: baseline; gap: 12px; }
+.lx-menu h3 { min-width: 0; overflow-wrap: anywhere; font: 400 clamp(24px, 3.4cqi, 32px)/1.1 var(--serif); letter-spacing: -.01em; }
+.lx-leader { flex: 1; min-width: 24px; border-bottom: 2px dotted var(--line-strong); transform: translateY(-.28em); }
+.lx-price { flex: none; max-width: 45%; font-weight: 600; font-size: 17px; font-variant-numeric: tabular-nums; text-align: right; overflow-wrap: anywhere; }
+.lx-menu p { max-width: 58ch; margin-top: 8px; color: var(--muted); font-size: 15px; }
+.lx-menu-link, .lx-text-link {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 44px; margin-top: 2px;
+  color: var(--accent-text); font-size: 14px; font-weight: 600;
+  text-decoration: underline; text-underline-offset: 4px;
+}
+.lx-services .lx-section-services .lx-menu h3 { font-size: clamp(26px, 4cqi, 38px); }
+
+/* Visit */
+.lx-visit { display: grid; gap: 32px; }
+.lx-hours { display: grid; max-width: 520px; }
+.lx-hours div { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.lx-hours dt { color: var(--muted); }
+.lx-hours dd { font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+.lx-address p { font: 400 clamp(24px, 3.4cqi, 32px)/1.2 var(--serif); max-width: 22ch; }
+
+/* Work */
+.lx-gallery + div { margin-top: clamp(44px, 7cqi, 80px); }
+.lx-work-grid { display: grid; gap: 18px; }
+.lx-work { position: relative; display: grid; gap: 14px; }
+.lx-work-media { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 16 / 10; overflow: hidden; color: var(--muted); background: var(--placeholder); border-radius: 16px; object-fit: cover; }
+.lx-work-file img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: 0; transition: opacity .4s ease; }
+.lx-work-file img.is-ready { opacity: 1; }
+.lx-work-caption { display: grid; gap: 4px; padding-right: 28px; }
+.lx-work-caption strong { font-weight: 600; }
+.lx-work-caption small { color: var(--muted); font-size: 14px; }
+.lx-work-arrow { position: absolute; right: 0; bottom: 4px; color: var(--muted); transition: transform .2s ease; }
+.lx-work:hover .lx-work-arrow { transform: translate(2px, -2px); color: var(--ink); }
+
+/* References: the quote is the design. */
+.lx-quotes { display: grid; gap: 40px; }
+.lx-quote blockquote { max-width: 30ch; font: 400 clamp(26px, 4cqi, 40px)/1.2 var(--serif); letter-spacing: -.01em; text-wrap: pretty; }
+.lx-quote blockquote::before { content: "“"; color: var(--accent-text); }
+.lx-quote blockquote::after { content: "”"; color: var(--accent-text); }
+.lx-quote figcaption { display: grid; gap: 2px; margin-top: 16px; font-size: 14px; }
+.lx-quote figcaption span { color: var(--muted); }
+
+/* Contact */
+.lx-contact { display: grid; max-width: 760px; }
+.lx-contact li { position: relative; display: flex; align-items: center; border-bottom: 1px solid var(--line); }
+.lx-contact li:first-child { border-top: 1px solid var(--line); }
+.lx-contact a { flex: 1; min-width: 0; display: flex; align-items: center; gap: 16px; padding: 18px 4px; }
+.lx-contact a > svg:first-child { flex: none; color: var(--accent-text); }
+.lx-contact a span { display: grid; min-width: 0; }
+.lx-contact small { color: var(--muted); font-size: 13px; }
+.lx-contact strong { overflow: hidden; font-size: 17px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.lx-row-arrow { flex: none; margin-left: auto; color: var(--muted); transition: transform .2s ease; }
+.lx-contact a:hover .lx-row-arrow { transform: translate(2px, -2px); color: var(--ink); }
+.lx-copy { flex: none; display: grid; place-items: center; width: 44px; height: 44px; margin-left: 4px; color: var(--muted); background: transparent; border: 0; border-radius: 50%; cursor: pointer; }
+.lx-copy:hover { color: var(--ink); background: var(--tint); }
+
+/* Take my card */
+.lx-take { display: grid; gap: 28px; align-items: center; }
+.lx-take p { max-width: 38ch; font: 400 clamp(22px, 3cqi, 28px)/1.3 var(--serif); }
+.lx-take-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+.lx-take svg[role="img"] { padding: 14px; background: #fff; border-radius: 16px; box-sizing: content-box; }
+
+/* Footer + mobile dock */
+.lx-footer {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px;
+  max-width: 1200px; margin: 0 auto; padding: 28px var(--gutter) 40px;
+  color: var(--muted); font-size: 13px; border-top: 1px solid var(--line);
+}
+.lx-footer a { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.lx-footer a:hover { color: var(--ink); }
+.lx-dock { display: none; }
+
+@media (max-width: 760px) {
+  .lx-dock {
+    position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 30;
+    display: flex; gap: 8px; padding: 8px;
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--line); border-radius: 999px; box-shadow: 0 14px 34px rgba(0,0,0,.14);
+  }
+  .lx-dock .lx-btn { min-height: 44px; }
+  .lx-dock .lx-btn-primary { flex: 1; }
+  .lx-dock .lx-btn-ghost { width: 44px; padding: 0; }
+  .lx-footer { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+  html:has(.lx-dock) { scroll-padding-top: 72px; scroll-padding-bottom: 96px; }
+}
+
+/* Phones: the portrait supports the name rather than competing with it. */
+@container (max-width: 719px) {
+  .lx-arch { order: -1; width: 112px; }
+  .lx-round-portrait { order: -1; width: 112px; }
+  .lx-hero-professional, .lx-hero-services { gap: 24px; }
+  .lx-services-image { width: 100%; aspect-ratio: 4 / 3; }
+}
+
+/* ---------- Wider pages ---------- */
+@container (min-width: 720px) {
+  .lx-hero-professional { grid-template-columns: minmax(0, 1fr) minmax(240px, 34%); align-items: end; gap: 56px; }
+  .lx-hero-services { grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr); align-items: center; gap: 56px; }
+  .lx-band { aspect-ratio: 21 / 9; }
+  .lx-ticket { left: auto; right: var(--gutter); width: min(380px, 44%); bottom: 28px; }
+  .lx-stats { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 32px; }
+  .lx-stats div + div { padding-left: 32px; border-left: 1px solid var(--line); }
+  .lx-visit { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; }
+  .lx-work-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 24px; }
+  .lx-quotes { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 56px; }
+  .lx-quotes .lx-quote:only-child { grid-column: 1 / -1; }
+  .lx-take { grid-template-columns: minmax(0, 1fr) auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lx *, .lx *::before, .lx *::after { transition: none !important; }
+}
+
+/* ---------- Builder preview ---------- */
+.lx-preview {
+  height: min(72vh, 760px); overflow: auto; overscroll-behavior: contain;
+  border: 1px solid rgba(255,255,255,.8); border-radius: 22px;
+  box-shadow: 0 24px 50px rgba(30,30,90,.12);
+}
+.lx-preview { container-type: inline-size; }
+.lx-preview .lx { min-height: 100%; font-size: 15px; }
+.lx-preview .lx-bg { position: absolute; }
+
+/* Demo banner with template switcher (outside .lx, so plain colors). */
+.lx-demo-banner {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 14px;
+  padding: 10px 16px; color: #fff; background: #15162b; font: 500 13px/1.4 "DM Sans Variable", system-ui, sans-serif;
+}
+.lx-demo-banner a { display: inline-flex; align-items: center; min-height: 32px; padding: 0 6px; color: rgba(255,255,255,.8); text-decoration: underline; text-underline-offset: 3px; }
+.lx-demo-banner a[aria-current="page"] { color: #fff; font-weight: 700; text-decoration: none; }
+
+/* ---------- Per-template treatments ---------- */
+/* Services: the menu is the page. Bigger names, prices set in the display face and accent. */
+.lx-services .lx-section-services .lx-menu h3 { font-size: clamp(28px, 4.6cqi, 44px); }
+.lx-services .lx-section-services .lx-price { color: var(--accent-text); font: 400 clamp(22px, 3cqi, 30px)/1.1 var(--serif); }
+.lx-services .lx-section-services .lx-leader { border-bottom-style: dotted; border-bottom-width: 3px; }
+
+/* Business: visiting info is a dark timetable strip, like a shopfront sign. */
+.lx-business .lx-section-visit {
+  --muted: color-mix(in srgb, var(--paper) 70%, var(--ink));
+  --line: color-mix(in srgb, var(--paper) 18%, transparent);
+  --accent-text: var(--paper);
+  margin-inline: calc(var(--gutter) * -1); padding-inline: var(--gutter);
+  color: var(--paper); background: var(--ink); border-top: 0;
+}
+.lx-business .lx-section-visit :focus-visible { outline-color: var(--paper); }
+
+/* Professional: one reference carries the section at full width. */
+.lx-professional .lx-quotes { grid-template-columns: minmax(0, 1fr); }
+.lx-professional .lx-quote:first-child blockquote { max-width: 24ch; font-size: clamp(32px, 5.6cqi, 60px); line-height: 1.1; }

@@ -21,6 +21,8 @@ export type CardDraft = {
   contactHeading?: string;
   galleryHeading?: string;
   portfolioHeading?: string;
+  /** JSON page settings (template, sections, services…); see shared/pageConfig.ts. Empty = Professional default. */
+  page?: string;
   slug: string;
   published: boolean;
   deletedAt?: string | Date | null;
@@ -107,6 +109,7 @@ export const emptyCard: CardDraft = {
   contactHeading: "",
   galleryHeading: "",
   portfolioHeading: "",
+  page: "",
   slug: "new-card",
   published: false,
   updatedAt: new Date(),
@@ -203,6 +206,7 @@ export function toDraft(card: any): CardDraft {
     contactHeading: card.contactHeading ?? "",
     galleryHeading: card.galleryHeading ?? "",
     portfolioHeading: card.portfolioHeading ?? "",
+    page: card.page ?? "",
     slug: card.slug ?? "new-card",
     published: Boolean(card.published),
     deletedAt: card.deletedAt ?? null,
@@ -260,6 +264,7 @@ export function cardPayload(card: CardDraft) {
     contactHeading: card.contactHeading?.trim() || null,
     galleryHeading: card.galleryHeading?.trim() || null,
     portfolioHeading: card.portfolioHeading?.trim() || null,
+    page: card.page?.trim() || null,
   };
 }
 
