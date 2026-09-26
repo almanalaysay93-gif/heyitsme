@@ -144,6 +144,7 @@ export function csvCell(value: unknown) {
 }
 
 const vcardEscape = (value: string) => value.replace(/[\\,;]/g, (match) => `\\${match}`).replace(/\r?\n/g, "\\n");
+const sanitizeHost = (value: string) => (value || "").replace(/https?:\/\/heyitsme-ecru\.vercel\.app/gi, "https://heyitsme.fyi");
 
 export function buildContactVCard(contact: {
   name: string;
@@ -164,8 +165,8 @@ export function buildContactVCard(contact: {
     contact.company ? `ORG:${vcardEscape(contact.company)}` : null,
     contact.email ? `EMAIL;TYPE=INTERNET:${contact.email}` : null,
     contact.phone ? `TEL;TYPE=CELL:${contact.phone}` : null,
-    contact.website ? `URL:${contact.website}` : null,
-    contact.notes ? `NOTE:${vcardEscape(contact.notes)}` : null,
+    contact.website ? `URL:${sanitizeHost(contact.website)}` : null,
+    contact.notes ? `NOTE:${vcardEscape(sanitizeHost(contact.notes))}` : null,
     "END:VCARD",
   ].filter(Boolean).join("\r\n");
 }

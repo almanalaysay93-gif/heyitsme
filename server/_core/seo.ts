@@ -11,7 +11,14 @@ import { renderCardHtml, renderCardNotFoundHtml, renderMarketingHtml } from "./m
 import { clientIp, hashIdentifier, rateLimit } from "./rateLimit";
 
 export function siteOrigin(req: Request): string {
-  return ENV.siteUrl || `${req.protocol}://${req.get("host")}`;
+  if (ENV.siteUrl && !ENV.siteUrl.includes("heyitsme-ecru.vercel.app")) {
+    return ENV.siteUrl;
+  }
+  const host = (req.headers["x-forwarded-host"] as string) || req.get("host") || "";
+  if (!host || host.includes("heyitsme-ecru.vercel.app")) {
+    return "https://heyitsme.fyi";
+  }
+  return `${req.protocol}://${host}`;
 }
 
 let templateCache: string | null = null;

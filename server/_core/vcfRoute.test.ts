@@ -105,6 +105,26 @@ describe("GET /c/:slug.vcf", () => {
     expect(body).toContain("NOTE:Protecting the future.\\n\\nContact & Social Links:\\n• Telegram: https://t.me/saraconnor\\n• Signal: https://signal.me/#p/+15559999\\n• Cyberdyne: https://cyberdyne.example");
   });
 
+  it("never includes legacy heyitsme-ecru.vercel.app domain in vCard URLs", async () => {
+    db.getPublicCardBySlug.mockResolvedValue({
+      slug: "legacy",
+      displayName: "Legacy Test",
+      channels: JSON.stringify([
+        { provider: "website", url: "https://heyitsme-ecru.vercel.app/c/legacy", label: "Legacy" },
+      ]),
+      avatarUrl: "https://heyitsme-ecru.vercel.app/storage/legacy.jpg",
+    });
+    const response = await fetch(`${base}/c/legacy.vcf`, {
+      headers: { host: "heyitsme-ecru.vercel.app" },
+    });
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).not.toContain("heyitsme-ecru.vercel.app");
+    expect(body).toContain("URL:https://heyitsme.fyi/c/legacy");
+    expect(body).toContain("PHOTO;VALUE=URI:https://heyitsme.fyi/storage/legacy.jpg");
+    expect(body).toContain("item1.URL:https://heyitsme.fyi/c/legacy");
+  });
+
   it("404s for a missing or unpublished card", async () => {
     db.getPublicCardBySlug.mockResolvedValue(undefined);
     const response = await fetch(`${base}/c/nobody.vcf`);

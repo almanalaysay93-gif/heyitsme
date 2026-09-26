@@ -171,11 +171,15 @@ export function structuredName(displayName: string | null | undefined): {
 /** vCard 3.0 text for a card. `pageUrl` is the public page, `origin` resolves same-origin photo paths. */
 export function buildVCard(card: VCardFields, pageUrl: string, origin: string): string {
   const esc = (v: string) => v.replace(/[\\,;]/g, (m) => `\\${m}`).replace(/\r?\n/g, "\\n");
+  const sanitizeHost = (url: string) => (url || "").replace(/https?:\/\/heyitsme-ecru\.vercel\.app/gi, "https://heyitsme.fyi");
+  const cleanPageUrl = sanitizeHost(pageUrl);
+  const cleanOrigin = sanitizeHost(origin);
+
   const avatarUrl = card.avatarUrl ?? "";
   // Only hosted photos — preview data: URLs would bloat the file and many contact apps reject them.
   const photoUrl = /^https?:\/\//i.test(avatarUrl)
-    ? avatarUrl
-    : avatarUrl.startsWith("/") && !avatarUrl.startsWith("//") ? `${origin}${avatarUrl}` : "";
+    ? sanitizeHost(avatarUrl)
+    : avatarUrl.startsWith("/") && !avatarUrl.startsWith("//") ? `${cleanOrigin}${avatarUrl}` : "";
 
   const name = structuredName(card.displayName);
   const lines: (string | null)[] = [
@@ -188,7 +192,7 @@ export function buildVCard(card: VCardFields, pageUrl: string, origin: string): 
     card.email ? `EMAIL;TYPE=INTERNET:${card.email}` : null,
     card.phone ? `TEL;TYPE=CELL:${card.phone}` : null,
     card.location ? `ADR;TYPE=WORK:;;;${esc(card.location)};;;` : null,
-    `URL:${pageUrl}`,
+    `URL:${cleanPageUrl}`,
   ];
 
   const channels = parseChannelsSafe(card.channels);
@@ -198,8 +202,9 @@ export function buildVCard(card: VCardFields, pageUrl: string, origin: string): 
   let itemIndex = 1;
 
   for (const ch of channels) {
-    const href = channelHref(ch);
-    if (!href || href === "#") continue;
+    const rawHref = channelHref(ch);
+    if (!rawHref || rawHref === "#") continue;
+    const href = sanitizeHost(rawHref);
     const label = channelLabel(ch);
     const provider = (ch.provider || "").toLowerCase();
     const socialType = SOCIAL_PROFILE_TYPES[provider] || provider;
@@ -221,8 +226,9 @@ export function buildVCard(card: VCardFields, pageUrl: string, origin: string): 
   }
 
   for (const link of links) {
-    const href = toHref(link);
-    if (!href || href === "#") continue;
+    const rawHref = toHref(link);
+    if (!rawHref || rawHref === "#") continue;
+    const href = sanitizeHost(rawHref);
 
     let label = "Website";
     try {
@@ -252,7 +258,7 @@ export function buildVCard(card: VCardFields, pageUrl: string, origin: string): 
   }
 
   if (noteParts.length > 0) {
-    lines.push(`NOTE:${esc(noteParts.join("\n\n"))}`);
+    lines.push(`NOTE:${esc(sanitizeHost(noteParts.join("\n\n")))}`);
   }
 
   if (photoUrl) {

@@ -167,4 +167,12 @@ Public card profile photo in `client/src/components/cardLanding.css`. Desktop `.
 - **Fix**: Added `structuredName(displayName)` parser and explicit `N:<Family>;<Given>;<Middle>;;` to both `shared/vcard.ts` and `client/src/lib/cardKit.ts`. Handles "First Last", "Last, First", single names, and multi-word names.
 - **Verification**: Added 5 unit tests in `card.test.ts` and route check in `vcfRoute.test.ts`. All 235 tests pass. Commit `6e4986d` deployed to production; verified live on `https://heyitsme.fyi/c/demo.vcf`.
 
-
+## 2026-09-26: Purge Legacy Vercel Domain from vCard & Server Origins
+- **Problem**: vCard exports contained `https://heyitsme-ecru.vercel.app/c/<slug>` instead of canonical `https://heyitsme.fyi/c/<slug>`.
+- **Root Cause**: `ENV.siteUrl` and runtime `host` headers during serverless invocations on Vercel resolved to `heyitsme-ecru.vercel.app`.
+- **Fix**:
+  - `server/_core/env.ts`: Filtered `heyitsme-ecru.vercel.app` and production `.vercel.app` strings from `ENV.siteUrl`, enforcing `https://heyitsme.fyi`.
+  - `server/_core/seo.ts`: Updated `siteOrigin(req)` to resolve legacy host headers directly to `https://heyitsme.fyi`.
+  - `shared/vcard.ts`: Added multi-point `sanitizeHost` replacing legacy hosts across `cleanPageUrl`, `cleanOrigin`, `photoUrl`, `channels`, `links`, and `NOTE`.
+  - `client/src/lib/cardKit.ts`: Added `sanitizeHost` to `buildContactVCard` for website and notes.
+- **Verification**: Added test in `vcfRoute.test.ts`. All 236 tests pass.
