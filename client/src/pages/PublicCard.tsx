@@ -5,7 +5,7 @@ import { usePageMeta } from "@/hooks/usePageMeta";
 import { buildVCard, readPreviewCard, toDraft, type CardDraft } from "@/lib/card";
 import { copyToClipboard, downloadBlob, safeFileName } from "@/lib/cardKit";
 import { trpc } from "@/lib/trpc";
-import { parsePageConfig, switchTemplate, TEMPLATE_IDS, type TemplateId } from "@shared/pageConfig";
+import { FRAME_IDS, parsePageConfig, switchTemplate, TEMPLATE_IDS, type FrameId, type TemplateId } from "@shared/pageConfig";
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, Send, Sparkles, X } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -91,7 +91,10 @@ export default function PublicCardPage() {
   // The demo can show any template (/c/demo?template=business) so people can compare them before signing up.
   const demoTemplate = isDemo ? new URLSearchParams(window.location.search).get("template") : null;
   const baseConfig = parsePageConfig(card.page);
-  const config = demoTemplate && (TEMPLATE_IDS as readonly string[]).includes(demoTemplate) ? switchTemplate(baseConfig, demoTemplate as TemplateId) : baseConfig;
+  const demoTheme = isDemo ? ["midnight", "tide", "sunset"].find((id) => id === new URLSearchParams(window.location.search).get("theme")) : undefined;
+  const demoFrame = isDemo ? new URLSearchParams(window.location.search).get("frame") : null;
+  const templated = demoTemplate && (TEMPLATE_IDS as readonly string[]).includes(demoTemplate) ? switchTemplate(baseConfig, demoTemplate as TemplateId) : baseConfig;
+  const config = demoFrame && (FRAME_IDS as readonly string[]).includes(demoFrame) ? { ...templated, frame: demoFrame as FrameId } : templated;
   // Guest previews live in this browser only (their id is a timestamp), so nothing about them reaches the server.
   const canExchange = Boolean(rawCard);
 
@@ -176,7 +179,7 @@ export default function PublicCardPage() {
         </aside>
       ) : null}
       <CardLanding
-        card={card}
+        card={demoTheme ? { ...card, theme: demoTheme } : card}
         config={config}
         references={references}
         interactive

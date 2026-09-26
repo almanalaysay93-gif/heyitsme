@@ -131,3 +131,9 @@ Verification: `pnpm check` clean, `pnpm test` 208 passed / 3 skipped (25 files),
 - Demo shows each template: `/c/demo?template=professional|business|services`.
 - Gates (anti-slop, bug hunt, perf/a11y) run by review subagents; all blocker/P1/major findings fixed. Dead `.pl-*` CSS pruned (-16 KB).
 - Follow-up: throttled mobile LCP ~5.5s locally (SPA + data fetch); inline card JSON into SSR HTML next.
+
+## 2026-09-26: Glass redesign of card pages + photo frames (buildme 5-agent run)
+- User: page "looks flat", wants Apple-grade glass + animation; arch photo frame "looks like a tombstone".
+- Shipped: aurora backdrop + frosted panels (`cardLanding.css`, from Agent 2 spec adjusted by Agents 1/3/4), motion primitives `client/src/components/cardMotion.tsx` (Agent 5), owner "Photo shape" picker (circle / rounded square / portrait / organic) stored as `page.frame` (default per template).
+- Demo overrides: `/c/demo?template=…&theme=midnight|tide|sunset&frame=circle|squircle|portrait|blob`.
+- Verified: contrast on sampled pixels 7.6–8.4:1 (muted text), CTA white on accent, 0 running animations under reduced motion, no page errors.

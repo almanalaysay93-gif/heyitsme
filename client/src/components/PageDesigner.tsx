@@ -1,12 +1,16 @@
 import { hasPendingEdits, isUnusableLink, moveSection, toEmittable, toggleSection } from "@/lib/pageDesigner";
 import {
+  FRAME_IDS,
+  FRAMES,
   PAGE_LIMITS,
+  resolveFrame,
   SECTION_LABELS,
   TEMPLATE_IDS,
   TEMPLATES,
   parsePageConfig,
   resolveSections,
   switchTemplate,
+  type FrameId,
   type PageConfig,
   type TemplateId,
 } from "@shared/pageConfig";
@@ -21,9 +25,12 @@ type Props = {
   themeAccent: string;
   /** True while typed rows or links can't be saved yet, so the builder keeps its unsaved-changes guard on. */
   onPendingChange?: (pending: boolean) => void;
+  /** The owner's photo and initials, so each shape option previews their own picture. */
+  avatarUrl?: string;
+  initials?: string;
 };
 
-export function PageDesigner({ value, onChange, themeAccent, onPendingChange }: Props) {
+export function PageDesigner({ value, onChange, themeAccent, onPendingChange, avatarUrl, initials = "" }: Props) {
   // Working copy keeps half-typed rows (a service with no name yet); only the valid subset is emitted.
   const [config, setConfig] = useState<PageConfig>(() => parsePageConfig(value));
   const lastEmitted = useRef<string | undefined>(value);
@@ -81,6 +88,14 @@ export function PageDesigner({ value, onChange, themeAccent, onPendingChange }: 
           <TextField label="Headline" value={config.headline} maxLength={80} placeholder="Color, cuts and care in Makati" onChange={(headline) => commit({ ...config, headline })} />
         </div>
       ) : null}
+
+      <div className="pd-block">
+        <div className="pd-block-head">
+          <h3>Photo shape</h3>
+          <p>How your profile photo is framed on your page.</p>
+        </div>
+        <FramePicker value={resolveFrame(config)} avatarUrl={avatarUrl} initials={initials} onSelect={(frame) => commit({ ...config, frame })} />
+      </div>
 
       <div className="pd-block">
         <div className="pd-block-head">
@@ -251,6 +266,45 @@ function TemplatePicker({ value, onSelect }: { value: TemplateId; onSelect: (id:
             </span>
             <strong>{TEMPLATES[id].label}</strong>
             <span className="pd-template-blurb">{TEMPLATES[id].blurb}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Radio group of photo shapes, each previewing the owner's own photo (or initials) in that frame. */
+function FramePicker({ value, onSelect, avatarUrl, initials }: { value: FrameId; onSelect: (id: FrameId) => void; avatarUrl?: string; initials: string }) {
+  const refs = useRef<Array<HTMLButtonElement | null>>([]);
+  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
+    if (!step) return;
+    event.preventDefault();
+    const next = (index + step + FRAME_IDS.length) % FRAME_IDS.length;
+    onSelect(FRAME_IDS[next]);
+    refs.current[next]?.focus();
+  };
+  return (
+    <div className="pd-frames" role="radiogroup" aria-label="Photo shape">
+      {FRAME_IDS.map((id, index) => {
+        const selected = id === value;
+        return (
+          <button
+            key={id}
+            ref={(node) => { refs.current[index] = node; }}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            tabIndex={selected ? 0 : -1}
+            className={`pd-frame${selected ? " is-selected" : ""}`}
+            onClick={() => onSelect(id)}
+            onKeyDown={(event) => onKeyDown(event, index)}
+          >
+            <span className={`pd-frame-thumb pd-frame-${id}`} aria-hidden="true">
+              {avatarUrl ? <img src={avatarUrl} alt="" /> : <span>{initials || "Aa"}</span>}
+            </span>
+            <strong>{FRAMES[id].label}</strong>
+            <span className="pd-template-blurb">{FRAMES[id].blurb}</span>
           </button>
         );
       })}

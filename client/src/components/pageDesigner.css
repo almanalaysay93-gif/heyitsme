@@ -92,3 +92,25 @@
   .pd-template, .pd-section-row, .pd-input { transition: none; }
   .pd-template:active { transform: none; }
 }
+
+/* Photo shape picker */
+.pd-frames { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.pd-frame { display: grid; justify-items: center; align-content: start; gap: 6px; padding: 12px 8px; color: #5e6275; text-align: center; background: rgba(255,255,255,.46); border: 1px solid rgba(24,30,60,.07); border-radius: 12px; cursor: pointer; transition: border-color .18s var(--ease-out), background .18s var(--ease-out), transform .16s var(--ease-out); }
+.pd-frame:hover { background: rgba(255,255,255,.75); }
+.pd-frame:active { transform: scale(.97); }
+.pd-frame.is-selected { color: var(--ink); background: rgba(255,255,255,.9); border-color: rgba(107,92,255,.45); box-shadow: 0 6px 17px rgba(48,44,115,.08); }
+.pd-frame strong { font-size: 12px; font-weight: 700; color: var(--ink); }
+.pd-frame:focus-visible { outline: 2px solid var(--purple); outline-offset: 2px; }
+.pd-frame-thumb { display: grid; place-items: center; width: 56px; height: 56px; overflow: hidden; color: var(--purple-deep, #4b3fd6); background: rgba(107,92,255,.12); font-size: 15px; font-weight: 700; }
+.pd-frame-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.pd-frame-circle { border-radius: 50%; }
+.pd-frame-squircle { border-radius: 30%; }
+.pd-frame-portrait { width: 46px; height: 58px; border-radius: 10px; }
+.pd-frame-blob { border-radius: 58% 42% 55% 45% / 45% 55% 45% 55%; }
+@media (max-width: 560px) {
+  .pd-frames { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pd-frame { transition: none; }
+  .pd-frame:active { transform: none; }
+}

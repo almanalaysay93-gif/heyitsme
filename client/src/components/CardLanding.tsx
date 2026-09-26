@@ -19,8 +19,9 @@ import {
   type ReferenceRow,
 } from "@/lib/card";
 import { copyToClipboard, getInitials } from "@/lib/cardKit";
-import { contrastRatio, mapLink, parsePageConfig, readableOn, resolveSections, type PageConfig, type SectionId } from "@shared/pageConfig";
-import { motion, useReducedMotion } from "framer-motion";
+import { contrastRatio, mapLink, parsePageConfig, readableOn, resolveFrame, resolveSections, type PageConfig, type SectionId } from "@shared/pageConfig";
+import { CountUp, GlassPanel, useHeroEntrance, useHeroParallax, useMotionOn, usePressProps } from "./cardMotion";
+import { motion } from "framer-motion";
 import {
   ArrowUpRight,
   Copy,
@@ -39,17 +40,17 @@ import {
   UserRoundPlus,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import "./cardLanding.css";
 
 // Paper, ink and a default accent per palette. Accents here pass 4.5:1 on their paper.
 const PALETTES: Record<string, { paper: string; accent: string }> = {
-  midnight: { paper: "#f4f4f7", accent: "#5446e6" },
+  midnight: { paper: "#0b0c18", accent: "#5446e6" },
   tide: { paper: "#eef5f3", accent: "#0e7469" },
   sunset: { paper: "#f9f1ee", accent: "#a8432f" },
 };
-const INK: Record<string, string> = { midnight: "#15162b", tide: "#0b2a2d", sunset: "#2b1b22" };
+const INK: Record<string, string> = { midnight: "#f2f1fb", tide: "#0b2a2d", sunset: "#2b1b22" };
 
 /** The accent a palette uses when the owner has not picked one. */
 export function themeAccent(theme: string): string {
@@ -112,8 +113,12 @@ function WebsiteShot({ request, title }: { request: string; title: string }) {
 
 export function CardLanding(props: CardLandingProps) {
   const { card, config, references, interactive, canExchange, pageUrl, onSaveContact, onExchange, onShare, onCopyLink, track } = props;
-  const reduceMotion = useReducedMotion();
-  const animate = interactive && !reduceMotion;
+  const motionOn = useMotionOn(interactive);
+  const enter = useHeroEntrance(interactive) as (step: "eyebrow" | "name" | "lead" | "actions" | "photo") => any;
+  const press = usePressProps(interactive) as any;
+  const rootRef = useRef<HTMLDivElement>(null);
+  const heroRef = useRef<HTMLElement>(null);
+  const parallax = useHeroParallax(heroRef, interactive);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const links = parseLinks(card.links);
@@ -139,8 +144,18 @@ export function CardLanding(props: CardLandingProps) {
   const firstName = card.displayName.split(" ")[0] || card.displayName;
   const cta = config.cta?.label && config.cta.url ? config.cta : null;
 
-  const rise = (delay: number) =>
-    animate ? { initial: { opacity: 0, y: 18 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.7, delay, ease: [0.22, 1, 0.36, 1] as const } } : {};
+  const frame = resolveFrame(config);
+
+  // The aurora drifts only while the tab is visible; nothing moves in the builder preview or for reduced motion.
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    if (!motionOn) { root.style.setProperty("--aurora-play", "paused"); return; }
+    const sync = () => root.style.setProperty("--aurora-play", document.hidden ? "paused" : "running");
+    sync();
+    document.addEventListener("visibilitychange", sync);
+    return () => document.removeEventListener("visibilitychange", sync);
+  }, [motionOn]);
 
   const contactRows = [
     card.email ? { key: "email", icon: Mail, label: "Email", value: card.email, href: `mailto:${encodeURIComponent(card.email)}`, copy: card.email, target: "Email" } : null,
@@ -176,17 +191,17 @@ export function CardLanding(props: CardLandingProps) {
   const actions = (
     <div className="lx-actions">
       {cta ? (
-        <a className="lx-btn lx-btn-primary" href={cta.url} {...external(cta.url)} onClick={() => track("link", `CTA: ${cta.label}`)}>
+        <motion.a className="lx-btn lx-btn-primary" href={cta.url} {...external(cta.url)} onClick={() => track("link", `CTA: ${cta.label}`)} {...press}>
           {cta.label} <ArrowUpRight size={16} aria-hidden="true" />
-        </a>
+        </motion.a>
       ) : null}
-      <button type="button" className={`lx-btn ${cta ? "lx-btn-ghost" : "lx-btn-primary"}`} onClick={onSaveContact}>
+      <motion.button type="button" className={`lx-btn ${cta ? "lx-btn-ghost" : "lx-btn-primary"}`} onClick={onSaveContact} {...press}>
         <Download size={16} aria-hidden="true" /> Save contact
-      </button>
+      </motion.button>
       {canExchange ? (
-        <button type="button" className="lx-btn lx-btn-ghost" onClick={onExchange}>
+        <motion.button type="button" className="lx-btn lx-btn-ghost" onClick={onExchange} {...press}>
           <UserRoundPlus size={16} aria-hidden="true" /> Exchange details
-        </button>
+        </motion.button>
       ) : null}
     </div>
   );
@@ -201,10 +216,18 @@ export function CardLanding(props: CardLandingProps) {
     </div>
   ) : null;
 
-  const portrait = (className: string) => (
-    <motion.figure className={className} {...rise(0.15)}>
-      {card.avatarUrl ? <img src={card.avatarUrl} alt={card.displayName} /> : <span aria-hidden="true">{getInitials(card.displayName)}</span>}
-    </motion.figure>
+  // Parallax and entrance sit on separate elements so their transforms never fight.
+  const portrait = () => (
+    <motion.div className="lx-photo-wrap" style={parallax}>
+      <motion.figure className={`lx-photo lx-frame-${frame}`} {...enter("photo")}>
+        {card.avatarUrl ? <img src={card.avatarUrl} alt={card.displayName} /> : <span aria-hidden="true">{getInitials(card.displayName)}</span>}
+      </motion.figure>
+    </motion.div>
+  );
+
+  // Name and eyebrow float on the aurora; the bio and actions sit on one glass panel.
+  const heroPanel = (children: ReactNode) => (
+    <motion.div className="lx-glass lx-hero-panel" {...enter("lead")}>{children}</motion.div>
   );
 
   const cover = card.coverUrl ? (
@@ -216,23 +239,27 @@ export function CardLanding(props: CardLandingProps) {
     const brand = card.company || card.displayName;
     hero = (
       <>
-        <section className="lx-hero lx-hero-business">
-          <motion.p className="lx-eyebrow" {...rise(0)}>
+        <section className="lx-hero lx-hero-business" ref={heroRef}>
+          <motion.p className="lx-eyebrow" {...enter("eyebrow")}>
             {card.avatarUrl ? <img className="lx-logo" src={card.avatarUrl} alt="" /> : null}
             {card.location || card.title}
           </motion.p>
-          <h1 className="lx-masthead">{brand}</h1>
-          {card.bio ? <p className="lx-lead">{card.bio}</p> : null}
-          <motion.div {...rise(0.15)}>{actions}</motion.div>
-          {card.company ? (
-            <motion.p className="lx-byline" {...rise(0.2)}>
-              Ask for <strong>{card.displayName}</strong>{card.title ? `, ${card.title}` : ""}
-            </motion.p>
-          ) : null}
-          {socials}
+          <motion.h1 className="lx-masthead" {...enter("name")}>{brand}</motion.h1>
+          {heroPanel(
+            <>
+              {card.bio ? <p className="lx-lead">{card.bio}</p> : null}
+              {actions}
+              {card.company ? (
+                <p className="lx-byline">
+                  Ask for <strong>{card.displayName}</strong>{card.title ? `, ${card.title}` : ""}
+                </p>
+              ) : null}
+              {socials}
+            </>,
+          )}
         </section>
         {cover ? (
-          <motion.div className="lx-band" {...rise(0.2)}>
+          <motion.div className="lx-band" {...enter("photo")}>
             {cover}
             {/* A teaser of the Visit section, hidden with it so a hidden address never shows here. */}
             {visitShown ? (
@@ -251,39 +278,45 @@ export function CardLanding(props: CardLandingProps) {
     );
   } else if (template === "services") {
     hero = (
-      <section className="lx-hero lx-hero-services">
+      <section className="lx-hero lx-hero-services" ref={heroRef}>
         <div className="lx-hero-copy">
-          <motion.p className="lx-eyebrow" {...rise(0)}>
+          <motion.p className="lx-eyebrow" {...enter("eyebrow")}>
             {card.displayName}{config.headline && card.title ? ` · ${card.title}` : card.company ? ` · ${card.company}` : ""}
           </motion.p>
-          <h1 className="lx-masthead">{config.headline || card.title || card.displayName}</h1>
-          {card.bio ? <p className="lx-lead">{card.bio}</p> : null}
-          {card.location ? <motion.p className="lx-place" {...rise(0.12)}><MapPin size={14} aria-hidden="true" /> {card.location}</motion.p> : null}
-          <motion.div {...rise(0.15)}>{actions}</motion.div>
-          {socials}
+          <motion.h1 className="lx-masthead" {...enter("name")}>{config.headline || card.title || card.displayName}</motion.h1>
+          {heroPanel(
+            <>
+              {card.bio ? <p className="lx-lead">{card.bio}</p> : null}
+              {card.location ? <p className="lx-place"><MapPin size={14} aria-hidden="true" /> {card.location}</p> : null}
+              {actions}
+              {socials}
+            </>,
+          )}
         </div>
-        {card.coverUrl && !isVideoUrl(card.coverUrl) ? (
-          <motion.figure className="lx-services-image" {...rise(0.15)}><img src={card.coverUrl} alt="" /></motion.figure>
-        ) : portrait("lx-round-portrait")}
+        {portrait()}
       </section>
     );
   } else {
     hero = (
       <>
-        <section className="lx-hero lx-hero-professional">
+        <section className="lx-hero lx-hero-professional" ref={heroRef}>
           <div className="lx-hero-copy">
-            <motion.p className="lx-eyebrow" {...rise(0)}>
+            <motion.p className="lx-eyebrow" {...enter("eyebrow")}>
               {card.title}{card.company ? <> <span>at</span> {card.company}</> : null}
             </motion.p>
-            <h1 className="lx-masthead">{card.displayName}</h1>
-            {card.bio ? <p className="lx-lead">{card.bio}</p> : null}
-            {card.location ? <motion.p className="lx-place" {...rise(0.12)}><MapPin size={14} aria-hidden="true" /> {card.location}</motion.p> : null}
-            <motion.div {...rise(0.15)}>{actions}</motion.div>
-            {socials}
+            <motion.h1 className="lx-masthead" {...enter("name")}>{card.displayName}</motion.h1>
+            {heroPanel(
+              <>
+                {card.bio ? <p className="lx-lead">{card.bio}</p> : null}
+                {card.location ? <p className="lx-place"><MapPin size={14} aria-hidden="true" /> {card.location}</p> : null}
+                {actions}
+                {socials}
+              </>,
+            )}
           </div>
-          {portrait("lx-arch")}
+          {portrait()}
         </section>
-        {cover ? <motion.div className="lx-band" {...rise(0.2)}>{cover}</motion.div> : null}
+        {cover ? <motion.div className="lx-band" {...enter("photo")}>{cover}</motion.div> : null}
       </>
     );
   }
@@ -296,7 +329,7 @@ export function CardLanding(props: CardLandingProps) {
             {config.stats.map((stat, index) => (
               <div key={index}>
                 <dt>{stat.label}</dt>
-                <dd>{stat.value}</dd>
+                <dd><CountUp value={stat.value} enabled={interactive} /></dd>
               </div>
             ))}
           </dl>
@@ -444,8 +477,12 @@ export function CardLanding(props: CardLandingProps) {
   };
 
   return (
-    <div className={`lx lx-${template} lx-theme-${PALETTES[card.theme] ? card.theme : "midnight"}`} style={style} inert={!interactive || undefined}>
+    <div className={`lx lx-${template} lx-theme-${PALETTES[card.theme] ? card.theme : "midnight"}`} style={style} ref={rootRef} inert={!interactive || undefined}>
       {card.backgroundUrl ? <div className="lx-bg" aria-hidden="true"><img src={card.backgroundUrl} alt="" decoding="async" /></div> : null}
+      <div className="lx-aurora" aria-hidden="true">
+        {card.coverUrl && !isVideoUrl(card.coverUrl) ? <div className="lx-aurora-photo"><img src={card.coverUrl} alt="" decoding="async" /></div> : null}
+        <i /><i /><i /><i />
+      </div>
 
       {interactive ? (
         <header className="lx-nav">
@@ -457,23 +494,23 @@ export function CardLanding(props: CardLandingProps) {
       <MainTag className="lx-main" {...(interactive ? { id: "main", tabIndex: -1 } : {})}>
         {hero}
         {sections.map((section) => (
-          <motion.section key={section.id} className={`lx-section lx-section-${section.id}`}>
+          <GlassPanel enabled={interactive} light={section.id !== "stats" && section.id !== "references"} key={section.id} className={`lx-section lx-section-${section.id}`}>
             {renderSection(section.id)}
-          </motion.section>
+          </GlassPanel>
         ))}
 
         {interactive && canExchange ? (
-          <motion.section className="lx-section lx-take">
+          <GlassPanel enabled={interactive} className="lx-section lx-take">
             <div>
-              <span className="lx-kicker">Take my card</span>
               <p>Scan to open this page on another phone, or save {firstName} straight to your contacts.</p>
               <div className="lx-take-actions">
                 <button type="button" className="lx-btn lx-btn-primary" onClick={onSaveContact}><Download size={16} aria-hidden="true" /> Save contact</button>
                 <button type="button" className="lx-btn lx-btn-ghost" onClick={onCopyLink}><Copy size={16} aria-hidden="true" /> Copy link</button>
               </div>
             </div>
-            <QRCodeSVG value={pageUrl} size={132} bgColor="transparent" fgColor={ink} aria-label="QR code for this page" role="img" />
-          </motion.section>
+            {/* Dark on the white tile in every theme so any camera reads it. */}
+            <QRCodeSVG value={pageUrl} size={132} bgColor="transparent" fgColor="#10152a" aria-label="QR code for this page" role="img" />
+          </GlassPanel>
         ) : null}
       </MainTag>
 

@@ -29,3 +29,11 @@ Clips are always muted, looped, inline, lazy-loaded, and paused off-screen. They
 ## Brand assets
 
 `client/public/favicon.svg` is the brand mark (the rotated gradient tile from `.brand-mark`). `favicon.ico`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, and the 1200×630 `og.png` are rendered from it with headless Chrome. Regenerate them together if the mark changes.
+
+## Public card pages (/c/:slug) — glass system (2026-09-26)
+- Supersedes the editorial serif direction for card pages. Source of truth: `client/src/components/cardLanding.css` (tokens at top) and `cardMotion.tsx`.
+- Adaptive aurora backdrop (3–4 palette blobs, transform-only drift, cover photo blurred in as album-art light). Midnight = dark glass; Tide/Sunset = light glass.
+- Glass = things you act on (hero panel, services, visit, contact, take-my-card, nav, dock). Stats and quotes float on the aurora. No glass inside glass, no gradient text.
+- Display: DM Sans 800, ≤104px, tracking ≥ -0.04em. Instrument Serif italic only in quotes.
+- Photo frames (owner choice): circle, rounded square (superellipse), portrait 4:5 glass card, organic blob (morph stops after 3 cycles). Default per template: portrait / squircle / circle.
+- Motion: spring presets in `cardMotion.tsx`; name + lead never start invisible (LCP); everything off for reduced motion; solid panels for reduced transparency / no backdrop-filter.

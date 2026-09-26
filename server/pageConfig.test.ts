@@ -74,3 +74,12 @@ describe("readableOn", () => {
     expect(readableOn("#11152b")).toBe("#ffffff");
   });
 });
+
+describe("frames", () => {
+  it("uses the template default until the owner picks one, and rejects unknown frames", async () => {
+    const { resolveFrame } = await import("@shared/pageConfig");
+    expect(resolveFrame(defaultPageConfig("professional"))).toBe("portrait");
+    expect(resolveFrame({ ...defaultPageConfig("services"), frame: "blob" })).toBe("blob");
+    expect(pageConfigField.safeParse(JSON.stringify({ frame: "tombstone" })).success).toBe(false);
+  });
+});

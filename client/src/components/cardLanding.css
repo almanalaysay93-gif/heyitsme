@@ -1,263 +1,681 @@
 /*
- * Public landing pages (/c/:slug): editorial templates.
- * Layout responds to the page's own width via container queries, so the builder preview shows the real phone layout.
- * Tokens: --paper / --ink / --muted per palette; --accent, --on-accent, --accent-text set inline from the owner's choice.
+ * Public landing pages (/c/:slug): glass system.
+ * One aurora backdrop drifts behind frosted panels. Layout responds to the page's own width via container
+ * queries (.lx-main, .lx-preview), so the builder preview shows the real phone layout.
+ *
+ * Themes:  .lx-theme-midnight = dark glass · .lx-theme-tide, .lx-theme-sunset = light glass.
+ * Owner accent arrives inline: --accent, --on-accent (readable on accent), --accent-text (accent or ink, >=4.5:1 on paper).
+ * Accent-coloured TEXT uses --accent-ink, derived here, so the dark theme never shows a dark accent on dark glass.
+ *
+ * JS hooks (Agent 5):
+ *   --mx / --my        pointer position inside a glass surface, as % of that surface ("0%".."100%"). Drives the sheen.
+ *   --aurora-speed     multiplier on blob drift durations (1 = default, 2 = half speed).
+ *   --aurora-play      running | paused (pause when the tab is hidden or the page scrolls past the hero).
+ *   --mh-wght          masthead weight (100..1000), for a weight-settle entrance.
+ *   --ease-spring, --ease-out, --dur-fast, --dur-slow  shared motion tokens.
+ *
+ * Contrast (WCAG 2 relative luminance, worst case = text directly on the strongest blob, no panel):
+ *   tide    ink #0b2a2d  ~10.5:1 · muted #3d5658 ~5.4:1   (blob #28c2b3 @38% over #eef5f3, L~0.67)
+ *   sunset  ink #2b1b22  ~11:1   · muted #5e4750 ~5.6:1   (blob #f4816b @38% over #f9f1ee, L~0.66)
+ *   midnight ink #f2f1fb ~14:1   · muted #bcbdd6 ~5.1:1 on raw blob (#5446e6 @60% over #0b0c18, L~0.06),
+ *            ~7.6:1 on dark glass (the panel fill darkens the blob).
+ *   On light glass panels (58% white fill) text only gets lighter ground: ink >11:1, muted >5.5:1.
+ *   Cover-photo backdrop: photo at 70% opacity under a 78% base veil keeps worst case (black or white photo)
+ *   at ~84% base, so muted text stays >=4.9:1 light / >=5.8:1 dark.
+ *   Visit "shopfront" strip (inverted glass): on-smoke >10:1, smoke-muted >=5.9:1 in all three themes.
+ *
+ * Perf budget: at most ~5 backdrop-filter surfaces in the viewport at once
+ *   (nav + dock + 2-3 section panels, or ticket / portrait frame in the hero). Blur <= 24px (18px on phones).
+ *   Inner rows, buttons and chips NEVER use backdrop-filter; they are translucent fills on a panel.
+ *   Aurora blobs are radial gradients (no filter: blur), animated on transform only, promoted with will-change.
+ *   The cover-photo layer is blurred once and never animated.
  */
 
+/* ============ Tokens ============ */
 .lx {
-  --paper: #f4f4f7;
-  --ink: #15162b;
-  --muted: #55576e;
-  --line: color-mix(in srgb, var(--ink) 12%, transparent);
-  --line-strong: color-mix(in srgb, var(--ink) 30%, transparent);
-  --tint: color-mix(in srgb, var(--accent) 9%, var(--paper));
-  /* Empty image slots stay neutral; the accent is kept for type and buttons. */
-  --placeholder: color-mix(in srgb, var(--ink) 6%, var(--paper));
-  --gutter: clamp(20px, 6cqi, 72px);
+  /* Light glass defaults (tide values; sunset and midnight override). */
+  --base: #eef5f3;
+  --ink: #0b2a2d;
+  --muted: #3d5658;
+  --line: color-mix(in srgb, var(--ink) 11%, transparent);
+  --line-strong: color-mix(in srgb, var(--ink) 26%, transparent);
+  --accent-ink: var(--accent-text);
+  --focus: var(--accent-ink);
+
+  --blob-1: color-mix(in srgb, #28c2b3 38%, transparent);
+  --blob-2: color-mix(in srgb, #b9fff5 90%, transparent);
+  --blob-3: color-mix(in srgb, #7fe0d4 34%, transparent);
+  --blob-4: color-mix(in srgb, var(--accent) 16%, transparent);
+  --veil: color-mix(in srgb, var(--base) 78%, transparent);
+  --grain-opacity: .07;
+
+  --glass-fill: color-mix(in srgb, #fff 58%, transparent);
+  --glass-fill-strong: color-mix(in srgb, #fff 74%, transparent);
+  --glass-solid: color-mix(in srgb, #fff 70%, var(--base));
+  --glass-border: color-mix(in srgb, #fff 78%, transparent);
+  --glass-edge: color-mix(in srgb, var(--ink) 7%, transparent);
+  --glass-highlight: inset 0 1px 0 color-mix(in srgb, #fff 90%, transparent);
+  --glass-shadow:
+    0 1px 2px color-mix(in srgb, var(--ink) 6%, transparent),
+    0 12px 32px -8px color-mix(in srgb, var(--ink) 14%, transparent),
+    0 40px 80px -30px color-mix(in srgb, var(--ink) 16%, transparent);
+  --glass-blur: 18px;
+  --glass-sat: 180%;
+  --sheen: color-mix(in srgb, #fff 55%, transparent);
+  --pill-fill: color-mix(in srgb, #fff 46%, transparent);
+  --pill-hover: color-mix(in srgb, #fff 72%, transparent);
+  --tint: color-mix(in srgb, var(--accent) 10%, transparent);
+  --placeholder: color-mix(in srgb, var(--ink) 6%, transparent);
+
+  --smoke: color-mix(in srgb, var(--ink) 88%, transparent);
+  --on-smoke: var(--base);
+  --smoke-muted: #a9c3c1;
+  --smoke-solid: #0b2a2d;
+
+  --radius-panel: clamp(24px, 3.6cqi, 36px);
+  --radius-media: clamp(18px, 2.4cqi, 26px);
+  --gutter: clamp(16px, 5cqi, 64px);
+
   --serif: "Instrument Serif", Georgia, "Times New Roman", serif;
   --sans: "DM Sans Variable", "DM Sans", ui-sans-serif, system-ui, sans-serif;
+
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
+  --ease-spring: cubic-bezier(.2, .9, .25, 1.12);
+  --dur-fast: .22s;
+  --dur-slow: .6s;
+
   position: relative;
   isolation: isolate;
   overflow-x: clip;
   min-height: 100vh;
   color: var(--ink);
-  background: var(--paper);
+  background: var(--base);
   font-family: var(--sans);
+  font-optical-sizing: auto;
   font-size: 16px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  color-scheme: light;
 }
-.lx-theme-tide { --paper: #eef5f3; --ink: #0b2a2d; --muted: #4a6466; }
-.lx-theme-sunset { --paper: #f9f1ee; --ink: #2b1b22; --muted: #6a5359; }
+@supports (transition-timing-function: linear(0, 1)) {
+  .lx {
+    /* Critically-damped-ish spring with a small overshoot. */
+    --ease-spring: linear(0, .009, .035 2.1%, .141, .281 6.7%, .723 12.9%, .938 16.7%, 1.017, 1.077, 1.121 26.3%, 1.13 29.5%, 1.12 32.6%, 1.043 42.2%, 1.011 48.5%, .994 55.5%, .998 74.3%, 1);
+  }
+}
 
+.lx-theme-sunset {
+  --base: #f9f1ee;
+  --ink: #2b1b22;
+  --muted: #5e4750;
+  --blob-1: color-mix(in srgb, #f4816b 38%, transparent);
+  --blob-2: color-mix(in srgb, #ffd5a7 85%, transparent);
+  --blob-3: color-mix(in srgb, #ffb3a1 40%, transparent);
+  --smoke-muted: #d1b9bf;
+  --smoke-solid: #2b1b22;
+}
+
+.lx-theme-midnight {
+  --base: #0b0c18;
+  --ink: #f2f1fb;
+  --muted: #bcbdd6;
+  --line: color-mix(in srgb, #fff 11%, transparent);
+  --line-strong: color-mix(in srgb, #fff 24%, transparent);
+  /* A dark owner accent lifted toward white: #5446e6 -> ~#b7b1f4, ~9:1 on #0b0c18. */
+  --accent-ink: color-mix(in oklab, var(--accent) 44%, #fff);
+
+  --blob-1: color-mix(in srgb, #5446e6 60%, transparent);
+  --blob-2: color-mix(in srgb, #6b5cff 48%, transparent);
+  --blob-3: color-mix(in srgb, #c2b7ff 20%, transparent);
+  --blob-4: color-mix(in srgb, var(--accent) 30%, transparent);
+  --veil: color-mix(in srgb, var(--base) 78%, transparent);
+  --grain-opacity: .09;
+
+  --glass-fill: color-mix(in srgb, #0b0c18 52%, transparent);
+  --glass-fill-strong: color-mix(in srgb, #0b0c18 70%, transparent);
+  --glass-solid: #161729;
+  --glass-border: color-mix(in srgb, #fff 14%, transparent);
+  --glass-edge: color-mix(in srgb, #000 40%, transparent);
+  --glass-highlight: inset 0 1px 0 color-mix(in srgb, #fff 16%, transparent);
+  --glass-shadow:
+    0 1px 2px rgb(0 0 0 / .3),
+    0 16px 40px -10px rgb(0 0 0 / .5),
+    0 50px 100px -40px color-mix(in srgb, #5446e6 40%, transparent);
+  --glass-sat: 160%;
+  --sheen: color-mix(in srgb, #fff 14%, transparent);
+  --pill-fill: color-mix(in srgb, #fff 8%, transparent);
+  --pill-hover: color-mix(in srgb, #fff 15%, transparent);
+  --tint: color-mix(in srgb, var(--accent) 22%, transparent);
+  --placeholder: color-mix(in srgb, #fff 6%, transparent);
+
+  /* Inverted glass for the shopfront strip: milk panel, dark type. */
+  --smoke: color-mix(in srgb, #f2f1fb 88%, transparent);
+  --on-smoke: #15162b;
+  --smoke-muted: #4d4f68;
+  --smoke-solid: #f2f1fb;
+  color-scheme: dark;
+}
+
+/* ============ Base ============ */
 .lx *, .lx *::before, .lx *::after { box-sizing: border-box; }
 .lx :where(a) { color: inherit; text-decoration: none; }
-.lx :focus-visible { outline: 2px solid var(--accent-text); outline-offset: 3px; border-radius: 6px; }
+.lx :focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+  border-radius: 10px;
+}
 .lx h1, .lx h2, .lx h3, .lx p, .lx dl, .lx dd, .lx figure, .lx blockquote, .lx ul { margin: 0; padding: 0; }
 .lx ul { list-style: none; }
-/* The app stylesheet colors headings globally; here they follow their section (e.g. the dark Business strip). */
 .lx h1, .lx h2, .lx h3 { color: inherit; }
+.lx ::selection { color: var(--on-accent); background: var(--accent); }
 
-/* An owner's page background tints the paper instead of fighting the type. */
-.lx-bg { position: fixed; inset: 0; z-index: -1; }
+/* ============ Aurora backdrop ============ */
+/* <div class="lx-aurora" aria-hidden="true">[<div class="lx-aurora-photo"><img></div>]<i></i><i></i><i></i><i></i></div> */
+.lx-aurora {
+  position: fixed; inset: 0; z-index: -2;
+  overflow: hidden; pointer-events: none;
+  contain: strict;
+  background: var(--base);
+}
+.lx-aurora i {
+  position: absolute;
+  width: 78%; height: 62%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--blob-1), transparent);
+  will-change: transform;
+  animation: lx-drift-a calc(34s * var(--aurora-speed, 1)) ease-in-out infinite alternate;
+  animation-play-state: var(--aurora-play, running);
+}
+.lx-aurora i:nth-of-type(1) { top: -18%; left: -22%; }
+.lx-aurora i:nth-of-type(2) {
+  top: 8%; right: -26%; width: 70%; height: 58%;
+  background: radial-gradient(closest-side, var(--blob-2), transparent);
+  animation-name: lx-drift-b; animation-duration: calc(41s * var(--aurora-speed, 1));
+}
+.lx-aurora i:nth-of-type(3) {
+  bottom: -20%; left: 4%; width: 84%; height: 56%;
+  background: radial-gradient(closest-side, var(--blob-3), transparent);
+  animation-name: lx-drift-c; animation-duration: calc(47s * var(--aurora-speed, 1));
+}
+.lx-aurora i:nth-of-type(4) {
+  top: 38%; left: 30%; width: 56%; height: 44%;
+  background: radial-gradient(closest-side, var(--blob-4), transparent);
+  animation-name: lx-drift-d; animation-duration: calc(53s * var(--aurora-speed, 1));
+}
+
+/* Grain: one static tiled layer over the blobs, under every panel. */
+.lx-aurora::after {
+  content: ""; position: absolute; inset: 0;
+  opacity: var(--grain-opacity);
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+
+/* Owner cover photo as album-art light: blurred once, veiled for text contrast (see header). */
+.lx-aurora-photo { position: absolute; inset: 0; }
+.lx-aurora-photo img {
+  position: absolute; inset: -12%;
+  width: 124%; height: 124%; object-fit: cover;
+  opacity: .7;
+  filter: blur(64px) saturate(1.6);
+  transform: translateZ(0);
+}
+.lx-aurora-photo::after { content: ""; position: absolute; inset: 0; background: var(--veil); }
+/* Blobs sit on top of the photo, quieter, so the photo's own colours lead. */
+.lx-aurora:has(.lx-aurora-photo) i { opacity: .55; }
+
+@keyframes lx-drift-a {
+  0%   { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); }
+  50%  { transform: translate3d(14%, 10%, 0) scale(1.14) rotate(18deg); }
+  100% { transform: translate3d(4%, 22%, 0) scale(.94) rotate(-8deg); }
+}
+@keyframes lx-drift-b {
+  0%   { transform: translate3d(0, 0, 0) scale(1.05) rotate(0deg); }
+  50%  { transform: translate3d(-18%, 14%, 0) scale(.92) rotate(-14deg); }
+  100% { transform: translate3d(-8%, -10%, 0) scale(1.12) rotate(10deg); }
+}
+@keyframes lx-drift-c {
+  0%   { transform: translate3d(0, 0, 0) scale(.96); }
+  50%  { transform: translate3d(12%, -16%, 0) scale(1.1); }
+  100% { transform: translate3d(-10%, -6%, 0) scale(1); }
+}
+@keyframes lx-drift-d {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(-22%, -12%, 0) scale(1.2); }
+  100% { transform: translate3d(16%, 8%, 0) scale(.9); }
+}
+
+/* An owner's page background: under the aurora, heavily veiled so glass still reads. */
+.lx-bg { position: fixed; inset: 0; z-index: -3; }
 .lx-bg img { width: 100%; height: 100%; object-fit: cover; }
-.lx-bg::after { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--paper) 90%, transparent); }
+.lx-bg::after { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--base) 84%, transparent); }
+.lx:has(.lx-bg) .lx-aurora { background: transparent; }
 
-/* ---------- Nav ---------- */
+/* ============ Glass recipe ============ */
+/* .lx-glass is the reusable panel; sections, the ticket, nav and dock share the same material. */
+:is(.lx-glass, .lx-section, .lx-ticket, .lx-nav, .lx-dock, .lx-frame-portrait) {
+  position: relative;
+  isolation: isolate;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-highlight), 0 0 0 .5px var(--glass-edge), var(--glass-shadow);
+}
+/* Specular sheen: follows --mx/--my; sits above the fill, below content. */
+:is(.lx-glass, .lx-section, .lx-ticket, .lx-nav, .lx-dock, .lx-frame-portrait)::before {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(90% 70% at var(--mx, 18%) var(--my, 0%), var(--sheen), transparent 60%),
+    linear-gradient(180deg, color-mix(in srgb, #fff 10%, transparent), transparent 38%);
+  opacity: .8;
+  transition: opacity var(--dur-slow) var(--ease-out);
+}
+:is(.lx-glass, .lx-section, .lx-ticket, .lx-frame-portrait):hover::before { opacity: 1; }
+.lx-glass { border-radius: var(--radius-panel); }
+.lx-glass-strong { background: var(--glass-fill-strong); }
+
+/* ============ Nav ============ */
 .lx-nav {
-  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
-  display: flex; align-items: center; justify-content: space-between;
-  max-width: 1200px; margin: 0 auto; padding: 16px var(--gutter);
-  background: var(--paper);
-  border-bottom: 1px solid var(--line);
+  position: sticky; top: calc(10px + env(safe-area-inset-top, 0px)); z-index: 20;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  width: calc(100% - 24px); max-width: 1176px;
+  margin: 10px auto 0; padding: 6px 6px 6px 18px;
+  border-radius: 999px;
 }
-.lx-brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; letter-spacing: -.04em; }
+.lx-brand { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-weight: 750; font-size: 15px; letter-spacing: -.04em; }
 .lx-nav-share {
-  display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 0 16px;
-  color: var(--ink); font: 600 13px/1 var(--sans);
-  background: transparent; border: 1px solid var(--line-strong); border-radius: 999px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 0 18px;
+  color: var(--ink); font: 650 13px/1 var(--sans);
+  background: var(--pill-fill); border: 1px solid var(--glass-border); border-radius: 999px; cursor: pointer;
+  box-shadow: var(--glass-highlight);
+  transition: background-color var(--dur-fast) ease, transform var(--dur-slow) var(--ease-spring);
 }
-.lx-nav-share:hover { background: var(--tint); }
+.lx-nav-share:hover { background: var(--pill-hover); }
+.lx-nav-share:active { transform: scale(.95); }
 
-.lx-main { container-type: inline-size; max-width: 1200px; margin: 0 auto; padding: 0 var(--gutter) 40px; }
+.lx-main { container-type: inline-size; max-width: 1200px; margin: 0 auto; padding: 0 var(--gutter) 48px; }
 
-/* ---------- Type ---------- */
+/* ============ Type ============ */
 .lx-eyebrow {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--muted); font-size: 13px; font-weight: 600; letter-spacing: .02em;
 }
 .lx-eyebrow span { color: var(--muted); font-weight: 400; }
+/* Display: DM Sans at heavy weight, tight tracking, optical size maxed. */
 .lx-masthead {
-  margin-top: 18px;
-  font: 400 clamp(56px, 13cqi, 148px)/.88 var(--serif);
-  letter-spacing: -.035em;
+  margin-top: 16px;
+  font-family: var(--sans);
+  font-size: clamp(48px, 11cqi, 104px);
+  font-weight: var(--mh-wght, 800);
+  font-variation-settings: "opsz" 40;
+  line-height: .92;
+  letter-spacing: -.04em;
   text-wrap: balance;
   overflow-wrap: anywhere;
 }
-.lx-lead { max-width: 34ch; margin-top: 34px; font: 400 clamp(21px, 2.6cqi, 27px)/1.35 var(--serif); color: color-mix(in srgb, var(--ink) 86%, var(--paper)); }
+.lx-lead {
+  max-width: 36ch; margin-top: 28px;
+  font: 450 clamp(18px, 2.3cqi, 23px)/1.45 var(--sans);
+  letter-spacing: -.012em;
+  color: color-mix(in srgb, var(--ink) 88%, var(--base));
+  text-wrap: pretty;
+}
 .lx-place { display: flex; align-items: center; gap: 6px; margin-top: 16px; color: var(--muted); font-size: 14px; }
 .lx-byline { margin-top: 22px; color: var(--muted); font-size: 14px; }
-.lx-byline strong { color: var(--ink); font-weight: 600; }
+.lx-byline strong { color: var(--ink); font-weight: 650; }
 
-/* ---------- Buttons ---------- */
-.lx-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 32px; }
+/* ============ Buttons (glass pills) ============ */
+.lx-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 30px; }
 .lx-btn {
+  position: relative;
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   min-height: 48px; padding: 0 22px;
-  font: 600 15px/1 var(--sans); letter-spacing: -.01em;
+  font: 650 15px/1 var(--sans); letter-spacing: -.012em;
   border: 1px solid transparent; border-radius: 999px; cursor: pointer;
-  transition: transform .2s ease, background-color .2s ease, border-color .2s ease;
+  transition:
+    transform var(--dur-slow) var(--ease-spring),
+    background-color var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease,
+    border-color var(--dur-fast) ease;
 }
-.lx-btn:active { transform: scale(.97); }
-.lx-btn-primary { color: var(--on-accent); background: var(--accent); }
-.lx-btn-primary:hover { background: color-mix(in srgb, var(--accent) 88%, var(--ink)); }
-.lx-btn-ghost { color: var(--ink); background: transparent; border-color: var(--line-strong); }
-.lx-btn-ghost:hover { background: var(--tint); }
+.lx-btn:active { transform: scale(.96); transition-duration: .12s; }
+.lx-btn-primary {
+  color: var(--on-accent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, #fff 22%, transparent), transparent 55%),
+    var(--accent);
+  border-color: color-mix(in srgb, #fff 26%, var(--accent));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 40%, transparent),
+    0 8px 22px -6px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.lx-btn-primary:hover {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, #fff 30%, transparent), transparent 60%),
+    var(--accent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 45%, transparent),
+    0 12px 30px -6px color-mix(in srgb, var(--accent) 65%, transparent);
+}
+/* Ghost = frosted pill without its own backdrop-filter (budget): translucent fill + luminous rim. */
+.lx-btn-ghost {
+  color: var(--ink);
+  background: var(--pill-fill);
+  border-color: var(--glass-border);
+  box-shadow: var(--glass-highlight), 0 0 0 .5px var(--glass-edge);
+}
+.lx-btn-ghost:hover { background: var(--pill-hover); }
 
-.lx-socials { display: flex; gap: 8px; margin-top: 22px; }
-.lx-socials a { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 50%; transition: background-color .2s ease; }
-.lx-socials a:hover { background: var(--tint); }
+.lx-socials { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+.lx-socials a {
+  display: grid; place-items: center; width: 44px; height: 44px;
+  background: var(--pill-fill);
+  border: 1px solid var(--glass-border); border-radius: 50%;
+  box-shadow: var(--glass-highlight);
+  transition: background-color var(--dur-fast) ease, transform var(--dur-slow) var(--ease-spring);
+}
+.lx-socials a:hover { background: var(--pill-hover); transform: translateY(-2px); }
 
-/* ---------- Heroes ---------- */
-.lx-hero { padding: clamp(40px, 9cqi, 110px) 0 clamp(36px, 6cqi, 72px); }
+/* ============ Heroes ============ */
+.lx-hero { padding: clamp(36px, 8cqi, 104px) 0 clamp(32px, 6cqi, 68px); }
 
-/* Professional: masthead name beside an arched portrait. */
+/* Media frames share a luminous rim drawn by ::after above the image. */
+.lx-photo, .lx-services-image, .lx-band, .lx-work-media { position: relative; }
+.lx-photo::after, .lx-services-image::after, .lx-band::after {
+  content: ""; position: absolute; inset: 0; z-index: 1;
+  border-radius: inherit; pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #fff 34%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #fff 60%, transparent);
+}
+
+/* Professional: masthead beside the framed photo. */
 .lx-hero-professional { display: grid; gap: 40px; }
-.lx-arch {
-  width: min(100%, 320px); aspect-ratio: 3 / 4; overflow: hidden;
+.lx-photo {
+  width: min(100%, 300px); overflow: hidden;
   display: grid; place-items: center;
-  background: var(--placeholder); border-radius: 999px 999px 20px 20px;
+  background: var(--tint);
+  box-shadow: var(--glass-shadow);
 }
-.lx-arch img, .lx-round-portrait img, .lx-services-image img { width: 100%; height: 100%; object-fit: cover; }
-.lx-arch span { font: 400 clamp(64px, 14cqi, 120px)/1 var(--serif); color: var(--accent-text); }
+.lx .lx-photo.lx-frame-portrait { width: min(100%, 320px); }
+.lx-photo img, .lx-services-image img { width: 100%; height: 100%; object-fit: cover; }
+/* No photo: initials on a tinted glass disc, never a grey slab. */
+.lx-photo > span {
+  font: 800 clamp(48px, 10cqi, 96px)/1 var(--sans);
+  letter-spacing: -.04em;
+  color: var(--accent-ink);
+}
 
-/* Business: company masthead, then a full-bleed cover band carrying a visit ticket. */
-.lx-hero-business { max-width: 980px; }
-.lx-logo { width: 34px; height: 34px; object-fit: cover; border-radius: 8px; }
+/* Business: company masthead, then a rounded cover band carrying a glass visit ticket. */
+.lx-hero-business { max-width: 1000px; }
+.lx-logo { width: 34px; height: 34px; object-fit: cover; border-radius: 10px; box-shadow: 0 0 0 1px var(--glass-border); }
 .lx-band {
-  position: relative; overflow: hidden;
-  margin: 0 calc(var(--gutter) * -1) clamp(28px, 5cqi, 56px);
+  overflow: hidden;
+  margin: 0 0 clamp(20px, 3cqi, 32px);
   aspect-ratio: 4 / 3; background: var(--placeholder);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--glass-shadow);
 }
 .lx-cover-media { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .lx-band .lx-cover-media video { width: 100%; height: 100%; object-fit: cover; }
 .lx-ticket {
-  position: absolute; left: var(--gutter); right: var(--gutter); bottom: 20px;
+  position: absolute; z-index: 2; left: 12px; right: 12px; bottom: 12px;
   display: grid; gap: 6px; padding: 16px 18px;
-  background: var(--paper); border-radius: 14px; box-shadow: 0 18px 40px rgba(0,0,0,.12);
+  background: var(--glass-fill-strong);
+  border-radius: calc(var(--radius-panel) - 10px);
   font-size: 14px;
 }
 .lx-ticket p span { color: var(--muted); margin-right: 6px; }
-.lx-ticket a { display: inline-flex; align-items: flex-start; gap: 6px; font-weight: 600; }
+.lx-ticket a { display: inline-flex; align-items: flex-start; gap: 6px; min-height: 44px; padding-top: 10px; font-weight: 650; }
 .lx-ticket a svg { flex: none; margin-top: 3px; }
 
-/* Services: the offer is the headline; the price menu below is the page's centrepiece. */
+/* Services: the offer is the headline; the price menu below is the centrepiece. */
 .lx-hero-services { display: grid; gap: 36px; }
-.lx-round-portrait, .lx-services-image {
+.lx-services-image {
   display: grid; place-items: center; overflow: hidden;
-  width: min(100%, 360px); aspect-ratio: 1; border-radius: 50%; background: var(--placeholder);
+  width: min(100%, 360px); border-radius: var(--radius-panel); aspect-ratio: 4 / 5; background: var(--placeholder);
+  box-shadow: var(--glass-shadow);
 }
-.lx-services-image { border-radius: 24px; aspect-ratio: 4 / 5; }
-.lx-round-portrait span { font: 400 clamp(64px, 14cqi, 120px)/1 var(--serif); color: var(--accent-text); }
 
-/* ---------- Sections ---------- */
-.lx-section { padding: clamp(44px, 7cqi, 88px) 0; border-top: 1px solid var(--line); }
-.lx-section-head { max-width: 760px; margin-bottom: clamp(24px, 4cqi, 40px); }
-.lx-kicker { display: block; margin-bottom: 12px; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
-.lx-section-head h2 { font: 400 clamp(34px, 5.4cqi, 60px)/1 var(--serif); letter-spacing: -.02em; text-wrap: balance; }
-.lx-section-head em, .lx-lead em { color: var(--accent-text); font-style: italic; }
+/* ============ Profile photo frames (owner's choice; add alongside .lx-arch / .lx-round-portrait) ============ */
+/* (0,2,0) selectors so a frame always beats the template's default shape. */
+.lx .lx-frame-circle { aspect-ratio: 1; border-radius: 50%; }
 
-/* Stats: big serif figures, label underneath. */
-.lx-section-stats { padding-top: clamp(28px, 4cqi, 48px); padding-bottom: clamp(28px, 4cqi, 48px); }
-.lx-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 28px 20px; }
+/* Squircle: continuous-curvature superellipse via SVG mask (scales with the box). Fallback: rounded rect. */
+.lx .lx-frame-squircle {
+  aspect-ratio: 1;
+  border-radius: 28%;
+  box-shadow: none; /* shadows are masked away; the rim below carries the edge */
+}
+@supports (mask-image: url("")) or (-webkit-mask-image: url("")) {
+  .lx .lx-frame-squircle {
+    border-radius: 0;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M50 0C90 0 100 10 100 50S90 100 50 100 0 90 0 50 10 0 50 0Z'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M50 0C90 0 100 10 100 50S90 100 50 100 0 90 0 50 10 0 50 0Z'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  }
+  .lx .lx-frame-squircle::after {
+    box-shadow: none; border-radius: 0;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M50 0C90 0 100 10 100 50S90 100 50 100 0 90 0 50 10 0 50 0Z' fill='none' stroke='white' stroke-opacity='.6' stroke-width='3' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  }
+}
+/* Native continuous corners where supported (Chromium corner-shape): keeps shadow + rim. */
+@supports (corner-shape: squircle) {
+  .lx .lx-frame-squircle {
+    -webkit-mask: none; mask: none;
+    border-radius: 42%; corner-shape: squircle;
+    box-shadow: var(--glass-shadow);
+  }
+  .lx .lx-frame-squircle::after {
+    background: none; border-radius: inherit; corner-shape: squircle;
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, #fff 34%, transparent),
+      inset 0 1px 0 color-mix(in srgb, #fff 60%, transparent);
+  }
+}
+
+/* Portrait: 4:5 photo set in a frosted glass card (the card is a glass surface; the photo is inset). */
+.lx .lx-frame-portrait {
+  aspect-ratio: 4 / 5;
+  padding: 8px;
+  overflow: visible;
+  border-radius: calc(var(--radius-media) + 8px);
+}
+.lx .lx-frame-portrait img,
+.lx .lx-frame-portrait span {
+  width: 100%; height: 100%;
+  border-radius: var(--radius-media);
+  object-fit: cover;
+}
+.lx .lx-frame-portrait span { display: grid; place-items: center; background: var(--tint); }
+.lx .lx-frame-portrait::after {
+  inset: 8px; border-radius: var(--radius-media);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #fff 22%, transparent);
+}
+
+/* Blob: organic radius that slowly breathes (paint-only on one small element; stopped for reduced motion). */
+.lx .lx-frame-blob {
+  aspect-ratio: 1;
+  border-radius: 58% 42% 55% 45% / 48% 56% 44% 52%;
+  animation: lx-blob-morph calc(16s * var(--aurora-speed, 1)) ease-in-out 6 alternate;
+  animation-play-state: var(--aurora-play, running);
+}
+@keyframes lx-blob-morph {
+  0%   { border-radius: 58% 42% 55% 45% / 48% 56% 44% 52%; }
+  33%  { border-radius: 44% 56% 46% 54% / 58% 42% 58% 42%; }
+  66%  { border-radius: 52% 48% 38% 62% / 42% 60% 40% 58%; }
+  100% { border-radius: 40% 60% 58% 42% / 55% 45% 55% 45%; }
+}
+
+/* ============ Sections: frosted panels ============ */
+.lx-section {
+  padding: clamp(24px, 5cqi, 56px);
+  border-radius: var(--radius-panel);
+}
+.lx-section + .lx-section, .lx-band + .lx-section { margin-top: clamp(12px, 2cqi, 20px); }
+.lx-section-head { max-width: 760px; margin-bottom: clamp(20px, 3.4cqi, 36px); }
+.lx-kicker { display: block; margin-bottom: 12px; color: var(--muted); font-size: 13px; font-weight: 600; letter-spacing: .02em; }
+.lx-section-head h2 {
+  font: 750 clamp(30px, 5.2cqi, 58px)/1 var(--sans);
+  font-variation-settings: "opsz" 40;
+  letter-spacing: -.045em;
+  text-wrap: balance;
+}
+/* Emphasis is colour, not italic: Instrument Serif italic is reserved for quotes. */
+.lx-section-head em, .lx-lead em { color: var(--accent-ink); font-style: normal; }
+
+/* Stats and quotes float on the aurora; glass is for things you act on. */
+.lx .lx-section-stats, .lx .lx-section-references {
+  background: none; border-color: transparent; box-shadow: none;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  padding-inline: 0;
+}
+.lx .lx-section-stats::before, .lx .lx-section-references::before { display: none; }
+.lx-section-stats { padding-block: clamp(22px, 3.6cqi, 40px); }
+.lx-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 24px 20px; }
 .lx-stats div { display: flex; flex-direction: column-reverse; gap: 6px; }
-.lx-stats dd { font: 400 clamp(44px, 7cqi, 72px)/.95 var(--serif); letter-spacing: -.03em; font-variant-numeric: lining-nums; }
+.lx-stats dd {
+  font: 750 clamp(40px, 7.4cqi, 80px)/.92 var(--sans);
+  letter-spacing: -.055em;
+  font-variant-numeric: tabular-nums lining-nums;
+}
 .lx-stats dt { color: var(--muted); font-size: 14px; }
 
 /* Services: a price menu with dotted leaders. */
-.lx-menu { display: grid; gap: 0; max-width: 880px; }
-.lx-menu li { padding: 22px 0; border-bottom: 1px solid var(--line); }
-.lx-menu li:first-child { border-top: 1px solid var(--line); }
+.lx-menu { display: grid; max-width: 900px; }
+.lx-menu li { padding: 20px 0; border-bottom: 1px solid var(--line); }
+.lx-menu li:first-child { padding-top: 4px; }
+.lx-menu li:last-child { border-bottom: 0; padding-bottom: 4px; }
 .lx-menu-row { display: flex; align-items: baseline; gap: 12px; }
-.lx-menu h3 { min-width: 0; overflow-wrap: anywhere; font: 400 clamp(24px, 3.4cqi, 32px)/1.1 var(--serif); letter-spacing: -.01em; }
+.lx-menu h3 { min-width: 0; overflow-wrap: anywhere; font: 650 clamp(20px, 3cqi, 28px)/1.15 var(--sans); letter-spacing: -.03em; }
 .lx-leader { flex: 1; min-width: 24px; border-bottom: 2px dotted var(--line-strong); transform: translateY(-.28em); }
-.lx-price { flex: none; max-width: 45%; font-weight: 600; font-size: 17px; font-variant-numeric: tabular-nums; text-align: right; overflow-wrap: anywhere; }
+.lx-price { flex: none; max-width: 45%; font-weight: 650; font-size: 17px; font-variant-numeric: tabular-nums; text-align: right; overflow-wrap: anywhere; }
 .lx-menu p { max-width: 58ch; margin-top: 8px; color: var(--muted); font-size: 15px; }
 .lx-menu-link, .lx-text-link {
   display: inline-flex; align-items: center; gap: 5px; min-height: 44px; margin-top: 2px;
-  color: var(--accent-text); font-size: 14px; font-weight: 600;
-  text-decoration: underline; text-underline-offset: 4px;
+  color: var(--accent-ink); font-size: 14px; font-weight: 650;
+  text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 4px;
 }
-.lx-services .lx-section-services .lx-menu h3 { font-size: clamp(26px, 4cqi, 38px); }
 
 /* Visit */
-.lx-visit { display: grid; gap: 32px; }
+.lx-visit { display: grid; gap: 28px; }
 .lx-hours { display: grid; max-width: 520px; }
 .lx-hours div { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.lx-hours div:last-child { border-bottom: 0; }
 .lx-hours dt { color: var(--muted); }
-.lx-hours dd { font-weight: 600; text-align: right; overflow-wrap: anywhere; }
-.lx-address p { font: 400 clamp(24px, 3.4cqi, 32px)/1.2 var(--serif); max-width: 22ch; }
+.lx-hours dd { font-weight: 650; text-align: right; overflow-wrap: anywhere; }
+.lx-address p { font: 600 clamp(22px, 3.2cqi, 30px)/1.2 var(--sans); letter-spacing: -.03em; max-width: 22ch; }
 
 /* Work */
-.lx-gallery + div { margin-top: clamp(44px, 7cqi, 80px); }
-.lx-work-grid { display: grid; gap: 18px; }
-.lx-work { position: relative; display: grid; gap: 14px; }
-.lx-work-media { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 16 / 10; overflow: hidden; color: var(--muted); background: var(--placeholder); border-radius: 16px; object-fit: cover; }
+.lx-gallery + div { margin-top: clamp(36px, 6cqi, 64px); }
+.lx-work-grid { display: grid; gap: 20px; }
+.lx-work { position: relative; display: grid; gap: 12px; border-radius: var(--radius-media); }
+.lx-work-media {
+  display: grid; place-items: center; width: 100%; aspect-ratio: 16 / 10; overflow: hidden;
+  color: var(--muted); background: var(--placeholder); object-fit: cover;
+  border-radius: var(--radius-media);
+  box-shadow: inset 0 0 0 1px var(--line), 0 10px 26px -12px color-mix(in srgb, #000 30%, transparent);
+  transition: transform var(--dur-slow) var(--ease-spring);
+}
+.lx-work:hover .lx-work-media { transform: translateY(-3px); }
 .lx-work-file img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: 0; transition: opacity .4s ease; }
 .lx-work-file img.is-ready { opacity: 1; }
 .lx-work-caption { display: grid; gap: 4px; padding-right: 28px; }
-.lx-work-caption strong { font-weight: 600; }
+.lx-work-caption strong { font-weight: 650; letter-spacing: -.015em; }
 .lx-work-caption small { color: var(--muted); font-size: 14px; }
-.lx-work-arrow { position: absolute; right: 0; bottom: 4px; color: var(--muted); transition: transform .2s ease; }
+.lx-work-arrow { position: absolute; right: 0; bottom: 4px; color: var(--muted); transition: transform var(--dur-slow) var(--ease-spring); }
 .lx-work:hover .lx-work-arrow { transform: translate(2px, -2px); color: var(--ink); }
 
-/* References: the quote is the design. */
-.lx-quotes { display: grid; gap: 40px; }
-.lx-quote blockquote { max-width: 30ch; font: 400 clamp(26px, 4cqi, 40px)/1.2 var(--serif); letter-spacing: -.01em; text-wrap: pretty; }
-.lx-quote blockquote::before { content: "“"; color: var(--accent-text); }
-.lx-quote blockquote::after { content: "”"; color: var(--accent-text); }
+/* References: the only serif on the page. */
+.lx-quotes { display: grid; gap: 36px; }
+.lx-quote blockquote {
+  max-width: 30ch;
+  font: italic 400 clamp(26px, 4cqi, 40px)/1.18 var(--serif);
+  letter-spacing: -.01em; text-wrap: pretty;
+}
+.lx-quote blockquote::before { content: "\201C"; color: var(--accent-ink); }
+.lx-quote blockquote::after { content: "\201D"; color: var(--accent-ink); }
 .lx-quote figcaption { display: grid; gap: 2px; margin-top: 16px; font-size: 14px; }
 .lx-quote figcaption span { color: var(--muted); }
 
-/* Contact */
+/* Contact: hairline rows inside one panel; rows light up as pills on hover. */
 .lx-contact { display: grid; max-width: 760px; }
 .lx-contact li { position: relative; display: flex; align-items: center; border-bottom: 1px solid var(--line); }
-.lx-contact li:first-child { border-top: 1px solid var(--line); }
-.lx-contact a { flex: 1; min-width: 0; display: flex; align-items: center; gap: 16px; padding: 18px 4px; }
-.lx-contact a > svg:first-child { flex: none; color: var(--accent-text); }
+.lx-contact li:last-child { border-bottom: 0; }
+.lx-contact a {
+  flex: 1; min-width: 0; min-height: 60px;
+  display: flex; align-items: center; gap: 16px; padding: 14px 12px; margin-inline: -12px;
+  border-radius: 16px;
+  transition: background-color var(--dur-fast) ease;
+}
+.lx-contact a:hover { background: var(--pill-fill); }
+.lx-contact a > svg:first-child { flex: none; color: var(--accent-ink); }
 .lx-contact a span { display: grid; min-width: 0; }
 .lx-contact small { color: var(--muted); font-size: 13px; }
-.lx-contact strong { overflow: hidden; font-size: 17px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.lx-row-arrow { flex: none; margin-left: auto; color: var(--muted); transition: transform .2s ease; }
+.lx-contact strong { overflow: hidden; font-size: 17px; font-weight: 650; letter-spacing: -.015em; text-overflow: ellipsis; white-space: nowrap; }
+.lx-row-arrow { flex: none; margin-left: auto; color: var(--muted); transition: transform var(--dur-slow) var(--ease-spring); }
 .lx-contact a:hover .lx-row-arrow { transform: translate(2px, -2px); color: var(--ink); }
-.lx-copy { flex: none; display: grid; place-items: center; width: 44px; height: 44px; margin-left: 4px; color: var(--muted); background: transparent; border: 0; border-radius: 50%; cursor: pointer; }
-.lx-copy:hover { color: var(--ink); background: var(--tint); }
+.lx-copy {
+  flex: none; display: grid; place-items: center; width: 44px; height: 44px; margin-left: 16px;
+  color: var(--muted); background: transparent; border: 0; border-radius: 50%; cursor: pointer;
+  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+.lx-copy:hover { color: var(--ink); background: var(--pill-fill); }
 
 /* Take my card */
 .lx-take { display: grid; gap: 28px; align-items: center; }
-.lx-take p { max-width: 38ch; font: 400 clamp(22px, 3cqi, 28px)/1.3 var(--serif); }
+.lx-take p { max-width: 38ch; font: 500 clamp(20px, 2.8cqi, 26px)/1.35 var(--sans); letter-spacing: -.02em; }
 .lx-take-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
-.lx-take svg[role="img"] { padding: 14px; background: #fff; border-radius: 16px; box-sizing: content-box; }
+/* QR stays dark-on-white in every theme so any camera reads it. */
+.lx-take svg[role="img"] {
+  padding: 14px; background: #fff; border-radius: 22px; box-sizing: content-box;
+  box-shadow: 0 0 0 1px var(--glass-border), var(--glass-shadow);
+}
 
-/* Footer + mobile dock */
+/* ============ Footer + mobile dock ============ */
 .lx-footer {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px;
   max-width: 1200px; margin: 0 auto; padding: 28px var(--gutter) 40px;
-  color: var(--muted); font-size: 13px; border-top: 1px solid var(--line);
+  color: var(--muted); font-size: 13px;
 }
-.lx-footer a { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.lx-footer a { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; white-space: nowrap; }
 .lx-footer a:hover { color: var(--ink); }
 .lx-dock { display: none; }
 
 @media (max-width: 760px) {
+  .lx { --glass-blur: 16px; }
   .lx-dock {
     position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 30;
     display: flex; gap: 8px; padding: 8px;
-    background: color-mix(in srgb, var(--paper) 88%, transparent);
-    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-    border: 1px solid var(--line); border-radius: 999px; box-shadow: 0 14px 34px rgba(0,0,0,.14);
+    background: var(--glass-fill-strong);
+    border-radius: 999px;
   }
   .lx-dock .lx-btn { min-height: 44px; }
   .lx-dock .lx-btn-primary { flex: 1; }
   .lx-dock .lx-btn-ghost { width: 44px; padding: 0; }
-  .lx-footer { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
-  html:has(.lx-dock) { scroll-padding-top: 72px; scroll-padding-bottom: 96px; }
+  .lx-footer { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)); }
+  html:has(.lx-dock) { scroll-padding-top: 80px; scroll-padding-bottom: 100px; }
 }
 
 /* Phones: the portrait supports the name rather than competing with it. */
 @container (max-width: 719px) {
-  .lx-arch { order: -1; width: 112px; }
-  .lx-round-portrait { order: -1; width: 112px; }
+  .lx-photo-wrap { order: -1; }
+  .lx-photo, .lx .lx-photo.lx-frame-portrait { width: 120px; }
   .lx-hero-professional, .lx-hero-services { gap: 24px; }
   .lx-services-image { width: 100%; aspect-ratio: 4 / 3; }
+  .lx .lx-frame-portrait { padding: 5px; border-radius: calc(var(--radius-media) + 5px); }
+  .lx .lx-frame-portrait::after { inset: 5px; }
 }
 
-/* ---------- Wider pages ---------- */
+/* ============ Wider pages ============ */
 @container (min-width: 720px) {
   .lx-hero-professional { grid-template-columns: minmax(0, 1fr) minmax(240px, 34%); align-items: end; gap: 56px; }
   .lx-hero-services { grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr); align-items: center; gap: 56px; }
   .lx-band { aspect-ratio: 21 / 9; }
-  .lx-ticket { left: auto; right: var(--gutter); width: min(380px, 44%); bottom: 28px; }
+  .lx-ticket { left: auto; right: 20px; bottom: 20px; width: min(380px, 44%); }
   .lx-stats { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 32px; }
   .lx-stats div + div { padding-left: 32px; border-left: 1px solid var(--line); }
   .lx-visit { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; }
@@ -265,45 +683,90 @@
   .lx-quotes { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 56px; }
   .lx-quotes .lx-quote:only-child { grid-column: 1 / -1; }
   .lx-take { grid-template-columns: minmax(0, 1fr) auto; }
+  .lx-section, .lx-glass { --glass-blur: 22px; }
 }
+
+/* Hero panel: bio and actions on glass under the floating name. */
+.lx-hero-panel { max-width: 640px; margin-top: clamp(20px, 3cqi, 32px); padding: clamp(20px, 4cqi, 34px); }
+.lx-hero-panel .lx-lead { margin-top: 0; }
+.lx-hero-panel .lx-actions { margin-top: 22px; }
+.lx-hero-business .lx-hero-panel { max-width: 720px; }
+.lx-photo-wrap { display: grid; justify-items: center; }
+@container (min-width: 720px) { .lx-photo-wrap { justify-items: end; } }
+
+/* ============ Per-template treatments ============ */
+/* Services: the menu is the page. Bigger names; prices in the display weight and accent. */
+.lx-services .lx-section-services { background: var(--glass-fill-strong); }
+.lx-services .lx-section-services .lx-menu h3 { font-size: clamp(24px, 4.2cqi, 40px); letter-spacing: -.04em; }
+.lx-services .lx-section-services .lx-price {
+  color: var(--accent-ink);
+  font: 750 clamp(20px, 3cqi, 30px)/1.1 var(--sans);
+  letter-spacing: -.035em;
+}
+.lx-services .lx-section-services .lx-leader { border-bottom-width: 3px; }
+
+/* Business: visiting info on inverted glass, like a lit shopfront sign. */
+.lx-business .lx-section-visit {
+  --ink: var(--on-smoke);
+  --muted: var(--smoke-muted);
+  --line: color-mix(in srgb, var(--on-smoke) 18%, transparent);
+  --accent-ink: var(--on-smoke);
+  --focus: var(--on-smoke);
+  --pill-fill: color-mix(in srgb, var(--on-smoke) 10%, transparent);
+  color: var(--on-smoke);
+  background: var(--smoke);
+  border-color: color-mix(in srgb, var(--on-smoke) 16%, transparent);
+}
+
+/* Professional: one reference carries the section at full width. */
+.lx-professional .lx-quotes { grid-template-columns: minmax(0, 1fr); }
+.lx-professional .lx-quote:first-child blockquote { max-width: 24ch; font-size: clamp(32px, 5.6cqi, 60px); line-height: 1.08; }
+
+/* ============ Accessibility + fallbacks ============ */
 @media (prefers-reduced-motion: reduce) {
   .lx *, .lx *::before, .lx *::after { transition: none !important; }
+  .lx-aurora i, .lx .lx-frame-blob { animation: none !important; }
 }
 
-/* ---------- Builder preview ---------- */
+/* Solid panels when transparency is unwanted or backdrop-filter is missing. */
+@media (prefers-reduced-transparency: reduce) {
+  .lx {
+    --glass-fill: var(--glass-solid);
+    --glass-fill-strong: var(--glass-solid);
+    --pill-fill: color-mix(in srgb, var(--ink) 6%, var(--glass-solid));
+    --pill-hover: color-mix(in srgb, var(--ink) 11%, var(--glass-solid));
+  }
+  .lx-aurora i, .lx-aurora-photo, .lx-aurora::after { display: none; }
+  :is(.lx-glass, .lx-section, .lx-ticket, .lx-nav, .lx-dock, .lx-frame-portrait) {
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  :is(.lx-glass, .lx-section, .lx-ticket, .lx-nav, .lx-dock, .lx-frame-portrait)::before { display: none; }
+  .lx-business .lx-section-visit { background: var(--smoke-solid); }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .lx {
+    --glass-fill: var(--glass-solid);
+    --glass-fill-strong: var(--glass-solid);
+  }
+}
+
+/* ============ Builder preview ============ */
 .lx-preview {
   height: min(72vh, 760px); overflow: auto; overscroll-behavior: contain;
-  border: 1px solid rgba(255,255,255,.8); border-radius: 22px;
-  box-shadow: 0 24px 50px rgba(30,30,90,.12);
+  border: 1px solid rgba(255, 255, 255, .8); border-radius: 22px;
+  box-shadow: 0 24px 50px rgba(30, 30, 90, .12);
+  container-type: inline-size;
 }
-.lx-preview { container-type: inline-size; }
 .lx-preview .lx { min-height: 100%; font-size: 15px; }
-.lx-preview .lx-bg { position: absolute; }
+/* Fixed layers would escape the scroll box: pin them to the page instead. */
+.lx-preview .lx-bg, .lx-preview .lx-aurora { position: absolute; }
+/* The preview is a thumbnail of a page: keep it light on the GPU. */
+.lx-preview .lx { --aurora-speed: 1.6; }
 
-/* Demo banner with template switcher (outside .lx, so plain colors). */
+/* ============ Demo banner (outside .lx, so plain colours) ============ */
 .lx-demo-banner {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 14px;
   padding: 10px 16px; color: #fff; background: #15162b; font: 500 13px/1.4 "DM Sans Variable", system-ui, sans-serif;
 }
-.lx-demo-banner a { display: inline-flex; align-items: center; min-height: 32px; padding: 0 6px; color: rgba(255,255,255,.8); text-decoration: underline; text-underline-offset: 3px; }
+.lx-demo-banner a { display: inline-flex; align-items: center; min-height: 32px; padding: 0 6px; color: rgba(255, 255, 255, .8); text-decoration: underline; text-underline-offset: 3px; }
 .lx-demo-banner a[aria-current="page"] { color: #fff; font-weight: 700; text-decoration: none; }
-
-/* ---------- Per-template treatments ---------- */
-/* Services: the menu is the page. Bigger names, prices set in the display face and accent. */
-.lx-services .lx-section-services .lx-menu h3 { font-size: clamp(28px, 4.6cqi, 44px); }
-.lx-services .lx-section-services .lx-price { color: var(--accent-text); font: 400 clamp(22px, 3cqi, 30px)/1.1 var(--serif); }
-.lx-services .lx-section-services .lx-leader { border-bottom-style: dotted; border-bottom-width: 3px; }
-
-/* Business: visiting info is a dark timetable strip, like a shopfront sign. */
-.lx-business .lx-section-visit {
-  --muted: color-mix(in srgb, var(--paper) 70%, var(--ink));
-  --line: color-mix(in srgb, var(--paper) 18%, transparent);
-  --accent-text: var(--paper);
-  margin-inline: calc(var(--gutter) * -1); padding-inline: var(--gutter);
-  color: var(--paper); background: var(--ink); border-top: 0;
-}
-.lx-business .lx-section-visit :focus-visible { outline-color: var(--paper); }
-
-/* Professional: one reference carries the section at full width. */
-.lx-professional .lx-quotes { grid-template-columns: minmax(0, 1fr); }
-.lx-professional .lx-quote:first-child blockquote { max-width: 24ch; font-size: clamp(32px, 5.6cqi, 60px); line-height: 1.1; }

@@ -31,6 +31,7 @@ export function toEmittable(config: PageConfig): PageConfig | null {
     accent: /^#[0-9a-fA-F]{6}$/.test(config.accent.trim()) ? config.accent.trim() : "",
     sections: resolveSections(config),
     headline: config.headline.trim(),
+    frame: config.frame,
     cta: { label: (config.cta?.label ?? "").trim(), url: normalizeLink(config.cta?.url ?? "") },
     stats: config.stats
       .map((s) => ({ value: s.value.trim(), label: s.label.trim() }))

@@ -1253,7 +1253,7 @@ function BuilderView({
                 <p>Pick how your page reads, then choose which sections show and in what order.</p>
               </div>
             </div>
-            <PageDesigner value={draft.page} onChange={(value) => update("page", value)} themeAccent={themeAccent(draft.theme)} onPendingChange={onPagePending} />
+            <PageDesigner value={draft.page} onChange={(value) => update("page", value)} themeAccent={themeAccent(draft.theme)} onPendingChange={onPagePending} avatarUrl={draft.avatarUrl} initials={getInitials(draft.displayName || "")} />
           </div>
 
           <div className="form-section">

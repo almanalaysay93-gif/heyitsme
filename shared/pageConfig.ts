@@ -9,6 +9,23 @@ import { z } from "zod";
 export const TEMPLATE_IDS = ["professional", "business", "services"] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
 
+export const FRAME_IDS = ["circle", "squircle", "portrait", "blob"] as const;
+export type FrameId = (typeof FRAME_IDS)[number];
+
+export const FRAMES: Record<FrameId, { label: string; blurb: string }> = {
+  circle: { label: "Circle", blurb: "A classic round photo." },
+  squircle: { label: "Rounded square", blurb: "Soft corners, like an app icon." },
+  portrait: { label: "Portrait", blurb: "A tall photo card for studio or full-length shots." },
+  blob: { label: "Organic", blurb: "A soft shape that slowly changes." },
+};
+
+/** Frame used when the owner has not picked one. */
+export const DEFAULT_FRAME: Record<"professional" | "business" | "services", FrameId> = {
+  professional: "portrait",
+  business: "squircle",
+  services: "circle",
+};
+
 export const SECTION_IDS = ["stats", "services", "visit", "portfolio", "references", "contact"] as const;
 export type SectionId = (typeof SECTION_IDS)[number];
 
@@ -65,6 +82,8 @@ export const pageConfigSchema = z.object({
     .array(z.object({ id: z.enum(SECTION_IDS), hidden: z.boolean().optional().default(false) }))
     .max(SECTION_IDS.length)
     .optional(),
+  /** Profile photo frame; empty means the template's default (see DEFAULT_FRAME). */
+  frame: z.enum(["", ...FRAME_IDS]).optional().default(""),
   /** The offer in a few words; the Services template uses it as the page title. */
   headline: optionalText(80),
   cta: z.object({ label: optionalText(40), url: safeUrl }).optional(),
@@ -141,6 +160,10 @@ export const pageConfigField = z
   }, "Page settings are invalid")
   .optional()
   .nullable();
+
+export function resolveFrame(config: PageConfig): FrameId {
+  return config.frame || DEFAULT_FRAME[config.template];
+}
 
 /** Google Maps search link for a street address. */
 export function mapLink(address: string): string {
