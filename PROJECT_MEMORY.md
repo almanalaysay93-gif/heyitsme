@@ -103,7 +103,8 @@ Verification: `pnpm check` clean, `pnpm test` 208 passed / 3 skipped (25 files),
 
 ## 2026-09-26: Profile photo +40%
 
-Public card profile photo in `client/src/components/cardLanding.css`. Desktop `.lx-photo` 300→420px, portrait frame 320→448px, phone container 120→168px, business `.lx-logo` 34→48px. Initials clamp scaled the same. Desktop hero tracks widened (professional 34%→47.6%, services 1.2/0.8fr→11/14fr) so the max size is reachable. Playwright measure: desktop circle 420, portrait 448×560, phone 168, services 420, no hero overflow. Not deployed.
+Public card profile photo in `client/src/components/cardLanding.css`. Desktop `.lx-photo` 300→420px, portrait frame 320→448px, phone container 120→168px, business `.lx-logo` 34→48px. Initials clamp scaled the same. Desktop hero tracks widened (professional 34%→47.6%, services 1.2/0.8fr→11/14fr) so the max size is reachable. Playwright measure: desktop circle 420, portrait 448×560, phone 168, services 420, no hero overflow.
+- Production: commit `a0b8d0b` on `main`. Live `CardLanding` CSS has `width:min(100%,420px)`, portrait `448px`, phone `168px`, logo `48px`, hero track `47.6%`. `node scripts/smoke.mjs https://heyitsme.fyi` — all 15 checks passed.
 
 ### Next steps
 1. Review + commit (Phase 1–2 and 3–5 are both uncommitted).
