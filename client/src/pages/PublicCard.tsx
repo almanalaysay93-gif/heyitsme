@@ -1,5 +1,6 @@
 import { LogoLoader } from "@/components/BrandMark";
 import { CardLanding } from "@/components/CardLanding";
+import { InfoDialog } from "@/components/InfoDialog";
 import { Field } from "@/components/Field";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { buildVCard, readPreviewCard, toDraft, type CardDraft } from "@/lib/card";
@@ -26,6 +27,8 @@ export default function PublicCardPage() {
   const exchange = trpc.publicCard.exchange.useMutation();
   const trackEvent = trpc.publicCard.track.useMutation();
   const [showForm, setShowForm] = useState(false);
+  const [manualCopy, setManualCopy] = useState(false);
+  const [demoAction, setDemoAction] = useState<"booking" | "phone" | null>(null);
   const [sent, setSent] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", phone: "", company: "", title: "", notes: "", website: "" });
   const rawCard = cardQuery.data as any;
@@ -112,10 +115,14 @@ export default function PublicCardPage() {
     else downloadVCard(card);
   };
 
+  // "Link copied." only after a real clipboard write; otherwise show the link to copy by hand.
   const copyLink = async () => {
-    track("share", "copy");
-    if (await copyToClipboard(window.location.href)) toast.success("Link copied.");
-    else toast.info(window.location.href);
+    if (await copyToClipboard(window.location.href)) {
+      track("share", "copy");
+      toast.success("Link copied.");
+    } else {
+      setManualCopy(true);
+    }
   };
 
   const shareLink = async () => {
@@ -190,6 +197,26 @@ export default function PublicCardPage() {
         onShare={() => void shareLink()}
         onCopyLink={() => void copyLink()}
         track={track}
+        onDemoAction={isDemo ? setDemoAction : undefined}
+      />
+      <InfoDialog
+        open={manualCopy}
+        onOpenChange={setManualCopy}
+        title="Copy this link"
+        description="Your browser didn't allow automatic copying. Select the link and copy it."
+        value={window.location.href}
+        copyLabel="Try copying again"
+        copiedLabel="Link copied."
+      />
+      <InfoDialog
+        open={demoAction !== null}
+        onOpenChange={(open) => { if (!open) setDemoAction(null); }}
+        title={demoAction === "phone" ? "Demo phone number" : "Demo booking"}
+        description={
+          demoAction === "phone"
+            ? "This is a fictional number, so nothing is dialled. On a real card, tapping it opens your phone app to call or text the owner."
+            : "Nothing was booked. On a real card, this button opens the owner's own booking page, like Calendly or Cal.com."
+        }
       />
 
       <AnimatePresence>

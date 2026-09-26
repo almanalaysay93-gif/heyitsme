@@ -1515,3 +1515,14 @@ main[tabindex="-1"]:focus { outline: 0; }
 @media (prefers-contrast: more) {
   .card-role, .card-bio, .card-bottomline, .card-visual .eyebrow { color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.45); }
 }
+
+/* InfoDialog: support contact, manual copy fallback, demo explanations. */
+.info-dialog-value { width: 100%; padding: 12px 14px; color: #15162b; background: #f4f4f8; border: 1px solid rgba(24,30,60,.14); border-radius: 12px; font: 600 15px/1.3 "DM Sans Variable", system-ui, sans-serif; }
+.info-dialog-value:focus-visible { outline: 2px solid #5446e6; outline-offset: 2px; }
+.info-dialog-status { min-height: 1.2em; margin: 0; color: #3d3f58; font-size: 13px; }
+.info-dialog-actions { gap: 10px; }
+.info-dialog-actions > * { min-height: 44px; }
+.legal-links-button { padding: 0; color: var(--muted-ink); background: none; border: 0; font: inherit; cursor: pointer; transition: color .2s; }
+.legal-links-button:hover { color: var(--ink); }
+.lx-footer .legal-links-button { display: inline-flex; align-items: center; min-height: 44px; color: inherit; }
+.lx-footer .legal-links-button:hover { color: var(--ink); }

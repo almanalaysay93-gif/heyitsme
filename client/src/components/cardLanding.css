@@ -855,3 +855,7 @@
 .lx-has-cover .lx-hero { padding-top: clamp(170px, 42vh, 450px); }
 .lx-preview .lx-has-cover .lx-hero { padding-top: 190px; }
 .lx-preview .lx-cover-top { height: 260px; }
+
+/* Nav: Copy link sits beside Share (native share does not copy). */
+.lx-nav-actions { display: inline-flex; gap: 6px; }
+.lx-nav-copy { width: 44px; padding: 0; justify-content: center; }

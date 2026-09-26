@@ -74,6 +74,8 @@ export type CardLandingProps = {
   onExchange: () => void;
   onShare: () => void;
   onCopyLink: () => void;
+  /** Demo card only: booking and phone actions explain themselves instead of leaving the page. */
+  onDemoAction?: (kind: "booking" | "phone") => void;
   track: Track;
 };
 
@@ -131,7 +133,10 @@ function WebsiteShot({ request, title }: { request: string; title: string }) {
 }
 
 export function CardLanding(props: CardLandingProps) {
-  const { card, config, references, interactive, canExchange, pageUrl, onSaveContact, onExchange, onShare, onCopyLink, track } = props;
+  const { card, config, references, interactive, canExchange, pageUrl, onSaveContact, onExchange, onShare, onCopyLink, track, onDemoAction } = props;
+  // On the demo, placeholder booking links and the fictional phone number open an explanation, not a blank tab or a call.
+  const demoClick = (kind: "booking" | "phone") =>
+    onDemoAction ? (event: { preventDefault: () => void }) => { event.preventDefault(); onDemoAction(kind); } : undefined;
   const motionOn = useMotionOn(interactive);
   const enter = useHeroEntrance(interactive) as (step: "eyebrow" | "name" | "lead" | "actions" | "photo") => any;
   const press = usePressProps(interactive) as any;
@@ -214,7 +219,7 @@ export function CardLanding(props: CardLandingProps) {
   const actions = (
     <div className="lx-actions">
       {cta ? (
-        <motion.a className="lx-btn lx-btn-primary" href={cta.url} {...external(cta.url)} onClick={() => track("link", `CTA: ${cta.label}`)} {...press}>
+        <motion.a className="lx-btn lx-btn-primary" href={cta.url} {...external(cta.url)} onClick={demoClick("booking") ?? (() => track("link", `CTA: ${cta.label}`))} {...press}>
           {cta.label} <ArrowUpRight size={16} aria-hidden="true" />
         </motion.a>
       ) : null}
@@ -355,7 +360,7 @@ export function CardLanding(props: CardLandingProps) {
                   </div>
                   {service.description ? <p>{service.description}</p> : null}
                   {service.url ? (
-                    <a className="lx-menu-link" href={service.url} {...external(service.url)} onClick={() => track("link", `Service: ${service.name}`)}>
+                    <a className="lx-menu-link" href={service.url} {...external(service.url)} onClick={demoClick("booking") ?? (() => track("link", `Service: ${service.name}`))}>
                       Book {service.name} <ArrowUpRight size={14} aria-hidden="true" />
                     </a>
                   ) : null}
@@ -451,7 +456,7 @@ export function CardLanding(props: CardLandingProps) {
             <ul className="lx-contact">
               {contactRows.map((row) => (
                 <li key={row.key}>
-                  <a href={row.href} {...external(row.href)} onClick={() => track("link", row.target)}>
+                  <a href={row.href} {...external(row.href)} onClick={(row.key === "phone" && demoClick("phone")) || (() => track("link", row.target))}>
                     <row.icon size={17} aria-hidden="true" />
                     <span><small>{row.label}</small><strong>{row.value}</strong></span>
                     <ArrowUpRight className="lx-row-arrow" size={16} aria-hidden="true" />
@@ -517,7 +522,10 @@ export function CardLanding(props: CardLandingProps) {
       {interactive ? (
         <header className="lx-nav">
           <a className="lx-brand" href="/"><BrandMark /><span>heyitsme</span></a>
-          <button type="button" className="lx-nav-share" onClick={onShare}><Share2 size={15} aria-hidden="true" /> Share</button>
+          <span className="lx-nav-actions">
+            <button type="button" className="lx-nav-share lx-nav-copy" onClick={onCopyLink} aria-label="Copy link to this page"><Copy size={15} aria-hidden="true" /></button>
+            <button type="button" className="lx-nav-share" onClick={onShare}><Share2 size={15} aria-hidden="true" /> Share</button>
+          </span>
         </header>
       ) : null}
 
@@ -553,7 +561,7 @@ export function CardLanding(props: CardLandingProps) {
           </footer>
           <div className="lx-dock" role="toolbar" aria-label="Quick actions">
             {cta ? (
-              <a className="lx-btn lx-btn-primary" href={cta.url} {...external(cta.url)} onClick={() => track("link", `CTA: ${cta.label}`)}>{cta.label}</a>
+              <a className="lx-btn lx-btn-primary" href={cta.url} {...external(cta.url)} onClick={demoClick("booking") ?? (() => track("link", `CTA: ${cta.label}`))}>{cta.label}</a>
             ) : (
               <button type="button" className="lx-btn lx-btn-primary" onClick={onSaveContact}><Download size={16} aria-hidden="true" /> Save contact</button>
             )}
