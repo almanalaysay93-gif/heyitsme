@@ -402,23 +402,23 @@
 /* Professional: masthead beside the framed photo. */
 .lx-hero-professional { display: grid; gap: 40px; }
 .lx-photo {
-  width: min(100%, 300px); overflow: hidden;
+  width: min(100%, 420px); overflow: hidden;
   display: grid; place-items: center;
   background: var(--tint);
   box-shadow: var(--glass-shadow);
 }
-.lx .lx-photo.lx-frame-portrait { width: min(100%, 320px); }
+.lx .lx-photo.lx-frame-portrait { width: min(100%, 448px); }
 .lx-photo img, .lx-services-image img { width: 100%; height: 100%; object-fit: cover; }
 /* No photo: initials on a tinted glass disc, never a grey slab. */
 .lx-photo > span {
-  font: 800 clamp(48px, 10cqi, 96px)/1 var(--sans);
+  font: 800 clamp(67px, 14cqi, 134px)/1 var(--sans);
   letter-spacing: -.04em;
   color: var(--accent-ink);
 }
 
 /* Business: company masthead, then a rounded cover band carrying a glass visit ticket. */
 .lx-hero-business { max-width: 1000px; }
-.lx-logo { width: 34px; height: 34px; object-fit: cover; border-radius: 10px; box-shadow: 0 0 0 1px var(--glass-border); }
+.lx-logo { width: 48px; height: 48px; object-fit: cover; border-radius: 14px; box-shadow: 0 0 0 1px var(--glass-border); }
 .lx-band {
   overflow: hidden;
   margin: 0 0 clamp(20px, 3cqi, 32px);
@@ -669,7 +669,7 @@
 /* Phones: the portrait supports the name rather than competing with it. */
 @container (max-width: 719px) {
   .lx-photo-wrap { order: -1; }
-  .lx-photo, .lx .lx-photo.lx-frame-portrait { width: 120px; }
+  .lx-photo, .lx .lx-photo.lx-frame-portrait { width: 168px; }
   .lx-hero-professional, .lx-hero-services { gap: 24px; }
   .lx-services-image { width: 100%; aspect-ratio: 4 / 3; }
   .lx .lx-frame-portrait { padding: 5px; border-radius: calc(var(--radius-media) + 5px); }
@@ -678,8 +678,8 @@
 
 /* ============ Wider pages ============ */
 @container (min-width: 720px) {
-  .lx-hero-professional { grid-template-columns: minmax(0, 1fr) minmax(240px, 34%); align-items: end; gap: 56px; }
-  .lx-hero-services { grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr); align-items: center; gap: 56px; }
+  .lx-hero-professional { grid-template-columns: minmax(0, 1fr) minmax(240px, 47.6%); align-items: end; gap: 56px; }
+  .lx-hero-services { grid-template-columns: minmax(0, 11fr) minmax(0, 14fr); align-items: center; gap: 56px; }
   .lx-band { aspect-ratio: 21 / 9; }
   .lx-ticket { left: auto; right: 20px; bottom: 20px; width: min(380px, 44%); }
   .lx-stats { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 32px; }
