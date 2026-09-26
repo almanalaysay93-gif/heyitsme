@@ -21,7 +21,7 @@ import {
 import { copyToClipboard, getInitials } from "@/lib/cardKit";
 import { contrastRatio, mapLink, parsePageConfig, readableOn, resolveFrame, resolveSections, type PageConfig, type SectionId } from "@shared/pageConfig";
 import { CountUp, GlassPanel, useHeroEntrance, useHeroParallax, useMotionOn, usePressProps } from "./cardMotion";
-import { motion } from "framer-motion";
+import { motion, useScroll, useTransform } from "framer-motion";
 import {
   ArrowUpRight,
   Copy,
@@ -164,6 +164,10 @@ export function CardLanding(props: CardLandingProps) {
   const cta = config.cta?.label && config.cta.url ? config.cta : null;
 
   const frame = resolveFrame(config);
+  const { scrollY } = useScroll();
+  const coverY = useTransform(scrollY, [0, 500], [0, 160]);
+  const coverScale = useTransform(scrollY, [0, 500], [1, 1.12]);
+  const coverFade = useTransform(scrollY, [0, 420], [1, 0.35]);
   const fitName = (text: string) => ({ ["--longest" as string]: Math.max(4, ...text.split(/\s+/).map((word) => word.length)) });
 
   // The aurora drifts only while the tab is visible; nothing moves in the builder preview or for reduced motion.
@@ -196,7 +200,6 @@ export function CardLanding(props: CardLandingProps) {
     contact: contactRows.length > 0 || channels.length > 0,
   };
   const sections = resolveSections(config).filter((section) => !section.hidden && hasContent[section.id]);
-  const visitShown = sections.some((section) => section.id === "visit");
 
   // Plain headings by default; a heading the owner wrote keeps the italic last word they saw in the builder.
   const heading = (fallback: string, custom?: string | null) => {
@@ -279,22 +282,6 @@ export function CardLanding(props: CardLandingProps) {
             </>,
           )}
         </section>
-        {cover ? (
-          <motion.div className="lx-band" {...enter("photo")}>
-            {cover}
-            {/* A teaser of the Visit section, hidden with it so a hidden address never shows here. */}
-            {visitShown ? (
-              <div className="lx-ticket">
-                {config.hours[0] ? <p><span>{config.hours[0].days}</span> {config.hours[0].time}</p> : null}
-                {config.address ? (
-                  <a href={mapLink(config.address)} target="_blank" rel="noreferrer" onClick={() => track("link", "Directions")}>
-                    <MapPin size={14} aria-hidden="true" /> {config.address}
-                  </a>
-                ) : null}
-              </div>
-            ) : null}
-          </motion.div>
-        ) : null}
       </>
     );
   } else if (template === "services") {
@@ -337,7 +324,6 @@ export function CardLanding(props: CardLandingProps) {
           </div>
           {portrait()}
         </section>
-        {cover ? <motion.div className="lx-band" {...enter("photo")}>{cover}</motion.div> : null}
       </>
     );
   }
@@ -511,8 +497,15 @@ export function CardLanding(props: CardLandingProps) {
   };
 
   return (
-    <div className={`lx lx-${template} lx-theme-${PALETTES[card.theme] ? card.theme : "midnight"}`} style={style} ref={rootRef} inert={!interactive || undefined}>
+    <div className={`lx lx-${template}${cover ? " lx-has-cover" : ""} lx-theme-${PALETTES[card.theme] ? card.theme : "midnight"}`} style={style} ref={rootRef} inert={!interactive || undefined}>
       {card.backgroundUrl ? <div className="lx-bg" aria-hidden="true"><img src={card.backgroundUrl} alt="" decoding="async" /></div> : null}
+      {cover ? (
+        <div className="lx-cover-top" aria-hidden="true">
+          <motion.div className="lx-cover-top-inner" style={motionOn ? { y: coverY, scale: coverScale, opacity: coverFade } : undefined}>
+            {cover}
+          </motion.div>
+        </div>
+      ) : null}
       <div className="lx-aurora" aria-hidden="true">
         {card.coverUrl && !isVideoUrl(card.coverUrl) ? <div className="lx-aurora-photo"><img src={card.coverUrl} alt="" decoding="async" /></div> : null}
         <i /><i /><i /><i />
