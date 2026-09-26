@@ -1,4 +1,5 @@
 // Small browser helpers shared by the dashboard, share sheet, and public card page.
+import { structuredName } from "@shared/vcard";
 
 export async function copyToClipboard(text: string): Promise<boolean> {
   if (!text) return false;
@@ -151,15 +152,19 @@ export function buildContactVCard(contact: {
   company?: string | null;
   title?: string | null;
   notes?: string | null;
+  website?: string | null;
 }) {
+  const name = structuredName(contact.name);
   return [
     "BEGIN:VCARD",
     "VERSION:3.0",
+    `N:${vcardEscape(name.familyName)};${vcardEscape(name.givenName)};${vcardEscape(name.additionalNames)};;`,
     `FN:${vcardEscape(contact.name || "Contact")}`,
     contact.title ? `TITLE:${vcardEscape(contact.title)}` : null,
     contact.company ? `ORG:${vcardEscape(contact.company)}` : null,
     contact.email ? `EMAIL;TYPE=INTERNET:${contact.email}` : null,
     contact.phone ? `TEL;TYPE=CELL:${contact.phone}` : null,
+    contact.website ? `URL:${contact.website}` : null,
     contact.notes ? `NOTE:${vcardEscape(contact.notes)}` : null,
     "END:VCARD",
   ].filter(Boolean).join("\r\n");

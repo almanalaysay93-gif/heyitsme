@@ -92,6 +92,7 @@ describe("GET /c/:slug.vcf", () => {
     expect(response.status).toBe(200);
     const body = await response.text();
 
+    expect(body).toContain("N:Connor;Sara;;;");
     expect(body).toContain("FN:Sara Connor");
     expect(body).toContain("ADR;TYPE=WORK:;;;Los Angeles\\, CA;;;");
     expect(body).toContain("X-SOCIALPROFILE;TYPE=telegram;x-user=saraconnor:https://t.me/saraconnor");

@@ -134,6 +134,40 @@ export function parseChannelsSafe(raw: string | ChannelItem[] | null | undefined
   }
 }
 
+export function structuredName(displayName: string | null | undefined): {
+  familyName: string;
+  givenName: string;
+  additionalNames: string;
+} {
+  const raw = (displayName || "").trim();
+  if (!raw) {
+    return { familyName: "", givenName: "Contact", additionalNames: "" };
+  }
+
+  // Handle "LastName, FirstName MiddleName"
+  if (raw.includes(",")) {
+    const [last, firstAndMiddle = ""] = raw.split(",").map((s) => s.trim());
+    const rest = firstAndMiddle.split(/\s+/).filter(Boolean);
+    const given = rest[0] || "";
+    const additional = rest.slice(1).join(" ");
+    return { familyName: last || "", givenName: given, additionalNames: additional };
+  }
+
+  // Handle "FirstName MiddleName... LastName"
+  const tokens = raw.split(/\s+/).filter(Boolean);
+  if (tokens.length === 1) {
+    return { familyName: "", givenName: tokens[0], additionalNames: "" };
+  }
+  if (tokens.length === 2) {
+    return { familyName: tokens[1], givenName: tokens[0], additionalNames: "" };
+  }
+
+  const given = tokens[0];
+  const family = tokens[tokens.length - 1];
+  const additional = tokens.slice(1, -1).join(" ");
+  return { familyName: family, givenName: given, additionalNames: additional };
+}
+
 /** vCard 3.0 text for a card. `pageUrl` is the public page, `origin` resolves same-origin photo paths. */
 export function buildVCard(card: VCardFields, pageUrl: string, origin: string): string {
   const esc = (v: string) => v.replace(/[\\,;]/g, (m) => `\\${m}`).replace(/\r?\n/g, "\\n");
@@ -143,9 +177,11 @@ export function buildVCard(card: VCardFields, pageUrl: string, origin: string): 
     ? avatarUrl
     : avatarUrl.startsWith("/") && !avatarUrl.startsWith("//") ? `${origin}${avatarUrl}` : "";
 
+  const name = structuredName(card.displayName);
   const lines: (string | null)[] = [
     "BEGIN:VCARD",
     "VERSION:3.0",
+    `N:${esc(name.familyName)};${esc(name.givenName)};${esc(name.additionalNames)};;`,
     `FN:${esc(card.displayName || "Contact")}`,
     card.title ? `TITLE:${esc(card.title)}` : null,
     card.company ? `ORG:${esc(card.company)}` : null,

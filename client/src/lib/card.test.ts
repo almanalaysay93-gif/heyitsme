@@ -18,6 +18,7 @@ import {
   readPreviewCard,
   resolveActiveCard,
   splitHeading,
+  structuredName,
   toDraft,
   toHref,
   uploadInlineMedia,
@@ -166,11 +167,35 @@ describe("buildVCard", () => {
     expect(vcard).toContain("item2.X-ABLabel:WhatsApp");
     expect(vcard).toContain("item3.URL:https://x.com/adalane");
     expect(vcard).toContain("item3.X-ABLabel:X");
+    // Structured Name (N:) prevents iOS from misclassifying contact as company
+    expect(vcard).toContain("N:Lane;Ada;;;");
     expect(vcard).toContain("item4.URL:https://ada.design");
     expect(vcard).toContain("item4.X-ABLabel:Ada");
 
     // Notes fallback preserving bio and formatted link list
     expect(vcard).toContain("NOTE:Crafting digital experiences.\\n\\nContact & Social Links:\\n• LinkedIn: https://www.linkedin.com/in/ada\\n• WhatsApp: https://wa.me/14155550183\\n• X: https://x.com/adalane\\n• Ada: https://ada.design");
+  });
+});
+
+describe("structuredName", () => {
+  it("splits two-word names into family and given names", () => {
+    expect(structuredName("Alex Morgan")).toEqual({ familyName: "Morgan", givenName: "Alex", additionalNames: "" });
+  });
+
+  it("splits multi-word names preserving middle names in additionalNames", () => {
+    expect(structuredName("Mary Jane Watson")).toEqual({ familyName: "Watson", givenName: "Mary", additionalNames: "Jane" });
+  });
+
+  it("handles single-word names without an invented last name", () => {
+    expect(structuredName("Cher")).toEqual({ familyName: "", givenName: "Cher", additionalNames: "" });
+  });
+
+  it("parses comma-separated 'Last, First Middle' formats", () => {
+    expect(structuredName("Smith, John David")).toEqual({ familyName: "Smith", givenName: "John", additionalNames: "David" });
+  });
+
+  it("falls back to default Contact for blank names", () => {
+    expect(structuredName("")).toEqual({ familyName: "", givenName: "Contact", additionalNames: "" });
   });
 });
 

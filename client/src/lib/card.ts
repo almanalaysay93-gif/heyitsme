@@ -433,7 +433,7 @@ export function websiteShotFrom(answer: any): string | null {
 }
 
 // Shared with the server, which serves the same file at /c/<slug>.vcf.
-export { buildVCard } from "@shared/vcard";
+export { buildVCard, structuredName } from "@shared/vcard";
 
 const PHONE_CHANNELS = new Set(["whatsapp", "viber", "signal", "telegram"]);
 const PROFILE_BASES: Record<string, string> = {
