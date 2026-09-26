@@ -246,11 +246,13 @@
   100% { transform: translate3d(16%, 8%, 0) scale(.9); }
 }
 
-/* An owner's page background: under the aurora, heavily veiled so glass still reads. */
-.lx-bg { position: fixed; inset: 0; z-index: -3; }
+/* Keep the owner's image recognizable, with one theme veil for readable text.
+ * Custom backgrounds replace the aurora rather than accumulating multiple veils.
+ * Use full ink for secondary text: arbitrary photos can be brighter/darker than the default aurora. */
+.lx:has(.lx-bg) { --muted: var(--ink); }
+.lx-bg { position: fixed; inset: 0; z-index: -3; pointer-events: none; }
 .lx-bg img { width: 100%; height: 100%; object-fit: cover; }
-.lx-bg::after { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--base) 84%, transparent); }
-.lx:has(.lx-bg) .lx-aurora { background: transparent; }
+.lx-bg::after { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--base) 65%, transparent); }
 
 /* ============ Glass recipe ============ */
 /* .lx-glass is the reusable panel; sections, the ticket, nav and dock share the same material. */

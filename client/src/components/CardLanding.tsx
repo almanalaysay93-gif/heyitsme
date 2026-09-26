@@ -506,10 +506,13 @@ export function CardLanding(props: CardLandingProps) {
           </motion.div>
         </div>
       ) : null}
-      <div className="lx-aurora" aria-hidden="true">
-        {card.coverUrl && !isVideoUrl(card.coverUrl) ? <div className="lx-aurora-photo"><img src={card.coverUrl} alt="" decoding="async" /></div> : null}
-        <i /><i /><i /><i />
-      </div>
+      {/* An explicit page background takes precedence over blurred cover/aurora effects. */}
+      {!card.backgroundUrl ? (
+        <div className="lx-aurora" aria-hidden="true">
+          {card.coverUrl && !isVideoUrl(card.coverUrl) ? <div className="lx-aurora-photo"><img src={card.coverUrl} alt="" decoding="async" /></div> : null}
+          <i /><i /><i /><i />
+        </div>
+      ) : null}
 
       {interactive ? (
         <header className="lx-nav">

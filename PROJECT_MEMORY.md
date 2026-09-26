@@ -137,3 +137,10 @@ Verification: `pnpm check` clean, `pnpm test` 208 passed / 3 skipped (25 files),
 - Shipped: aurora backdrop + frosted panels (`cardLanding.css`, from Agent 2 spec adjusted by Agents 1/3/4), motion primitives `client/src/components/cardMotion.tsx` (Agent 5), owner "Photo shape" picker (circle / rounded square / portrait / organic) stored as `page.frame` (default per template).
 - Demo overrides: `/c/demo?template=…&theme=midnight|tide|sunset&frame=circle|squircle|portrait|blob`.
 - Verified: contrast on sampled pixels 7.6–8.4:1 (muted text), CTA white on accent, 0 running animations under reduced motion, no page errors.
+
+## 2026-09-26: Uploaded page background visibility fix
+- Cause reproduced with a decoded local image: the 84% page veil plus the cover-derived aurora almost completely obscured `backgroundUrl`.
+- `CardLanding.tsx`: explicit page backgrounds replace the blurred cover/aurora effects. The separate top cover from `13a6424` is preserved.
+- `cardLanding.css`: use one 65% theme veil and full-ink secondary text for custom backgrounds. Default effects return when the background is removed.
+- Verification: TypeScript check, 228 tests passed / 3 DB-dependent tests skipped, production build passed. Browser verified all 9 theme/template previews, default-effect restoration, desktop/mobile rendering and builder preview; repeated combined cover/background check after integrating `13a6424`.
+- Worktree: `D:\ai mem\heyitsme-background-fix`, branch `fix/background-visibility`. No user card data or uploads changed. Pending production verification after push.
