@@ -101,6 +101,10 @@ Verification: `pnpm check` clean, `pnpm test` 208 passed / 3 skipped (25 files),
 - **T30 E2E**: `scripts/smoke.mjs <baseUrl>` read-only public smoke (passes locally except expected no-DB health/404). Authenticated flow (OAuth → publish → exchange → export) NOT run — no `.env`/DB locally; manual checklist in runbook §8.
 - **T31 Runbook**: `docs/runbook.md` (env table, deploy, rollback, monitoring, rate limits, maintenance). `.env.example` gained `RESEND_API_KEY`, `MAIL_FROM`, `OWNER_OPEN_ID`.
 
+## 2026-09-26: Profile photo +40%
+
+Public card profile photo in `client/src/components/cardLanding.css`. Desktop `.lx-photo` 300→420px, portrait frame 320→448px, phone container 120→168px, business `.lx-logo` 34→48px. Initials clamp scaled the same. Desktop hero tracks widened (professional 34%→47.6%, services 1.2/0.8fr→11/14fr) so the max size is reachable. Playwright measure: desktop circle 420, portrait 448×560, phone 168, services 420, no hero overflow. Not deployed.
+
 ### Next steps
 1. Review + commit (Phase 1–2 and 3–5 are both uncommitted).
 2. Run runbook §8 checklist on staging with real OAuth/DB; run `scripts/smoke.mjs https://heyitsme.fyi` after deploy.
@@ -155,4 +159,11 @@ Verification: `pnpm check` clean, `pnpm test` 208 passed / 3 skipped (25 files),
   - **Location**: Maps `card.location` to `ADR;TYPE=WORK:;;;<location>;;;`.
 - Shared logic: Exports `channelHref`, `channelLabel`, `parseChannelsSafe`, `parseLinksSafe` from `@shared/vcard`.
 - Verified: `pnpm check` clean, `pnpm test` 230 passed / 3 skipped (28 test files), `pnpm build` clean.
+
+## 2026-09-26: Fix iOS Contact Display Name (Company vs Person Name)
+- **Problem**: When saved to iOS / Apple Contacts, card displayed company name as primary contact title instead of person's name.
+- **Root Cause**: vCard was missing mandatory RFC 2426 `N` (Structured Name) property. In the absence of `N:`, iOS treats any vCard containing `ORG:` as an organization card and promotes company name to the header.
+- **Fix**: Added `structuredName(displayName)` parser and explicit `N:<Family>;<Given>;<Middle>;;` to both `shared/vcard.ts` and `client/src/lib/cardKit.ts`. Handles "First Last", "Last, First", single names, and multi-word names.
+- **Verification**: Added 5 unit tests in `card.test.ts` and route check in `vcfRoute.test.ts`. All 235 tests pass. Commit `6e4986d` deployed to production; verified live on `https://heyitsme.fyi/c/demo.vcf`.
+
 
