@@ -7,17 +7,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getDb, getPublicCardBySlug } from "../db";
 import { ENV } from "./env";
+import { isLegacyHost, PRODUCTION_ORIGIN } from "@shared/publicOrigin";
 import { renderCardHtml, renderCardNotFoundHtml, renderMarketingHtml } from "./meta";
 import { clientIp, hashIdentifier, rateLimit } from "./rateLimit";
 
 export function siteOrigin(req: Request): string {
-  if (ENV.siteUrl && !ENV.siteUrl.includes("heyitsme-ecru.vercel.app")) {
-    return ENV.siteUrl;
-  }
+  if (ENV.siteUrl) return ENV.siteUrl;
   const host = (req.headers["x-forwarded-host"] as string) || req.get("host") || "";
-  if (!host || host.includes("heyitsme-ecru.vercel.app")) {
-    return "https://heyitsme.fyi";
-  }
+  if (!host || isLegacyHost(host)) return PRODUCTION_ORIGIN;
   return `${req.protocol}://${host}`;
 }
 

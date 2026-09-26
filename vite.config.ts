@@ -6,6 +6,10 @@ import path from "node:path";
 import { defineConfig, type Plugin } from "vite";
 
 import { MARKETING_METADATA, renderMarketingHtml } from "./server/_core/meta";
+import { resolvePublicOrigin } from "./shared/publicOrigin";
+
+// Same origin policy as runtime (server/_core/env.ts): a stale or legacy SITE_URL can never reach generated HTML.
+const publicOrigin = resolvePublicOrigin(process.env.SITE_URL);
 
 const outDir = path.resolve(import.meta.dirname, "dist/public");
 
@@ -18,7 +22,7 @@ function marketingPagesPlugin(): Plugin {
       const indexPath = path.join(outDir, "index.html");
       if (!fs.existsSync(indexPath)) return;
       const rawTemplate = fs.readFileSync(indexPath, "utf-8");
-      const siteUrl = (process.env.SITE_URL || (process.env.NODE_ENV === "production" ? "https://heyitsme.fyi" : "https://heyitsme.fyi")).trim().replace(/\/$/, "");
+      const siteUrl = publicOrigin;
 
       for (const [route] of Object.entries(MARKETING_METADATA)) {
         const pageHtml = renderMarketingHtml(rawTemplate, route, siteUrl);
@@ -54,7 +58,7 @@ function notFoundPage(): Plugin {
 
 // Link-preview scrapers want absolute image URLs. SITE_URL comes from the Vercel project env.
 function absoluteSocialImages(): Plugin {
-  const siteUrl = (process.env.SITE_URL || (process.env.NODE_ENV === "production" ? "https://heyitsme.fyi" : "")).trim().replace(/\/$/, "");
+  const siteUrl = publicOrigin;
   return {
     name: "heyitsme-absolute-social-images",
     apply: "build",
@@ -68,6 +72,8 @@ function absoluteSocialImages(): Plugin {
 const plugins = [react(), tailwindcss(), { ...jsxLocPlugin(), apply: "serve" as const }, absoluteSocialImages(), notFoundPage(), marketingPagesPlugin()];
 
 export default defineConfig({
+  // Non-secret release id for client error reports: Vercel's commit SHA, else the mode.
+  define: { __RELEASE__: JSON.stringify((process.env.VERCEL_GIT_COMMIT_SHA || "").slice(0, 12) || process.env.NODE_ENV || "dev") },
   plugins,
   resolve: {
     alias: {

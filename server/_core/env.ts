@@ -1,3 +1,5 @@
+import { resolvePublicOrigin } from "@shared/publicOrigin";
+
 export const ENV = {
   cookieSecret: process.env.JWT_SECRET ?? "",
   databaseUrl: process.env.DATABASE_URL ?? "",
@@ -13,13 +15,8 @@ export const ENV = {
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
   googleRedirectUri: process.env.GOOGLE_REDIRECT_URI ?? "",
   // Public origin, e.g. https://heyitsme.fyi, used for canonical URLs, sitemap, and link previews.
-  siteUrl: (() => {
-    const raw = (process.env.SITE_URL || "").trim().replace(/\/$/, "");
-    if (!raw || raw.includes("heyitsme-ecru.vercel.app") || (process.env.NODE_ENV === "production" && raw.includes(".vercel.app"))) {
-      return process.env.NODE_ENV === "production" ? "https://heyitsme.fyi" : "";
-    }
-    return raw;
-  })(),
+  // Local development without SITE_URL keeps the request's own host; everything else uses the shared policy.
+  siteUrl: !process.env.SITE_URL?.trim() && process.env.NODE_ENV !== "production" ? "" : resolvePublicOrigin(process.env.SITE_URL),
   s3Bucket: process.env.S3_BUCKET ?? "",
   s3Region: process.env.S3_REGION ?? "us-east-1",
   awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID ?? "",

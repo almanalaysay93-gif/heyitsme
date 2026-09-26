@@ -1,3 +1,5 @@
+declare const __RELEASE__: string;
+
 const MAX_REPORTS_PER_PAGE = 5;
 let sent = 0;
 
@@ -21,7 +23,8 @@ export function reportError(error: unknown, source: ErrorReport["source"], compo
     source,
     path: window.location.pathname,
     userAgent: navigator.userAgent.slice(0, 300),
-    release: import.meta.env.MODE,
+    // Commit SHA baked in at build (vite.config.ts), so a crash maps to the deployment that produced it.
+    release: __RELEASE__,
   });
 
   try {
