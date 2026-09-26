@@ -1,5 +1,5 @@
 import { BrandMark, LogoLoader } from "@/components/BrandMark";
-import { CardVisual, Field, TiltCard } from "@/components/CardVisual";
+import { Field } from "@/components/CardVisual";
 import { GalleryLightbox } from "@/components/GalleryLightbox";
 import { LegalLinks } from "@/components/LegalLinks";
 import { LoopVideo, isVideoUrl } from "@/components/LoopVideo";
@@ -585,23 +585,23 @@ export default function PublicCardPage() {
             <PublicReferences references={references} />
           </div>
 
-          <aside className="pl-aside">
-            <motion.div
-              className="pl-card-stage"
-              initial={{ opacity: 0, y: 40, rotate: 4 }}
-              animate={{ opacity: 1, y: 0, rotate: 0 }}
-              transition={{ type: "spring", stiffness: 120, damping: 16, delay: 0.35 }}
-            >
-              <span className="section-kicker">Take my card</span>
-              <TiltCard><CardVisual card={card} onClick={saveContact} label={`Save ${card.displayName} to your contacts`} /></TiltCard>
-              {canExchange ? (
+          {/* The hero already shows the name and a Save button, so this panel is only the hand-off QR. */}
+          {canExchange ? (
+            <aside className="pl-aside">
+              <motion.div
+                className="pl-card-stage"
+                initial={{ opacity: 0, y: 40 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ type: "spring", stiffness: 120, damping: 16, delay: 0.35 }}
+              >
+                <span className="section-kicker">Take my card</span>
                 <div className="pl-qr">
-                  <QRCodeSVG value={window.location.href} size={104} bgColor="transparent" fgColor="#10152a" />
+                  <QRCodeSVG value={window.location.href} size={132} bgColor="transparent" fgColor="#10152a" />
                   <p><QrCode size={14} /> Scan to open this page on another phone.</p>
                 </div>
-              ) : null}
-            </motion.div>
-          </aside>
+              </motion.div>
+            </aside>
+          ) : null}
         </div>
       </main>
 
