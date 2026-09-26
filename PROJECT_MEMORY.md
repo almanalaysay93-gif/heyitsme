@@ -106,3 +106,9 @@ Verification: `pnpm check` clean, `pnpm test` 208 passed / 3 skipped (25 files),
 2. Run runbook §8 checklist on staging with real OAuth/DB; run `scripts/smoke.mjs https://heyitsme.fyi` after deploy.
 3. Apply RLS SQL + `0005`–`0007` in Supabase if not already.
 4. Lighthouse mobile on `/` and `/c/demo`; record in runbook §7.
+
+## 2026-09-26: Released to production
+- `main` fast-forwarded to `24387ca` (commits `9f6903c` Phase 1–2, `24387ca` Phase 3–5); Vercel deployed in ~45s.
+- `node scripts/smoke.mjs https://heyitsme.fyi`: all 15 checks pass (pre-release baseline failed /about, /faq, /pricing, /c/demo, /c/demo.vcf). HSTS present; legacy host 308 → heyitsme.fyi.
+- Rollback target: `380f5f0` (Vercel → promote previous deployment).
+- Still open: runbook §8 signed-in checklist, RLS + 0005–0007 SQL check in Supabase, Lighthouse scores, GitHub PR not opened (gh CLI not logged in).
