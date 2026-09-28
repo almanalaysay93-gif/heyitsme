@@ -5,14 +5,14 @@ import { Link } from "wouter";
 export function AboutPage() {
   usePageMeta({
     title: "About — heyitsme",
-    description: "Learn about heyitsme: a fast, free, privacy-first digital business card that makes introductions simple, without apps or paywalls.",
+    description: "Learn about heyitsme: a fast, privacy-first digital business card that makes introductions simple. Start free, no app needed.",
     canonicalPath: "/about",
   });
 
   return (
     <LegalShell
       title="About heyitsme"
-      intro="heyitsme is a free digital business card designed for introductions that feel human, fast, and memorable."
+      intro="heyitsme is a digital business card for introductions that feel human, fast, and memorable. You can start free."
       updated={null}
     >
       <h2>The idea</h2>
@@ -34,10 +34,10 @@ export function AboutPage() {
         modern browser across iOS, Android, macOS, Windows, and Linux.
       </p>
 
-      <h3>100% free, no hidden paywalls</h3>
+      <h3>Start free, pay when it pays</h3>
       <p>
-        All current features—multiple cards, QR codes, portfolio uploads, contact exchange, CSV exports, visitor insights,
-        and email signatures—are completely free for everyone. There are no surprise subscriptions, trials, or paywalls.
+        Your profile, QR code, and card link are free and never expire. Pro adds more cards, unlimited lead capture, and a
+        year of insights for people whose networking brings in work. See <Link href="/pricing">pricing</Link> for details.
       </p>
 
       <h3>Privacy by default</h3>
@@ -58,7 +58,7 @@ export function AboutPage() {
 export function FaqPage() {
   usePageMeta({
     title: "Frequently Asked Questions — heyitsme",
-    description: "Find answers to common questions about heyitsme: compatibility, contact exchange, privacy, file limits, and free features.",
+    description: "Answers about heyitsme: compatibility, contact exchange, privacy, plans, billing, lead limits and cancellation.",
     canonicalPath: "/faq",
   });
 
@@ -101,7 +101,7 @@ export function FaqPage() {
         <li><strong>File uploads:</strong> Up to 3 MB per file for authenticated accounts (1 MB in local guest preview mode). Supports JPG, PNG, WebP, GIF, MP4, WebM, MOV, PDF, Word, and ZIP files.</li>
         <li><strong>Portfolio items:</strong> Up to 20 items per card, with a total serialized portfolio payload limit of 12,000 characters.</li>
         <li><strong>Contact tags:</strong> Up to 12 custom tags per exchanged contact.</li>
-        <li><strong>Cards per account:</strong> Up to 500 cards per account.</li>
+        <li><strong>Cards per account:</strong> 1 on Free, 3 on Pro. Cards you made before a plan limit applied stay live.</li>
       </ul>
 
       <h2>Contact exchange &amp; privacy</h2>
@@ -114,8 +114,8 @@ export function FaqPage() {
 
       <h3>What does Insights show, and does it identify visitors?</h3>
       <p>
-        Insights reports aggregate counts over 7, 30, or 90 days: total page views, contact-save (.vcf) actions, detail exchanges,
-        and link taps. We do not track individual visitor identities or use advertising trackers. The only personal information
+        Insights reports aggregate counts: total page views, contact-save (.vcf) actions, detail exchanges, and link taps.
+        Free shows the last 7 days. Pro shows 7, 30, 90, or 365 days. We do not track individual visitor identities or use advertising trackers. The only personal information
         collected from visitors is what they voluntarily submit through the contact exchange form.
       </p>
 
@@ -139,61 +139,55 @@ export function FaqPage() {
         save any originals you want to keep.
       </p>
 
+      <h2>Plans and billing</h2>
+      <h3>What is free, and what is Pro?</h3>
+      <p>
+        Free gives you one card with your own link, QR code, save-to-contacts, and up to 10 new leads a month, with 7 days of insights.
+        Pro is &#8369;149 a month or &#8369;1,290 a year and adds up to 3 cards, unlimited lead capture, 365 days of insights, and the option
+        to hide heyitsme branding on your page. See <Link href="/pricing">pricing</Link>.
+      </p>
+
+      <h3>What happens when I reach 10 leads on Free?</h3>
+      <p>
+        Lead capture pauses until the next month starts (midnight, Philippine time, on the 1st). Your page stops showing the
+        <em> Exchange details</em> form, so visitors are never asked for details you can&rsquo;t receive. They can still save your contact
+        and reach you through your links. Everyone you already met stays in your Contacts.
+      </p>
+
+      <h3>How do I pay?</h3>
+      <p>
+        Checkout runs on the secure 2C2P payment page, where you pay with Google Pay (and GCash where available). heyitsme never sees or
+        stores your card details. Pro starts only after the payment is confirmed to us by 2C2P, usually within a minute.
+      </p>
+
+      <h3>Can I cancel?</h3>
+      <p>
+        Yes, from <em>Billing</em> in your workspace. Pro stays on until the end of the period you paid for, then your account moves to Free.
+        Nothing is deleted: cards, contacts, and insights data stay. Cards above the Free limit stay live and editable; you just can&rsquo;t
+        create new ones until you&rsquo;re under the limit or back on Pro.
+      </p>
+
+      <h3>What is the Founding Member price?</h3>
+      <p>
+        The first 500 Pro members pay &#8369;99 a month or &#8369;999 a year. The price holds while the plan stays active. If a founding
+        plan ends and you start again later, the standard price applies.
+      </p>
+
+      <h3>Can I get a refund?</h3>
+      <p>
+        The refund policy is being finalized and will be published here before paid plans open. <strong>[Owner: set the refund policy
+        before enabling production checkout.]</strong>
+      </p>
+
+      <h3>Does my card work with NFC?</h3>
+      <p>
+        Yes. Your card link works on any NFC tag or card that can hold a web address, and it keeps working on every plan.
+        heyitsme does not sell NFC cards yet.
+      </p>
+
       <h2>Support</h2>
       <p>
         Have questions that aren&rsquo;t covered here? Send an email to <ContactLine /> and we&rsquo;ll be glad to help.
-      </p>
-    </LegalShell>
-  );
-}
-
-export function PricingPage() {
-  usePageMeta({
-    title: "Pricing & Limits — 100% Free — heyitsme",
-    description: "heyitsme is 100% free with no subscriptions, trials, or paywalls. See all included features and technical limits.",
-    canonicalPath: "/pricing",
-  });
-
-  return (
-    <LegalShell
-      title="Pricing &amp; Limits"
-      intro="heyitsme is completely free. No subscriptions, no trials, and no credit card required."
-      updated={null}
-    >
-      <h2>Free for everyone</h2>
-      <p>
-        All current features of heyitsme are 100% free. We believe professional introductions should be clean, fast, and accessible
-        without artificial paywalls or monthly fees.
-      </p>
-
-      <h2>What&rsquo;s included</h2>
-      <ul>
-        <li><strong>Multiple cards:</strong> Create and manage cards for different roles, projects, or contexts (up to 500 cards per account).</li>
-        <li><strong>Portfolio &amp; gallery:</strong> Showcase photos, video loops, PDF documents, and external project links (up to 20 items per card).</li>
-        <li><strong>One-tap contact saving:</strong> Provide standard vCard (.vcf) downloads compatible with iOS and Android address books.</li>
-        <li><strong>QR codes &amp; share tools:</strong> High-resolution QR codes (downloadable as PNG or SVG), personal links, and share helpers.</li>
-        <li><strong>Two-way contact exchange:</strong> Let visitors send their contact information directly back to your private contact book.</li>
-        <li><strong>Contact management &amp; CSV export:</strong> Organize contacts with tags, search, follow-up indicators, and one-click CSV export.</li>
-        <li><strong>Privacy-respecting insights:</strong> View aggregate page views, contact-save counts, and link tap metrics over 7, 30, or 90 days.</li>
-        <li><strong>Email signature generator:</strong> Generate responsive HTML and rich text email signatures linking directly to your card.</li>
-        <li><strong>Client references:</strong> Highlight verified quotes and testimonials from collaborators and clients.</li>
-      </ul>
-
-      <h2>Technical limits</h2>
-      <p>
-        To keep the platform fast, secure, and reliable for all users, the following generous technical boundaries are enforced:
-      </p>
-      <ul>
-        <li><strong>Upload file size:</strong> 3 MB per file for signed-in accounts (1 MB in local browser preview).</li>
-        <li><strong>Portfolio capacity:</strong> Up to 20 items per card (up to 12,000 characters total serialized payload).</li>
-        <li><strong>Contact tags:</strong> Up to 12 custom tags per contact.</li>
-        <li><strong>Card capacity:</strong> Up to 500 cards per account.</li>
-        <li><strong>Rate limits:</strong> Standard rate limits protect card views, contact exchanges, and file uploads against automated abuse.</li>
-      </ul>
-
-      <h2>Questions about pricing?</h2>
-      <p>
-        If you have any questions or feedback about our free offering, please contact <ContactLine />.
       </p>
     </LegalShell>
   );

@@ -28,9 +28,12 @@ type Props = {
   /** The owner's photo and initials, so each shape option previews their own picture. */
   avatarUrl?: string;
   initials?: string;
+  /** Plan allows hiding the heyitsme name. The server checks this again on save. */
+  canRemoveBranding?: boolean;
+  onLockedBranding?: () => void;
 };
 
-export function PageDesigner({ value, onChange, themeAccent, onPendingChange, avatarUrl, initials = "" }: Props) {
+export function PageDesigner({ value, onChange, themeAccent, onPendingChange, avatarUrl, initials = "", canRemoveBranding = false, onLockedBranding }: Props) {
   // Working copy keeps half-typed rows (a service with no name yet); only the valid subset is emitted.
   const [config, setConfig] = useState<PageConfig>(() => parsePageConfig(value));
   const lastEmitted = useRef<string | undefined>(value);
@@ -95,6 +98,32 @@ export function PageDesigner({ value, onChange, themeAccent, onPendingChange, av
           <p>How your profile photo is framed on your page.</p>
         </div>
         <FramePicker value={resolveFrame(config)} avatarUrl={avatarUrl} initials={initials} onSelect={(frame) => commit({ ...config, frame })} />
+      </div>
+
+      <div className="pd-block">
+        <div className="pd-block-head">
+          <h3>heyitsme branding {canRemoveBranding ? null : <span className="plan-chip plan-chip-pro">Pro</span>}</h3>
+          <p>
+            {canRemoveBranding || config.hideBranding
+              ? "Show or hide the heyitsme name in your page header and footer."
+              : "Free pages show a small heyitsme name in the header and footer. Pro can hide it."}
+          </p>
+        </div>
+        <label className="pd-check">
+          <input
+            type="checkbox"
+            checked={config.hideBranding}
+            onChange={(event) => {
+              // Turning it off is always allowed. Turning it on needs Pro, unless this card already had it.
+              if (event.target.checked && !canRemoveBranding) {
+                onLockedBranding?.();
+                return;
+              }
+              commit({ ...config, hideBranding: event.target.checked });
+            }}
+          />
+          Hide the heyitsme name on my page
+        </label>
       </div>
 
       <div className="pd-block">

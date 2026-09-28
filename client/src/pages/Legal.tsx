@@ -5,7 +5,7 @@ import { usePageMeta } from "@/hooks/usePageMeta";
 import type { ReactNode } from "react";
 import { Link } from "wouter";
 
-const LAST_UPDATED = "September 24, 2026";
+const LAST_UPDATED = "September 28, 2026";
 
 export function ContactLine() {
   return SUPPORT_EMAIL ? (
@@ -40,7 +40,7 @@ export function LegalShell({
         </article>
       </main>
       <footer className="legal-footer">
-        <span>heyitsme · free for everyone</span>
+        <span>heyitsme · start free</span>
         <LegalLinks />
       </footer>
     </div>
@@ -57,7 +57,7 @@ export function PrivacyPage() {
   return (
     <LegalShell
       title="Privacy"
-      intro="heyitsme is a free digital business card. We collect what it takes to run your card and nothing for advertising. This page explains what that is."
+      intro="heyitsme is a digital business card you can start free. We collect what it takes to run your card and nothing for advertising. This page explains what that is."
     >
       <h2>What we collect</h2>
       <h3>When you sign in</h3>
@@ -83,6 +83,13 @@ export function PrivacyPage() {
         When someone opens a published card, saves the contact, taps a link, or shares the card, we record the type of
         action, which card, which link, and when. Owners see these as totals on their Insights page. These records do
         not include who the visitor was.
+      </p>
+      <h3>If you buy a paid plan</h3>
+      <p>
+        You pay on the 2C2P payment page. heyitsme never receives or stores your card number or wallet details. 2C2P sends
+        us the result of the payment: an invoice reference, a transaction reference, the amount, the currency, the payment
+        method type (for example Google Pay), and whether it succeeded. We keep these with your plan, its start and end
+        dates, and your monthly lead count, to run billing and show you your payment history.
       </p>
       <h3>Security and error data</h3>
       <p>
@@ -117,6 +124,8 @@ export function PrivacyPage() {
         <li><strong>Supabase</strong> hosts the database with accounts, cards, contacts, and activity.</li>
         <li><strong>Microlink</strong> takes the screenshots shown for website links on cards. Browsers load them from Microlink.</li>
         <li><strong>S3-compatible object storage</strong> holds the images and files you upload.</li>
+        <li><strong>2C2P</strong> processes payments for paid plans, with Google as the wallet provider when you pay with Google Pay. Their own privacy terms apply to the details you enter on their page.</li>
+        <li><strong>Resend</strong> sends account emails, such as new-contact notices and payment confirmations.</li>
       </ul>
       <p>They may process data in countries other than yours.</p>
 
@@ -165,7 +174,21 @@ export function TermsPage() {
       <h2>The service</h2>
       <p>
         heyitsme lets you make digital business cards, share them by link or QR code, and receive details from people
-        you meet. It is free. We may change, add, or remove features over time.
+        you meet. The Free plan costs nothing and has no end date. Paid plans (Pro, and later Teams) add features for a
+        fee shown on the <Link href="/pricing">pricing page</Link>. We may change, add, or remove features over time.
+      </p>
+
+      <h2>Paid plans</h2>
+      <p>
+        Prices are in Philippine pesos and include the features listed on the pricing page when you buy. A yearly plan is
+        paid once and covers twelve months from the confirmed payment. Pro starts when 2C2P confirms your payment to us, not
+        when your browser returns from the payment page. You can cancel from Billing at any time; your plan stays on until
+        the end of the period you paid for, then your account moves to Free. Moving to Free never deletes your cards,
+        contacts, or insights data. If a price changes, it applies from your next payment, never to a period you already paid for.
+      </p>
+      <p>
+        <strong>Refunds:</strong> [Owner: define the refund and cancellation-refund policy here before enabling production
+        checkout. Until then, paid checkout stays switched off.]
       </p>
 
       <h2>Your account</h2>

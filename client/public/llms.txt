@@ -1,6 +1,6 @@
 # heyitsme
 
-heyitsme is a free digital business card and professional presence web product.
+heyitsme is a digital business card and professional presence web product for the Philippines and beyond. Start free; Pro adds more cards, unlimited lead capture and a year of insights.
 
 ## Core jobs
 
@@ -22,6 +22,8 @@ heyitsme is a free digital business card and professional presence web product.
 - `/app/cards/new` — card builder.
 - `/app/contacts` — contact list.
 - `/app/insights` — views, saves, exchanges, and link taps per card.
+- `/app/billing` — current plan, monthly usage, payments, cancel or resume.
+- `/pricing` — Free, Pro and Teams plans.
 - `/c/:slug` — public card, presented as a landing page in the owner's chosen template (photo, image or looping video cover, services and prices, hours and address, links, work, references, QR).
 - `/c/demo?template=professional|business|services` — demo card in each template.
 - `/privacy` — privacy policy.
@@ -29,4 +31,4 @@ heyitsme is a free digital business card and professional presence web product.
 
 ## Product rules
 
-All implemented features are free for every signed-in user. heyitsme does not expose paid plans, checkout, billing, or upgrade gates. It does not sell NFC hardware and does not claim compliance certifications.
+Free: 1 card, QR code and NFC-ready link that never expire, 10 new leads a month, 7 days of insights. Pro: ₱149/month or ₱1,290/year (founding price ₱99/month or ₱999/year for the first 500 members), up to 3 cards, unlimited leads, 365 days of insights, removable branding. Teams: ₱499/month for 5 members, coming soon. Payments run on the 2C2P hosted page with Google Pay or GCash; heyitsme never stores card details. Downgrading never deletes data. heyitsme does not sell NFC hardware yet and does not claim compliance certifications.

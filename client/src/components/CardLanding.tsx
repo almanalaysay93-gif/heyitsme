@@ -69,6 +69,8 @@ export type CardLandingProps = {
   /** false = builder preview: no nav, dock, QR or motion, and nothing inside can be focused or clicked. */
   interactive: boolean;
   canExchange: boolean;
+  /** False when the owner's free lead quota is used up: the page drops the exchange form and keeps direct contact. */
+  acceptsDetails?: boolean;
   pageUrl: string;
   onSaveContact: () => void;
   onExchange: () => void;
@@ -134,6 +136,9 @@ function WebsiteShot({ request, title }: { request: string; title: string }) {
 
 export function CardLanding(props: CardLandingProps) {
   const { card, config, references, interactive, canExchange, pageUrl, onSaveContact, onExchange, onShare, onCopyLink, track, onDemoAction } = props;
+  // Only the form depends on the quota. Save contact, QR and links always work.
+  const showExchange = canExchange && props.acceptsDetails !== false;
+  const branded = !config.hideBranding;
   // On the demo, placeholder booking links and the fictional phone number open an explanation, not a blank tab or a call.
   const demoClick = (kind: "booking" | "phone") =>
     onDemoAction ? (event: { preventDefault: () => void }) => { event.preventDefault(); onDemoAction(kind); } : undefined;
@@ -226,7 +231,7 @@ export function CardLanding(props: CardLandingProps) {
       <motion.button type="button" className={`lx-btn ${cta ? "lx-btn-ghost" : "lx-btn-primary"}`} onClick={onSaveContact} {...press}>
         <Download size={16} aria-hidden="true" /> Save contact
       </motion.button>
-      {canExchange ? (
+      {showExchange ? (
         <motion.button type="button" className="lx-btn lx-btn-ghost" onClick={onExchange} {...press}>
           <UserRoundPlus size={16} aria-hidden="true" /> Exchange details
         </motion.button>
@@ -521,7 +526,7 @@ export function CardLanding(props: CardLandingProps) {
 
       {interactive ? (
         <header className="lx-nav">
-          <a className="lx-brand" href="/"><BrandMark /><span>heyitsme</span></a>
+          {branded ? <a className="lx-brand" href="/"><BrandMark /><span>heyitsme</span></a> : <span />}
           <span className="lx-nav-actions">
             <button type="button" className="lx-nav-share lx-nav-copy" onClick={onCopyLink} aria-label="Copy link to this page"><Copy size={15} aria-hidden="true" /></button>
             <button type="button" className="lx-nav-share" onClick={onShare}><Share2 size={15} aria-hidden="true" /> Share</button>
@@ -555,9 +560,9 @@ export function CardLanding(props: CardLandingProps) {
       {interactive ? (
         <>
           <footer className="lx-footer">
-            <span>{firstName}’s page on heyitsme</span>
+            {branded ? <span>{firstName}’s page on heyitsme</span> : null}
             <LegalLinks />
-            <a href="/">Make yours, free <ArrowUpRight size={13} aria-hidden="true" /></a>
+            {branded ? <a href="/">Make yours, free <ArrowUpRight size={13} aria-hidden="true" /></a> : null}
           </footer>
           <div className="lx-dock" role="toolbar" aria-label="Quick actions">
             {cta ? (
@@ -566,7 +571,7 @@ export function CardLanding(props: CardLandingProps) {
               <button type="button" className="lx-btn lx-btn-primary" onClick={onSaveContact}><Download size={16} aria-hidden="true" /> Save contact</button>
             )}
             {cta ? <button type="button" className="lx-btn lx-btn-ghost" onClick={onSaveContact} aria-label="Save contact"><Download size={16} aria-hidden="true" /></button> : null}
-            {canExchange ? <button type="button" className="lx-btn lx-btn-ghost" onClick={onExchange} aria-label="Exchange details"><UserRoundPlus size={16} aria-hidden="true" /></button> : null}
+            {showExchange ? <button type="button" className="lx-btn lx-btn-ghost" onClick={onExchange} aria-label="Exchange details"><UserRoundPlus size={16} aria-hidden="true" /></button> : null}
             <button type="button" className="lx-btn lx-btn-ghost" onClick={onShare} aria-label="Share this page"><Share2 size={16} aria-hidden="true" /></button>
           </div>
           <GalleryLightbox items={photos} currentIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} onNavigate={setLightboxIndex} />

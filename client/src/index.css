@@ -433,6 +433,9 @@ div.card-visual { cursor: default; }
 .lp-free ul { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .lp-free li { display: flex; align-items: center; gap: 12px; padding: 14px 18px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1); border-radius: 16px; font-size: 15px; font-weight: 600; }
 .lp-free li svg { flex: none; color: var(--aqua); }
+.lp-free-link { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin-top: 18px; padding: 0 18px; border-radius: 14px; color: #fff; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.18); font-size: 14px; font-weight: 700; text-decoration: none; }
+.lp-free-link:hover { background: rgba(255,255,255,.2); }
+.lp-free-link:focus-visible { outline: 2px solid #c2b7ff; outline-offset: 3px; }
 
 .lp-final { position: relative; z-index: 2; max-width: 900px; margin: 0 auto; padding: 16vh 36px 12vh; text-align: center; }
 .lp-final p { margin: 18px 0 30px; color: var(--muted-ink); font-size: 18px; }

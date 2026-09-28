@@ -1,4 +1,7 @@
 import { buildContactVCard, copyToClipboard, csvCell, downloadBlob, followUpDay, formatDate, formatFollowUp, getInitials, parseTags, safeFileName, sortByFollowUp } from "@/lib/cardKit";
+import { LeadUsage } from "@/components/billing/LeadUsage";
+import type { UpgradeReason } from "@/lib/billing";
+import type { LeadUsage as LeadUsageData } from "@shared/plans";
 import { AnimatePresence, motion } from "framer-motion";
 import { AtSign, CalendarClock, Check, Copy, Download, Mail, Phone, Sparkles, Tag, Trash2, UserRoundPlus, UsersRound, X } from "lucide-react";
 import { useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
@@ -247,6 +250,8 @@ export function ContactsView({
   onDelete,
   isAuthenticated = true,
   onSignIn,
+  leadUsage = null,
+  onUpgrade,
 }: {
   contacts: ContactRow[];
   cards: { id: number; displayName: string }[];
@@ -256,6 +261,9 @@ export function ContactsView({
   onDelete: (id: number) => Promise<void>;
   isAuthenticated?: boolean;
   onSignIn?: () => void;
+  /** This month's free lead usage. Null when plan limits are off. */
+  leadUsage?: LeadUsageData | null;
+  onUpgrade?: (reason: UpgradeReason) => void;
 }) {
   const [guestContacts, setGuestContacts] = useState<ContactRow[]>(SAMPLE_GUEST_CONTACTS);
   const contacts = isAuthenticated ? rawContacts : guestContacts;
@@ -380,6 +388,7 @@ export function ContactsView({
         </div>
         <button type="button" className="outline-button" onClick={exportContacts} disabled={visible.length === 0}><Download size={15} /> Export CSV</button>
       </div>
+      {isAuthenticated && leadUsage && onUpgrade ? <LeadUsage usage={leadUsage} onUpgrade={onUpgrade} /> : null}
 
       {!isAuthenticated ? (
         <div className="guest-sample-banner">

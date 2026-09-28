@@ -1,10 +1,11 @@
 import { trpc } from "@/lib/trpc";
 import { motion } from "framer-motion";
-import { BarChart3, Download, Eye, Link2, Moon, Share2, Sparkles, Sun, UserRoundPlus } from "lucide-react";
-import { useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { INSIGHT_RANGES, type InsightRange } from "@shared/plans";
+import { BarChart3, Download, Eye, Link2, LockKeyhole, Moon, Share2, Sparkles, Sun, UserRoundPlus } from "lucide-react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
-type Range = 7 | 30 | 90;
-const ranges: Range[] = [7, 30, 90];
+type Range = InsightRange;
+const ranges: readonly Range[] = INSIGHT_RANGES;
 
 const dayLabel = (day: string, options: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" }) =>
   new Date(`${day}T00:00:00Z`).toLocaleDateString(undefined, { ...options, timeZone: "UTC" });
@@ -147,8 +148,24 @@ export const SAMPLE_GUEST_INSIGHTS = {
   ],
 };
 
-export function InsightsView({ isAuthenticated, onSignIn }: { isAuthenticated: boolean; onSignIn: () => void }) {
-  const [days, setDays] = useState<Range>(30);
+export function InsightsView({
+  isAuthenticated,
+  onSignIn,
+  allowedRanges,
+  onLockedRange,
+}: {
+  isAuthenticated: boolean;
+  onSignIn: () => void;
+  /** Ranges the plan includes. Others show with a lock and open the upgrade dialog. */
+  allowedRanges?: Range[];
+  onLockedRange?: () => void;
+}) {
+  const allowed = allowedRanges ?? [7, 30, 90];
+  const [days, setDays] = useState<Range>(allowed.includes(30) ? 30 : allowed[0] ?? 7);
+  // If the plan changes (upgrade, downgrade), keep the selection inside what the plan allows.
+  useEffect(() => {
+    if (!allowed.includes(days)) setDays(allowed.includes(30) ? 30 : allowed[0] ?? 7);
+  }, [allowed.join(","), days]);
   const [tableTheme, setTableThemeState] = useState<TableTheme>(readTableTheme);
   const setTableTheme = (value: TableTheme) => {
     setTableThemeState(value);
@@ -170,11 +187,22 @@ export function InsightsView({ isAuthenticated, onSignIn }: { isAuthenticated: b
       </div>
       {isAuthenticated ? (
         <div className="range-toggle" role="group" aria-label="Date range">
-          {ranges.map((range) => (
-            <button key={range} type="button" aria-pressed={days === range} className={days === range ? "is-active" : ""} onClick={() => setDays(range)}>
-              {range} days
-            </button>
-          ))}
+          {ranges.map((range) => {
+            const locked = !allowed.includes(range);
+            return (
+              <button
+                key={range}
+                type="button"
+                aria-pressed={days === range}
+                className={days === range ? "is-active" : ""}
+                onClick={() => (locked ? onLockedRange?.() : setDays(range))}
+                aria-label={locked ? `${range} days, part of Pro` : undefined}
+              >
+                {range} days
+                {locked ? <span className="range-lock"><LockKeyhole size={11} aria-hidden="true" /></span> : null}
+              </button>
+            );
+          })}
         </div>
       ) : null}
     </div>

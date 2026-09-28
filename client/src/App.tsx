@@ -16,7 +16,7 @@ const PrivacyPage = lazyRoute(() => import("./pages/Legal").then((m) => ({ defau
 const TermsPage = lazyRoute(() => import("./pages/Legal").then((m) => ({ default: m.TermsPage })));
 const AboutPage = lazyRoute(() => import("./pages/Info").then((m) => ({ default: m.AboutPage })));
 const FaqPage = lazyRoute(() => import("./pages/Info").then((m) => ({ default: m.FaqPage })));
-const PricingPage = lazyRoute(() => import("./pages/Info").then((m) => ({ default: m.PricingPage })));
+const PricingPage = lazyRoute(() => import("./pages/Pricing"));
 
 function RouteLoading() {
   return <div className="loading-screen" role="status" aria-label="Loading"><LogoLoader /></div>;
@@ -36,6 +36,7 @@ function Router() {
         <Route path="/app/cards/:id/edit" component={Home} />
         <Route path="/app/contacts" component={Home} />
         <Route path="/app/insights" component={Home} />
+        <Route path="/app/billing" component={Home} />
         <Route path="/c/:slug" component={PublicCardPage} />
         <Route path="/privacy" component={PrivacyPage} />
         <Route path="/terms" component={TermsPage} />
