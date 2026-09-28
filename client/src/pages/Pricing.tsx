@@ -101,7 +101,7 @@ export default function PricingPage() {
           {(["monthly", "annual"] as const).map((option) => (
             <button key={option} type="button" role="radio" aria-checked={cycle === option} className={cycle === option ? "is-active" : ""} onClick={() => setCycle(option)}>
               {option === "monthly" ? "Monthly" : "Yearly"}
-              <small>{option === "annual" ? `Save ${formatPeso(annualSavingsMinor("pro", false))} on Pro` : monthlyAvailable ? "Cancel anytime" : "Monthly checkout soon"}</small>
+              <small>{option === "annual" ? `Save ${formatPeso(annualSavingsMinor("pro", foundingOpen))} on Pro` : monthlyAvailable ? "Cancel anytime" : "Monthly checkout soon"}</small>
             </button>
           ))}
         </div>

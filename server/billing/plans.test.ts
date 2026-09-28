@@ -125,3 +125,10 @@ describe("lead usage state", () => {
     expect(leadUsageState({ used: 999, limit: null, period: "x" })).toBe("unlimited");
   });
 });
+
+describe("billing route", () => {
+  it("serves /app/billing as an app page, not a 404 (the payment return lands there)", async () => {
+    const { isSpaRoute } = await import("@shared/routes");
+    expect(isSpaRoute("/app/billing")).toBe(true);
+  });
+});

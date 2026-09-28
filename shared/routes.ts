@@ -14,6 +14,7 @@ export const SPA_ROUTES: readonly RegExp[] = [
   /^\/app\/cards\/[^/]+\/edit\/?$/,
   /^\/app\/contacts\/?$/,
   /^\/app\/insights\/?$/,
+  /^\/app\/billing\/?$/,
   /^\/c\/[^/]+\/?$/,
   /^\/privacy\/?$/,
   /^\/terms\/?$/,

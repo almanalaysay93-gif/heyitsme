@@ -950,7 +950,7 @@ function Workspace() {
               <InsightsView
                 isAuthenticated={isAuthenticated}
                 onSignIn={startGoogleLogin}
-                allowedRanges={billing.data?.insightRanges}
+                allowedRanges={billing.isError ? [7] : billing.data?.insightRanges}
                 onLockedRange={() => openUpgrade("analytics")}
               />
             </Suspense>

@@ -166,3 +166,9 @@ Source spec: `D:\Downloads\heyitsmepayment.txt` (v1.0).
 - UI: pricing page, upgrade dialog, billing view, plan badge, usage lines, locked insight ranges, public exchange pause.
 - Copy/docs: landing, FAQ, terms, privacy, CLAUDE.md, PRODUCT.md, DESIGN.md, PROJECT_MEMORY.md, runbook.
 - Gates: `pnpm check`, `pnpm test`, `pnpm build`, browser pass, anti-slop and a11y review.
+
+### Result (2026-09-28)
+- Gates: `pnpm check` clean, `pnpm test` 313 passed / 3 skipped, `pnpm build` clean. Public card chunk unchanged in size (payment code loads only in the workspace and on /pricing).
+- Bug hunt (browser, local PGlite harness) found and fixed: B1 plan chips stretched on /pricing, B2 lost bullets on /pricing facts, B3 nav narrower than content on /pricing, B4 yearly savings showed the standard amount beside the founding price, B5 Pro chip stretched in the upgrade dialog, B6 check icon wrapped in the comparison table, B7 toggle caption contrast 4.4:1 (now 5.6:1), B8 Insights first requested a 30-day range the Free plan refuses, B9 `/app/billing` missing from the server SPA route list.
+- Deviation from spec: no "Upgrade with Google Pay" button. The 2C2P hosted page shows the official wallet buttons; ours reads "Continue to secure checkout", because Google brand rules forbid custom Google Pay buttons and GCash is also offered.
+- Skipped from spec in this run: NFC section on the landing page and /pricing (NFC store not built), Teams checkout, admin screens, monetization analytics events (the analytics table is per card), renewal reminder emails.

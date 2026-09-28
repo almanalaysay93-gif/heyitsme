@@ -2,7 +2,7 @@ import { trpc } from "@/lib/trpc";
 import { motion } from "framer-motion";
 import { INSIGHT_RANGES, type InsightRange } from "@shared/plans";
 import { BarChart3, Download, Eye, Link2, LockKeyhole, Moon, Share2, Sparkles, Sun, UserRoundPlus } from "lucide-react";
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 type Range = InsightRange;
 const ranges: readonly Range[] = INSIGHT_RANGES;
@@ -160,12 +160,10 @@ export function InsightsView({
   allowedRanges?: Range[];
   onLockedRange?: () => void;
 }) {
-  const allowed = allowedRanges ?? [7, 30, 90];
-  const [days, setDays] = useState<Range>(allowed.includes(30) ? 30 : allowed[0] ?? 7);
-  // If the plan changes (upgrade, downgrade), keep the selection inside what the plan allows.
-  useEffect(() => {
-    if (!allowed.includes(days)) setDays(allowed.includes(30) ? 30 : allowed[0] ?? 7);
-  }, [allowed.join(","), days]);
+  const allowed = allowedRanges ?? [7];
+  const [picked, setDays] = useState<Range | null>(null);
+  // The selection always stays inside what the plan allows, including after an upgrade or downgrade.
+  const days: Range = picked !== null && allowed.includes(picked) ? picked : allowed.includes(30) ? 30 : allowed[0] ?? 7;
   const [tableTheme, setTableThemeState] = useState<TableTheme>(readTableTheme);
   const setTableTheme = (value: TableTheme) => {
     setTableThemeState(value);
@@ -174,7 +172,8 @@ export function InsightsView({
     } catch {}
   };
   const tableScrollClass = `insight-table-scroll${tableTheme === "dark" ? " is-dark" : ""}`;
-  const summaryQuery = trpc.insights.summary.useQuery({ days }, { enabled: isAuthenticated, retry: false, placeholderData: (previous) => previous });
+  // Wait for the plan before asking, so the first request is never for a range the plan refuses.
+  const summaryQuery = trpc.insights.summary.useQuery({ days }, { enabled: isAuthenticated && allowedRanges !== undefined, retry: false, placeholderData: (previous) => previous });
   const summary = isAuthenticated ? summaryQuery.data : SAMPLE_GUEST_INSIGHTS;
   const topLinkMax = useMemo(() => Math.max(1, ...(summary?.topLinks ?? []).map((link) => link.count)), [summary?.topLinks]);
 

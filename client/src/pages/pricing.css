@@ -34,3 +34,10 @@
 @media (max-width: 900px) {
   .plan-grid { grid-template-columns: 1fr; }
 }
+
+/* Chips keep their own width inside the column layout. */
+.plan-card > .plan-chip { align-self: flex-start; }
+.pricing-page .legal-nav, .pricing-page .legal-footer { max-width: 1120px; }
+.pricing-facts ul { list-style: disc; }
+.pricing-facts li { margin: 4px 0; }
+.pricing-facts a { color: var(--purple-deep); text-decoration: underline; text-underline-offset: 3px; }
