@@ -332,6 +332,12 @@
 .lx-place { display: flex; align-items: center; gap: 6px; margin-top: 16px; color: var(--muted); font-size: 14px; }
 .lx-byline { margin-top: 22px; color: var(--muted); font-size: 14px; }
 .lx-byline strong { color: var(--ink); font-weight: 650; }
+.lx-byline-roster { display: grid; gap: 6px; margin-top: 22px; text-align: left; }
+.lx-byline-label { font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.lx-byline-people { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; font-size: 14px; }
+.lx-byline-role { color: var(--muted); }
+.lx-byline-link { color: var(--accent-ink); text-decoration: none; font-weight: 600; }
+.lx-byline-link:hover { text-decoration: underline; }
 
 /* ============ Buttons (glass pills) ============ */
 .lx-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 30px; }
@@ -608,6 +614,29 @@
 .lx-quote figcaption span { color: var(--muted); }
 
 /* Contact: hairline rows inside one panel; rows light up as pills on hover. */
+.lx-contact-section-group { margin-bottom: 24px; }
+.lx-officers-list { list-style: none; padding: 0; margin: 0 0 24px; display: grid; gap: 10px; max-width: 760px; }
+.lx-officer-card {
+  display: flex; flex-direction: column; gap: 10px; padding: 14px 16px;
+  background: var(--pill-fill); border: 1px solid var(--line); border-radius: 16px;
+}
+.lx-officer-info { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; }
+.lx-officer-name { font-size: 16px; font-weight: 650; color: var(--ink); }
+.lx-officer-badge {
+  display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 99px;
+  font-size: 12px; font-weight: 600; color: var(--accent-ink);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.lx-officer-actions { display: flex; flex-wrap: wrap; gap: 8px 12px; }
+.lx-officer-btn {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 4px 12px;
+  border-radius: 10px; font-size: 13px; font-weight: 600; color: var(--ink);
+  background: var(--glass-fill); border: 1px solid var(--line); text-decoration: none;
+  transition: all var(--dur-fast) ease;
+}
+.lx-officer-btn:hover { background: var(--pill-fill); border-color: var(--line-strong); color: var(--accent-ink); }
+.lx-officer-btn svg { flex: none; color: var(--accent-ink); }
+.lx-more-links { margin-bottom: 24px; }
 .lx-contact { display: grid; max-width: 760px; }
 .lx-contact li { position: relative; display: flex; align-items: center; border-bottom: 1px solid var(--line); }
 .lx-contact li:last-child { border-bottom: 0; }

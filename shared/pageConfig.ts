@@ -56,7 +56,7 @@ export const SECTION_LABELS: Record<SectionId, string> = {
   contact: "Contact & links",
 };
 
-export const PAGE_LIMITS = { services: 12, stats: 4, hours: 7, pageJson: 8000 } as const;
+export const PAGE_LIMITS = { services: 12, stats: 4, hours: 7, links: 12, contactPersons: 8, pageJson: 12000 } as const;
 
 const text = (max: number) => z.string().trim().max(max);
 const optionalText = (max: number) => text(max).optional().default("");
@@ -67,6 +67,21 @@ const safeUrl = z
   .refine((value) => !value || /^(https?:\/\/|mailto:|tel:)/i.test(value), "Links must start with https://, mailto: or tel:")
   .optional()
   .default("");
+
+export const pageLinkSchema = z.object({
+  title: text(80).min(1),
+  url: safeUrl,
+  description: optionalText(160),
+});
+export type PageLink = z.infer<typeof pageLinkSchema>;
+
+export const contactPersonSchema = z.object({
+  name: text(80).min(1),
+  role: optionalText(80),
+  phone: optionalText(40),
+  email: optionalText(120),
+});
+export type ContactPerson = z.infer<typeof contactPersonSchema>;
 
 export const pageConfigSchema = z.object({
   template: z.enum(TEMPLATE_IDS).default("professional"),
@@ -102,6 +117,10 @@ export const pageConfigSchema = z.object({
     .default([]),
   hours: z.array(z.object({ days: text(32).min(1), time: text(40).min(1) })).max(PAGE_LIMITS.hours).optional().default([]),
   address: optionalText(240),
+  /** Additional custom links for business portals, menus, catalogs, etc. */
+  links: z.array(pageLinkSchema).max(PAGE_LIMITS.links).optional().default([]),
+  /** Contact persons and officers in charge for business directory. */
+  contactPersons: z.array(contactPersonSchema).max(PAGE_LIMITS.contactPersons).optional().default([]),
   /** Hides the heyitsme name in the page header and footer. Turning it on needs Pro (server/billing/gate.ts). */
   hideBranding: z.boolean().optional().default(false),
 });

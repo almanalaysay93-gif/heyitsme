@@ -73,9 +73,9 @@ export function PageDesigner({ value, onChange, themeAccent, onPendingChange, av
     setAnnouncement(`${SECTION_LABELS[sections[index].id]} moved to position ${index + direction + 1} of ${sections.length}.`);
   };
 
-  const setRow = <K extends "stats" | "services" | "hours">(key: K, index: number, patch: Partial<PageConfig[K][number]>) =>
+  const setRow = <K extends "stats" | "services" | "hours" | "links" | "contactPersons">(key: K, index: number, patch: Partial<PageConfig[K][number]>) =>
     commit({ ...config, [key]: config[key].map((row, i) => (i === index ? { ...row, ...patch } : row)) });
-  const removeRow = (key: "stats" | "services" | "hours", index: number) =>
+  const removeRow = (key: "stats" | "services" | "hours" | "links" | "contactPersons", index: number) =>
     commit({ ...config, [key]: config[key].filter((_, i) => i !== index) });
 
   return (
@@ -258,6 +258,111 @@ export function PageDesigner({ value, onChange, themeAccent, onPendingChange, av
         <AddButton label="Add hours" disabled={config.hours.length >= PAGE_LIMITS.hours} onClick={() => commit({ ...config, hours: [...config.hours, { days: "", time: "" }] })} />
         <TextField label="Address" value={config.address} maxLength={240} placeholder="12 Market Street, Springfield" onChange={(address) => commit({ ...config, address })} />
       </div>
+
+      {config.template === "business" || config.contactPersons.length > 0 ? (
+        <div className="pd-block">
+          <RowsHead
+            title="Contact persons & office in-charge"
+            hint="List key personnel, department heads, or officers in charge."
+            count={config.contactPersons.length}
+            limit={PAGE_LIMITS.contactPersons}
+          />
+          {config.contactPersons.map((row, index) => (
+            <div className="pd-item" key={index}>
+              <div className="pd-row pd-row-officer">
+                <input
+                  className="pd-input"
+                  value={row.name}
+                  maxLength={80}
+                  placeholder="Person name"
+                  aria-label={`Contact person ${index + 1} name`}
+                  onChange={(e) => setRow("contactPersons", index, { name: e.target.value })}
+                />
+                <input
+                  className="pd-input"
+                  value={row.role}
+                  maxLength={80}
+                  placeholder="Role or office (e.g. Officer in Charge)"
+                  aria-label={`Contact person ${index + 1} role`}
+                  onChange={(e) => setRow("contactPersons", index, { role: e.target.value })}
+                />
+                <RemoveButton label={`Remove contact person ${index + 1}`} onClick={() => removeRow("contactPersons", index)} />
+              </div>
+              <div className="pd-row pd-row-officer-contact">
+                <input
+                  className="pd-input"
+                  value={row.phone}
+                  maxLength={40}
+                  placeholder="Phone number (optional)"
+                  aria-label={`Contact person ${index + 1} phone`}
+                  onChange={(e) => setRow("contactPersons", index, { phone: e.target.value })}
+                />
+                <input
+                  className="pd-input"
+                  value={row.email}
+                  maxLength={120}
+                  placeholder="Email address (optional)"
+                  aria-label={`Contact person ${index + 1} email`}
+                  onChange={(e) => setRow("contactPersons", index, { email: e.target.value })}
+                />
+              </div>
+            </div>
+          ))}
+          <AddButton
+            label="Add contact person"
+            disabled={config.contactPersons.length >= PAGE_LIMITS.contactPersons}
+            onClick={() => commit({ ...config, contactPersons: [...config.contactPersons, { name: "", role: "", phone: "", email: "" }] })}
+          />
+        </div>
+      ) : null}
+
+      {config.template === "business" || config.links.length > 0 ? (
+        <div className="pd-block">
+          <RowsHead
+            title="More links"
+            hint="Add direct links for your business, portal, or resources."
+            count={config.links.length}
+            limit={PAGE_LIMITS.links}
+          />
+          {config.links.map((row, index) => (
+            <div className="pd-item" key={index}>
+              <div className="pd-row pd-row-link">
+                <input
+                  className="pd-input"
+                  value={row.title}
+                  maxLength={80}
+                  placeholder="Link label (e.g. Price list / Portal)"
+                  aria-label={`Link ${index + 1} title`}
+                  onChange={(e) => setRow("links", index, { title: e.target.value })}
+                />
+                <input
+                  className="pd-input"
+                  value={row.url}
+                  maxLength={590}
+                  placeholder="https://..."
+                  aria-label={`Link ${index + 1} URL`}
+                  onChange={(e) => setRow("links", index, { url: e.target.value })}
+                />
+                <RemoveButton label={`Remove link ${index + 1}`} onClick={() => removeRow("links", index)} />
+              </div>
+              <input
+                className="pd-input"
+                value={row.description}
+                maxLength={160}
+                placeholder="Short note or description (optional)"
+                aria-label={`Link ${index + 1} description`}
+                onChange={(e) => setRow("links", index, { description: e.target.value })}
+              />
+              {isUnusableLink(row.url) ? <span className="pd-warn">This link won't be saved. Use a web address, email or phone number.</span> : null}
+            </div>
+          ))}
+          <AddButton
+            label="Add link"
+            disabled={config.links.length >= PAGE_LIMITS.links}
+            onClick={() => commit({ ...config, links: [...config.links, { title: "", url: "", description: "" }] })}
+          />
+        </div>
+      ) : null}
 
       {tooLarge ? <p className="pd-warn" role="status">This page has more text than we can save. Shorten a few descriptions or links.</p> : null}
     </div>

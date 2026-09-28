@@ -207,7 +207,7 @@ export function CardLanding(props: CardLandingProps) {
     visit: config.hours.length > 0 || Boolean(config.address),
     portfolio: portfolio.length > 0,
     references: references.length > 0,
-    contact: contactRows.length > 0 || channels.length > 0,
+    contact: contactRows.length > 0 || channels.length > 0 || (config.links?.length ?? 0) > 0 || (config.contactPersons?.length ?? 0) > 0,
   };
   const sections = resolveSections(config).filter((section) => !section.hidden && hasContent[section.id]);
 
@@ -283,7 +283,24 @@ export function CardLanding(props: CardLandingProps) {
             <>
               {card.bio ? <p className="lx-lead">{card.bio}</p> : null}
               {actions}
-              {card.company ? (
+              {config.contactPersons?.length ? (
+                <div className="lx-byline lx-byline-roster">
+                  <span className="lx-byline-label">Office in-charge & contacts:</span>
+                  <ul className="lx-byline-people">
+                    {config.contactPersons.map((p, idx) => (
+                      <li key={idx}>
+                        <strong>{p.name}</strong>
+                        {p.role ? <span className="lx-byline-role"> ({p.role})</span> : null}
+                        {p.phone ? (
+                          <a href={`tel:${encodeURIComponent(p.phone.replace(/\s+/g, ""))}`} className="lx-byline-link" onClick={() => track("link", `Call: ${p.name}`)}>
+                            {" "}· {p.phone}
+                          </a>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : card.company ? (
                 <p className="lx-byline">
                   Ask for <strong>{card.displayName}</strong>{card.title ? `, ${card.title}` : ""}
                 </p>
@@ -456,8 +473,55 @@ export function CardLanding(props: CardLandingProps) {
       case "contact": {
         return (
           <>
-            {heading("Contact", card.contactHeading)}
-            {contactRows.length ? <h3 className="lx-contact-group">Reach me directly</h3> : null}
+            {heading(template === "business" ? "Contact & directory" : "Contact", card.contactHeading)}
+
+            {config.contactPersons?.length ? (
+              <div className="lx-contact-section-group">
+                <h3 className="lx-contact-group">
+                  {template === "business" ? "Contact persons & office in-charge" : "Key contacts"}
+                </h3>
+                <ul className="lx-officers-list">
+                  {config.contactPersons.map((person, idx) => (
+                    <li key={`officer-${idx}`} className="lx-officer-card">
+                      <div className="lx-officer-info">
+                        <span className="lx-officer-name">{person.name}</span>
+                        {person.role ? <span className="lx-officer-badge">{person.role}</span> : null}
+                      </div>
+                      {(person.phone || person.email) ? (
+                        <div className="lx-officer-actions">
+                          {person.phone ? (
+                            <a
+                              href={`tel:${encodeURIComponent(person.phone.replace(/\s+/g, ""))}`}
+                              className="lx-officer-btn"
+                              title={`Call ${person.name}`}
+                              onClick={() => track("link", `Call: ${person.name}`)}
+                            >
+                              <Phone size={14} aria-hidden="true" />
+                              <span>{person.phone}</span>
+                            </a>
+                          ) : null}
+                          {person.email ? (
+                            <a
+                              href={`mailto:${encodeURIComponent(person.email)}`}
+                              className="lx-officer-btn"
+                              title={`Email ${person.name}`}
+                              onClick={() => track("link", `Email: ${person.name}`)}
+                            >
+                              <Mail size={14} aria-hidden="true" />
+                              <span>{person.email}</span>
+                            </a>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {contactRows.length ? (
+              <h3 className="lx-contact-group">{template === "business" ? "General contact" : "Reach me directly"}</h3>
+            ) : null}
             <ul className="lx-contact">
               {contactRows.map((row) => (
                 <li key={row.key}>
@@ -479,6 +543,29 @@ export function CardLanding(props: CardLandingProps) {
                 </li>
               ))}
             </ul>
+
+            {config.links?.length ? (
+              <div className="lx-contact-section-group">
+                <h3 className="lx-contact-group">{template === "business" ? "Quick links" : "More links"}</h3>
+                <ul className="lx-contact lx-more-links">
+                  {config.links.map((item, idx) => {
+                    const clean = item.url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+                    return (
+                      <li key={`custom-link-${idx}`}>
+                        <a href={item.url} {...external(item.url)} onClick={() => track("link", item.title)}>
+                          <Globe2 size={17} aria-hidden="true" />
+                          <span>
+                            <strong>{item.title}</strong>
+                            {item.description ? <small>{item.description}</small> : <small>{clean}</small>}
+                          </span>
+                          <ArrowUpRight className="lx-row-arrow" size={16} aria-hidden="true" />
+                        </a>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : null}
             {[
               { title: "Message or book", items: channels.filter((channel) => MESSAGING.has(channel.provider)) },
               { title: "Social profiles", items: channels.filter((channel) => !MESSAGING.has(channel.provider)) },
