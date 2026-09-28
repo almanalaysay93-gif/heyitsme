@@ -3,7 +3,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 # Uses intercepted local API responses only. No account or database writes.
 # Start Vite on port 5178, then run: uv run --with playwright python scripts/check-builder.py
-CARD=dict(id=28,displayName='Builder Test',title='Designer',company='Test Studio',email='test@example.com',phone='',location='Old city',bio='Test biography',links='[]',portfolio='[]',channels='[]',theme='midnight',avatarUrl='',coverUrl='',backgroundUrl='',slug='builder-test',published=False,page=json.dumps(dict(template='business',address='12 Test Street',contactPersons=[dict(name='Test Officer',role='Manager')],links=[dict(title='Test Portal',url='https://example.com/portal')])))
+CARD=dict(id=28,displayName='Builder Test',title='Designer',company='Test Studio',email='test@example.com',phone='',location='Old city',bio='Test biography',links='[]',portfolio='[]',channels='[]',theme='midnight',avatarUrl='',coverUrl='',backgroundUrl='',slug='builder-test',published=False,page=json.dumps(dict(template='business',address='12 Test Street',contactPersons=[dict(name='Test Officer',role='Manager')],links=[dict(title='SHARE Potential Multi Organ Donor notification and referral registration',url='https://docs.google.com/forms/d/e/'+('AbCd0123456789'*8)+'/viewform?usp=header')])))
 def run():
  with sync_playwright() as p:
   browser=p.chromium.launch(channel='chrome',headless=True)
@@ -18,6 +18,7 @@ def run():
     if name=='auth.me':
      time.sleep(0.7)
      data=dict(id=1,name='Test Owner',email='owner@example.com',role='user')
+    elif name=='publicCard.bySlug': data={**CARD,'published':True,'references':[]}
     elif name=='cards.list':
      time.sleep(0.3)
      data=[CARD]
@@ -84,12 +85,35 @@ def run():
    page.wait_for_timeout(250)
    dimensions=page.evaluate('({width:innerWidth,scroll:document.documentElement.scrollWidth})')
    assert dimensions['scroll']<=dimensions['width'],dimensions
+   if width < 760: page.get_by_role('tab',name='Preview',exact=True).click()
+   overflow=page.locator('.lx-section-resourceLinks .lx-contact li').evaluate_all('''els => els.flatMap(tile => {
+     const bounds=tile.getBoundingClientRect();
+     return [...tile.querySelectorAll('strong, small, svg')].filter(el => {
+       const r=el.getBoundingClientRect();
+       return r.left < bounds.left - 1 || r.right > bounds.right + 1 || el.scrollWidth > el.clientWidth + 1;
+     }).map(el => el.tagName);
+   })''')
+   assert not overflow, f'Resource content overflow at {width}px: {overflow}'
    if width==390:
     page.screenshot(path=str(Path(os.environ['TEMP'])/'heyitsme-builder-mobile.png'),full_page=True)
     page.get_by_role('tab',name='Preview',exact=True).click()
     assert page.locator('#builder-preview-panel').is_visible()
     page.get_by_role('tab',name='Edit',exact=True).click()
+   if width < 760: page.get_by_role('tab',name='Edit',exact=True).click()
    if width==1440: page.screenshot(path=str(Path(os.environ['TEMP'])/'heyitsme-builder-desktop.png'),full_page=True)
+  page.goto('http://127.0.0.1:5178/c/demo')
+  page.locator('.lx-section-resourceLinks').wait_for()
+  for width in [360,390,430,844,1440]:
+   page.set_viewport_size(dict(width=width,height=900))
+   page.wait_for_timeout(200)
+   tile=page.locator('.lx-section-resourceLinks .lx-contact li')
+   assert tile.count()==1
+   assert tile.evaluate("el => el.scrollWidth <= el.clientWidth + 1"), f'Public resource overflow at {width}px'
+   assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), f'Public page overflow at {width}px'
+   title=tile.locator('strong')
+   assert title.evaluate("el => getComputedStyle(el).whiteSpace === 'normal' && el.scrollWidth <= el.clientWidth + 1")
+   if width==390: page.locator('.lx-section-resourceLinks').screenshot(path=str(Path(os.environ['TEMP'])/'heyitsme-resource-mobile.png'))
+  print('PASS public resource title and long URL at 360/390/430/844/1440px')
   assert not errors,errors
   print('PASS mobile 360/390/430, desktop 1440, preview tabs, no runtime errors')
   browser.close()
