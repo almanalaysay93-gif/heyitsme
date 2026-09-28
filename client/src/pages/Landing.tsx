@@ -313,7 +313,7 @@ export default function Landing() {
       <main id="main" tabIndex={-1}>
         <section className="lp-hero">
           <motion.div className="lp-hero-copy" initial="hidden" animate="show" variants={stagger}>
-            <motion.span className="lp-pill" variants={reveal}><Sparkles size={13} /> Free for everyone · No app to install</motion.span>
+            <motion.span className="lp-pill" variants={reveal}><Sparkles size={13} /> Start free · No app to install</motion.span>
             <h1 className="lp-kinetic">
               <span className="sr-only">Your introduction, one link away.</span>
               <span aria-hidden="true">
@@ -447,18 +447,18 @@ export default function Landing() {
         <motion.section id="free" className="lp-free" initial={{ opacity: 0, y: 60 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-100px" }} transition={{ type: "spring", stiffness: 80, damping: 18 }}>
           <div>
             <span className="section-kicker">Pricing</span>
-            <h2>Everything is free.<br /><em>All current features are free.</em></h2>
-            <p>No subscriptions, no trials, no credit card required. Full functionality included.</p>
+            <h2>Start free.<br /><em>Upgrade when it pays.</em></h2>
+            <p>Start free. Upgrade when networking starts creating opportunities. Your card, QR code and link never expire.</p>
+            <a className="lp-free-link" href="/pricing">See plans and prices <ArrowUpRight size={14} aria-hidden="true" /></a>
           </div>
           <ul>
             {[
-              "Multiple cards per account",
-              "Portfolio & photo uploads",
-              "Client references & quotes",
-              "QR codes & share helpers",
-              "Contact exchange & CSV export",
-              "Visitor insights & metrics",
-              "Email signature generator",
+              "Free: one card, QR code and NFC-ready link",
+              "Free: 10 new leads a month, 7 days of insights",
+              "Pro ₱149/month or ₱1,290/year",
+              "Pro: up to 3 cards and unlimited leads",
+              "Pro: a year of insights, branding removable",
+              "Teams: one brand across your whole team, coming soon",
             ].map((item, index) => (
               <motion.li key={item} initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.15 + index * 0.06 }}>
                 <Check size={15} /> {item}
@@ -482,7 +482,7 @@ export default function Landing() {
 
       <footer className="lp-footer">
         <a className="brand-lockup" href="/"><BrandMark /><span>heyitsme</span></a>
-        <span>Free for everyone</span>
+        <span>Start free</span>
         <LegalLinks />
       </footer>
     </div>

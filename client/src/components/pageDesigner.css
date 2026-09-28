@@ -55,6 +55,9 @@
 .pd-add { width: fit-content; }
 
 /* Sections */
+.pd-check { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 13px; font-weight: 600; color: var(--ink); cursor: pointer; }
+.pd-check input { width: 18px; height: 18px; margin: 0; accent-color: var(--purple); }
+.pd-block-head h3 .plan-chip { margin-left: 6px; vertical-align: 1px; min-height: 20px; font-size: 10px; }
 .pd-sections { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .pd-section-row { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto auto auto; align-items: center; gap: 6px; padding: 6px 6px 6px 10px; background: rgba(255,255,255,.55); border: 1px solid rgba(24,30,60,.07); border-radius: 12px; transition: opacity .18s var(--ease-out), background .18s var(--ease-out); }
 .pd-section-row.is-hidden { background: rgba(255,255,255,.25); }

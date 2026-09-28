@@ -7,6 +7,11 @@
   `0005`–`0008` are plain idempotent SQL — run them by hand (SQL Editor) rather than via `drizzle-kit migrate`.
 - New column? Add it to `drizzle/schema.ts`, `ensureSchema` (and its `existing.length` count), and a new `drizzle/000N_*.sql`.
 
+## Billing tables (drizzle/0009_billing.sql)
+- `ensureSchema` creates `billingAccounts`, `subscriptions`, `payments`, `usageCounters`, `entitlementOverrides` and `offerCounters` when `offerCounters` is missing, and seeds the `founding_pro` counter at 500.
+- The app role owns tables it creates, so `ensureSchema` also enables RLS on them. If that step fails, the log says `RLS not enabled, apply drizzle/0009 by hand`. Then run the file in the SQL Editor.
+- Run the RLS check below after the first deploy with billing. All six billing tables must show `true`.
+
 ## Row Level Security (drizzle/0003_enable_rls.sql) — manual, owner role
 Why manual: the app's DB role does not own the tables, so it cannot run `ENABLE ROW LEVEL SECURITY`.
 RLS with **no policies** is intentional: the server connects as a role RLS doesn't restrict; RLS only shuts

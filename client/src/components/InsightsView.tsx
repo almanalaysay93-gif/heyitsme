@@ -1,10 +1,11 @@
 import { trpc } from "@/lib/trpc";
 import { motion } from "framer-motion";
-import { BarChart3, Download, Eye, Link2, Moon, Share2, Sparkles, Sun, UserRoundPlus } from "lucide-react";
+import { INSIGHT_RANGES, type InsightRange } from "@shared/plans";
+import { BarChart3, Download, Eye, Link2, LockKeyhole, Moon, Share2, Sparkles, Sun, UserRoundPlus } from "lucide-react";
 import { useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
-type Range = 7 | 30 | 90;
-const ranges: Range[] = [7, 30, 90];
+type Range = InsightRange;
+const ranges: readonly Range[] = INSIGHT_RANGES;
 
 const dayLabel = (day: string, options: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" }) =>
   new Date(`${day}T00:00:00Z`).toLocaleDateString(undefined, { ...options, timeZone: "UTC" });
@@ -147,8 +148,22 @@ export const SAMPLE_GUEST_INSIGHTS = {
   ],
 };
 
-export function InsightsView({ isAuthenticated, onSignIn }: { isAuthenticated: boolean; onSignIn: () => void }) {
-  const [days, setDays] = useState<Range>(30);
+export function InsightsView({
+  isAuthenticated,
+  onSignIn,
+  allowedRanges,
+  onLockedRange,
+}: {
+  isAuthenticated: boolean;
+  onSignIn: () => void;
+  /** Ranges the plan includes. Others show with a lock and open the upgrade dialog. */
+  allowedRanges?: Range[];
+  onLockedRange?: () => void;
+}) {
+  const allowed = allowedRanges ?? [7];
+  const [picked, setDays] = useState<Range | null>(null);
+  // The selection always stays inside what the plan allows, including after an upgrade or downgrade.
+  const days: Range = picked !== null && allowed.includes(picked) ? picked : allowed.includes(30) ? 30 : allowed[0] ?? 7;
   const [tableTheme, setTableThemeState] = useState<TableTheme>(readTableTheme);
   const setTableTheme = (value: TableTheme) => {
     setTableThemeState(value);
@@ -157,7 +172,8 @@ export function InsightsView({ isAuthenticated, onSignIn }: { isAuthenticated: b
     } catch {}
   };
   const tableScrollClass = `insight-table-scroll${tableTheme === "dark" ? " is-dark" : ""}`;
-  const summaryQuery = trpc.insights.summary.useQuery({ days }, { enabled: isAuthenticated, retry: false, placeholderData: (previous) => previous });
+  // Wait for the plan before asking, so the first request is never for a range the plan refuses.
+  const summaryQuery = trpc.insights.summary.useQuery({ days }, { enabled: isAuthenticated && allowedRanges !== undefined, retry: false, placeholderData: (previous) => previous });
   const summary = isAuthenticated ? summaryQuery.data : SAMPLE_GUEST_INSIGHTS;
   const topLinkMax = useMemo(() => Math.max(1, ...(summary?.topLinks ?? []).map((link) => link.count)), [summary?.topLinks]);
 
@@ -170,11 +186,22 @@ export function InsightsView({ isAuthenticated, onSignIn }: { isAuthenticated: b
       </div>
       {isAuthenticated ? (
         <div className="range-toggle" role="group" aria-label="Date range">
-          {ranges.map((range) => (
-            <button key={range} type="button" aria-pressed={days === range} className={days === range ? "is-active" : ""} onClick={() => setDays(range)}>
-              {range} days
-            </button>
-          ))}
+          {ranges.map((range) => {
+            const locked = !allowed.includes(range);
+            return (
+              <button
+                key={range}
+                type="button"
+                aria-pressed={days === range}
+                className={days === range ? "is-active" : ""}
+                onClick={() => (locked ? onLockedRange?.() : setDays(range))}
+                aria-label={locked ? `${range} days, part of Pro` : undefined}
+              >
+                {range} days
+                {locked ? <span className="range-lock"><LockKeyhole size={11} aria-hidden="true" /></span> : null}
+              </button>
+            );
+          })}
         </div>
       ) : null}
     </div>

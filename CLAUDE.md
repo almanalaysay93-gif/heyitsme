@@ -1,7 +1,7 @@
 # CLAUDE.md - heyitsme Engineering Instructions
 
 ## Project Overview
-- **Repository**: `heyitsme` (free digital business card platform)
+- **Repository**: `heyitsme` (digital business card platform: Free plan plus paid Pro)
 - **Path**: `D:\ai mem\heyitsme`
 - **Current State**: Phases 1–2 (T01–T20) by Antigravity; Phases 3–5 (T21–T31) by Claude, 2026-09-26. See PROJECT_MEMORY.md for remaining manual steps.
 - **Your Mission**: Execute Phase 3 (T21–T25), Phase 4 (T26–T30), and Phase 5 (T31).
@@ -9,7 +9,7 @@
 - **Unified Memory**: Read `PROJECT_MEMORY.md` before starting any work. Update it after each phase milestone.
 
 ## Strict Product & Architectural Rules
-1. **100% Free Product Model**: Zero billing, subscriptions, paywalls, or feature gating. Do NOT introduce Stripe, LemonSqueezy, or paid tiers.
+1. **Freemium Product Model** (owner decision, 2026-09-28): Free stays free forever for the basic profile, QR code and NFC link. Pro and Teams are paid. Every price, limit and entitlement is decided on the server (`shared/plans.ts`, `server/billing/`). Payments run through the 2C2P adapter only. Downgrades never delete data. Read `docs/billing.md` before touching billing.
 2. **Stack Preservation**: React 19, Vite 7, tRPC 11, Drizzle ORM, PostgreSQL (Supabase), Radix UI, Tailwind CSS, Framer Motion.
 3. **Verification**: Run `pnpm check`, `pnpm test`, and `pnpm build` after every task/milestone. Keep all 166+ tests passing.
 4. **Caveman Mode**: Terse, fragment-based responses. High signal, low token overhead. Drop pleasantries.

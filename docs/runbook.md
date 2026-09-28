@@ -1,6 +1,6 @@
 # heyitsme operations runbook
 
-Free product, no billing. Stack: React 19 + Vite 7 client, Express + tRPC 11 server as one Vercel function
+Free plan plus paid Pro (see `docs/billing.md`). Stack: React 19 + Vite 7 client, Express + tRPC 11 server as one Vercel function
 (`api/index.js` → `dist/server/app.mjs`), Supabase Postgres via Drizzle, uploads in Supabase Storage or S3.
 
 ## 1. Environment variables (Vercel → Project → Settings → Environment Variables)
@@ -20,6 +20,9 @@ Free product, no billing. Stack: React 19 + Vite 7 client, Express + tRPC 11 ser
 | `MAIL_FROM` | optional | Must be on the Resend-verified domain `send.heyitsme.fyi`. |
 | `VITE_SUPPORT_EMAIL` | optional | Shown on legal/FAQ pages and account menu (build time). |
 | `OWNER_OPEN_ID` | optional | Google openId granted the admin role. |
+| `PLAN_LIMITS_ENABLED`, `PAYMENTS_ENABLED`, `GOOGLE_PAY_ENABLED`, `GCASH_ENABLED` | optional | Paid plans. All default off. Order and meaning in `docs/billing.md`. |
+| `PAYMENT_GATEWAY_MERCHANT_ID` / `PAYMENT_GATEWAY_SECRET`, `PAYMENT_PROVIDER_ENV` | payments | 2C2P credentials. Server only. |
+| `COMPLIMENTARY_EMAILS` | optional | Google emails that keep every feature with no plan. |
 
 Wallet passes: not shipped; required credentials listed in `docs/wallet.md`.
 

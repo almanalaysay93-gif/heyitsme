@@ -96,6 +96,96 @@ export const references = pgTable("references", {
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
 }, (table) => [index("references_card_created_idx").on(table.cardId, table.createdAt)]).enableRLS();
 
+// Billing (drizzle/0009_billing.sql). Card data never lives here: payment details stay with the gateway.
+
+export const billingAccounts = pgTable("billingAccounts", {
+  id: serial("id").primaryKey(),
+  ownerType: varchar("ownerType", { length: 16 }).default("user").notNull(),
+  ownerUserId: integer("ownerUserId"),
+  organizationId: integer("organizationId"),
+  provider: varchar("provider", { length: 32 }).default("2c2p").notNull(),
+  providerCustomerRef: varchar("providerCustomerRef", { length: 128 }),
+  createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
+}, (table) => [uniqueIndex("billing_accounts_owner_user_idx").on(table.ownerUserId)]).enableRLS();
+
+export const subscriptions = pgTable("subscriptions", {
+  id: serial("id").primaryKey(),
+  billingAccountId: integer("billingAccountId").notNull(),
+  planCode: varchar("planCode", { length: 16 }).notNull(),
+  billingCycle: varchar("billingCycle", { length: 16 }).notNull(),
+  status: varchar("status", { length: 16 }).notNull(),
+  currency: varchar("currency", { length: 3 }).default("PHP").notNull(),
+  priceMinor: integer("priceMinor").notNull(),
+  providerSubscriptionRef: varchar("providerSubscriptionRef", { length: 128 }),
+  providerRecurringRef: varchar("providerRecurringRef", { length: 128 }),
+  foundingMember: boolean("foundingMember").default(false).notNull(),
+  foundingMemberNumber: integer("foundingMemberNumber"),
+  currentPeriodStart: timestamp("currentPeriodStart", { mode: "date" }).notNull(),
+  currentPeriodEnd: timestamp("currentPeriodEnd", { mode: "date" }).notNull(),
+  cancelAtPeriodEnd: boolean("cancelAtPeriodEnd").default(false).notNull(),
+  canceledAt: timestamp("canceledAt", { mode: "date" }),
+  createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
+}, (table) => [
+  index("subscriptions_account_idx").on(table.billingAccountId),
+  uniqueIndex("subscriptions_founding_number_idx").on(table.foundingMemberNumber),
+]).enableRLS();
+
+export const payments = pgTable("payments", {
+  id: serial("id").primaryKey(),
+  billingAccountId: integer("billingAccountId"),
+  userId: integer("userId").notNull(),
+  provider: varchar("provider", { length: 32 }).notNull(),
+  /** Our invoice number sent to the gateway. Unique, so one gateway result settles one payment once. */
+  providerTransactionId: varchar("providerTransactionId", { length: 64 }).notNull().unique(),
+  /** The gateway's own reference (2C2P tranRef), once known. */
+  providerInvoiceRef: varchar("providerInvoiceRef", { length: 128 }).unique(),
+  purpose: varchar("purpose", { length: 24 }).notNull(),
+  planCode: varchar("planCode", { length: 16 }),
+  billingCycle: varchar("billingCycle", { length: 16 }),
+  channel: varchar("channel", { length: 16 }),
+  orderId: integer("orderId"),
+  amountMinor: integer("amountMinor").notNull(),
+  currency: varchar("currency", { length: 3 }).default("PHP").notNull(),
+  /** Price was quoted at the founding rate. Founding status itself is only given on success. */
+  foundingPrice: boolean("foundingPrice").default(false).notNull(),
+  status: varchar("status", { length: 24 }).notNull(),
+  failureCode: varchar("failureCode", { length: 32 }),
+  failureMessage: varchar("failureMessage", { length: 200 }),
+  metadataJson: text("metadataJson"),
+  createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
+  succeededAt: timestamp("succeededAt", { mode: "date" }),
+}, (table) => [index("payments_user_created_idx").on(table.userId, table.createdAt)]).enableRLS();
+
+export const usageCounters = pgTable("usageCounters", {
+  id: serial("id").primaryKey(),
+  ownerUserId: integer("ownerUserId").notNull(),
+  metric: varchar("metric", { length: 32 }).notNull(),
+  periodKey: varchar("periodKey", { length: 16 }).notNull(),
+  count: integer("count").default(0).notNull(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
+}, (table) => [uniqueIndex("usage_counters_owner_metric_period_idx").on(table.ownerUserId, table.metric, table.periodKey)]).enableRLS();
+
+export const entitlementOverrides = pgTable("entitlementOverrides", {
+  id: serial("id").primaryKey(),
+  userId: integer("userId").notNull(),
+  entitlement: varchar("entitlement", { length: 32 }).notNull(),
+  valueJson: text("valueJson").notNull(),
+  reason: varchar("reason", { length: 200 }).notNull(),
+  expiresAt: timestamp("expiresAt", { mode: "date" }),
+  createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+}, (table) => [index("entitlement_overrides_user_idx").on(table.userId)]).enableRLS();
+
+/** One row per campaign. `used` only grows inside the verified-payment transaction. */
+export const offerCounters = pgTable("offerCounters", {
+  code: varchar("code", { length: 32 }).primaryKey(),
+  used: integer("used").default(0).notNull(),
+  maximum: integer("maximum").notNull(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
+}).enableRLS();
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type Card = typeof cards.$inferSelect;
@@ -105,3 +195,5 @@ export type InsertContact = typeof contacts.$inferInsert;
 export type AnalyticsEvent = typeof analyticsEvents.$inferSelect;
 export type Reference = typeof references.$inferSelect;
 export type InsertReference = typeof references.$inferInsert;
+export type Subscription = typeof subscriptions.$inferSelect;
+export type Payment = typeof payments.$inferSelect;

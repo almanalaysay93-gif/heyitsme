@@ -54,6 +54,7 @@ import {
   ChevronUp,
   CircleUserRound,
   Copy,
+  CreditCard,
   Eye,
   FileText,
   HelpCircle,
@@ -84,10 +85,13 @@ import {
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
+import { isPlanLimitError, PLAN_LABELS, UpgradeProvider, useBilling, useUpgrade } from "@/lib/billing";
+import "@/components/billing/billing.css";
 
 // Contacts and Insights are only needed on their own tabs, so they load on demand.
 const ContactsView = lazy(() => import("@/components/ContactsView").then((m) => ({ default: m.ContactsView })));
 const InsightsView = lazy(() => import("@/components/InsightsView").then((m) => ({ default: m.InsightsView })));
+const BillingView = lazy(() => import("@/components/billing/BillingView"));
 
 // Contacts page size; the list keeps fetching pages until it has them all.
 const CONTACTS_PAGE = { limit: 200 } as const;
@@ -132,8 +136,30 @@ function NavItem({ label, icon: Icon, active, onClick, badge, badgeAlert = false
 }
 
 export default function Home() {
+  return (
+    <UpgradeProvider>
+      <Workspace />
+    </UpgradeProvider>
+  );
+}
+
+function Workspace() {
   const [, navigate] = useLocation();
   const { user, loading, isAuthenticated, logout } = useAuth();
+  const billing = useBilling(isAuthenticated);
+  const { openUpgrade } = useUpgrade();
+  const plan = billing.data?.entitlements.plan ?? "free";
+  const planLabel = billing.data ? `${PLAN_LABELS[plan]} plan` : "Free plan";
+  const leadUsage = billing.data?.usage.leads;
+  // /pricing sends signed-in buyers to /app/billing?upgrade=1: open the dialog once, then drop the flag from the URL.
+  useEffect(() => {
+    if (!isAuthenticated || !billing.data) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("upgrade") !== "1") return;
+    params.delete("upgrade");
+    window.history.replaceState(null, "", window.location.pathname + (params.toString() ? `?${params}` : ""));
+    if (billing.data.entitlements.plan === "free") openUpgrade("general");
+  }, [isAuthenticated, billing.data, openUpgrade]);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   // Desktop only: on narrow screens the sidebar is a drawer behind the menu button.
   const [sidebarHidden, setSidebarHidden] = useState(readSidebarHidden);
@@ -242,7 +268,7 @@ export default function Home() {
   const activeCard = useMemo(() => resolveActiveCard(cards, selectedId, draft), [cards, selectedId, draft]);
 
   const path = window.location.pathname;
-  const mode = path.includes("/contacts") ? "contacts" : path.includes("/insights") ? "insights" : path.includes("/cards") ? "cards" : "overview";
+  const mode = path.includes("/contacts") ? "contacts" : path.includes("/insights") ? "insights" : path.includes("/billing") ? "billing" : path.includes("/cards") ? "cards" : "overview";
   const isBuilder = path.includes("/new") || path.includes("/edit");
 
   // T08: Track dirty state against saved baseline and prompt on browser unload
@@ -331,6 +357,7 @@ export default function Home() {
       } catch (error: any) {
         // Kept in storage, so the next visit tries again.
         toast.error(`Could not move your preview card into your account. ${error?.message ?? "Please try again."}`);
+        if (isPlanLimitError(error)) openUpgrade("card_limit");
       } finally {
         importingPreview.current = false;
         isSavingRef.current = false;
@@ -437,6 +464,7 @@ export default function Home() {
       return next;
     } catch (error: any) {
       toast.error(error?.message ?? "Could not save that card.");
+      if (isPlanLimitError(error)) openUpgrade(/branding/i.test(error?.message ?? "") ? "branding" : "card_limit");
       return null;
     } finally {
       isSavingRef.current = false;
@@ -491,6 +519,11 @@ export default function Home() {
   };
 
   const handleNewCard = () => {
+    const cardUsage = billing.data?.usage.cards;
+    if (isAuthenticated && billing.data?.limitsEnforced && cardUsage && cardUsage.used >= cardUsage.limit) {
+      openUpgrade("card_limit");
+      return;
+    }
     if (!isAuthenticated && localCards.length > 0) {
       if (!window.confirm("Guest mode keeps one draft card in this browser. Creating a new card will replace your current draft. Continue?")) {
         return;
@@ -678,7 +711,7 @@ export default function Home() {
           <div className="profile-orb">{getInitials(user?.name || (isAuthenticated ? "You" : "Guest"))}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <strong>{user?.name || (isAuthenticated ? "You" : "Guest")}</strong>
-            <span>{isAuthenticated ? "All access · free" : "Preview mode"}</span>
+            <span>{isAuthenticated ? planLabel : "Preview mode"}</span>
           </div>
           <button
             ref={hideSidebarButton}
@@ -705,15 +738,36 @@ export default function Home() {
             onClick={() => { navigate("/app/contacts"); setMobileNavOpen(false); }}
           />
           <NavItem label="Insights" icon={BarChart3} active={mode === "insights"} onClick={() => { navigate("/app/insights"); setMobileNavOpen(false); }} />
+          {isAuthenticated ? (
+            <NavItem label="Billing" icon={CreditCard} active={mode === "billing"} onClick={() => { navigate("/app/billing"); setMobileNavOpen(false); }} />
+          ) : null}
         </nav>
         <div className="sidebar-bottom">
-          <div className="free-pod">
-            <Sparkles size={15} />
-            <div>
-              <strong>Everything is free</strong>
-              <span>All current features are free.</span>
+          {isAuthenticated && plan === "free" ? (
+            <button type="button" className="free-pod plan-pod" onClick={() => openUpgrade("general")}>
+              <Sparkles size={15} aria-hidden="true" />
+              <span className="plan-pod-copy">
+                <strong>You're on Free</strong>
+                <span>{leadUsage && leadUsage.limit !== null && billing.data?.limitsEnforced ? `${leadUsage.used} / ${leadUsage.limit} leads this month · See Pro` : "Your card stays free. See what Pro adds."}</span>
+              </span>
+            </button>
+          ) : isAuthenticated && billing.data ? (
+            <div className="free-pod">
+              <Sparkles size={15} aria-hidden="true" />
+              <div>
+                <strong>{PLAN_LABELS[plan]}{billing.data.entitlements.foundingMember ? " · Founding Member" : ""}</strong>
+                <span>Unlimited leads this month.</span>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="free-pod">
+              <Sparkles size={15} aria-hidden="true" />
+              <div>
+                <strong>Start free</strong>
+                <span>Your card, QR code and link never expire.</span>
+              </div>
+            </div>
+          )}
           {isAuthenticated ? (
             <NavItem label="Sign out" icon={LogOut} onClick={() => logout()} />
           ) : (
@@ -753,7 +807,7 @@ export default function Home() {
           <div className="crumbs">
             <span>Workspace</span>
             <ChevronRight size={14} />
-            <strong>{isBuilder ? "Card builder" : mode === "contacts" ? "Contacts" : mode === "insights" ? "Insights" : mode === "cards" ? "My cards" : "Overview"}</strong>
+            <strong>{isBuilder ? "Card builder" : mode === "contacts" ? "Contacts" : mode === "insights" ? "Insights" : mode === "billing" ? "Billing" : mode === "cards" ? "My cards" : "Overview"}</strong>
           </div>
           <div className="topbar-actions">
             <button
@@ -780,7 +834,10 @@ export default function Home() {
                   <div className="account-dropdown-identity">
                     <strong>{user?.name || "You"}</strong>
                     {user?.email ? <span className="account-dropdown-email">{user.email}</span> : null}
-                    <span className="account-dropdown-badge">All access · free</span>
+                    <span className={`plan-chip plan-chip-${plan}`}>{PLAN_LABELS[plan]}{billing.data?.entitlements.foundingMember ? " · Founding" : ""}</span>
+                    {leadUsage ? (
+                      <span className="account-dropdown-email">{leadUsage.limit === null ? `${leadUsage.used} leads this month` : `${leadUsage.used} / ${leadUsage.limit} leads this month`}</span>
+                    ) : null}
                   </div>
                   <DropdownMenuSeparator />
                   {SUPPORT_EMAIL ? (
@@ -796,6 +853,14 @@ export default function Home() {
                       </a>
                     </DropdownMenuItem>
                   )}
+                  {plan === "free" ? (
+                    <DropdownMenuItem onClick={() => openUpgrade("general")} className="account-menu-link">
+                      <Sparkles size={14} /> Upgrade to Pro
+                    </DropdownMenuItem>
+                  ) : null}
+                  <DropdownMenuItem onClick={() => navigate("/app/billing")} className="account-menu-link">
+                    <CreditCard size={14} /> Billing
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => void exportCardData()} className="account-menu-link">
                     <Download size={14} /> Download my card data
                   </DropdownMenuItem>
@@ -841,6 +906,8 @@ export default function Home() {
                 onClearError={clearFieldError}
                 isDirty={isDirty}
                 onPagePending={setPagePending}
+                canRemoveBranding={Boolean(billing.data?.entitlements.canRemoveBranding)}
+                onLockedBranding={() => openUpgrade("branding")}
                 onAddReference={async (reference: Omit<ReferenceRow, "id">) => {
                   if (isAuthenticated && draft.id > 0) {
                     try {
@@ -867,6 +934,8 @@ export default function Home() {
           ) : mode === "contacts" ? (
             <Suspense fallback={<ViewLoading />}>
               <ContactsView
+                leadUsage={isAuthenticated && billing.data?.limitsEnforced ? billing.data.usage.leads : null}
+                onUpgrade={openUpgrade}
                 contacts={contacts}
                 cards={cards}
                 newIds={newContactIds}
@@ -878,7 +947,16 @@ export default function Home() {
             </Suspense>
           ) : mode === "insights" ? (
             <Suspense fallback={<ViewLoading />}>
-              <InsightsView isAuthenticated={isAuthenticated} onSignIn={startGoogleLogin} />
+              <InsightsView
+                isAuthenticated={isAuthenticated}
+                onSignIn={startGoogleLogin}
+                allowedRanges={billing.isError ? [7] : billing.data?.insightRanges}
+                onLockedRange={() => openUpgrade("analytics")}
+              />
+            </Suspense>
+          ) : mode === "billing" && isAuthenticated ? (
+            <Suspense fallback={<ViewLoading />}>
+              <BillingView />
             </Suspense>
           ) : mode === "cards" ? (
             <CardsView
@@ -1182,6 +1260,8 @@ function BuilderView({
   onClearError,
   isDirty = false,
   onPagePending,
+  canRemoveBranding = false,
+  onLockedBranding,
 }: any) {
   const [mobileTab, setMobileTab] = useState<"edit" | "preview">("edit");
   // Same query key as the references editor below, so this reuses its data rather than fetching twice.
@@ -1256,7 +1336,7 @@ function BuilderView({
                 <p>Pick how your page reads, then choose which sections show and in what order.</p>
               </div>
             </div>
-            <PageDesigner value={draft.page} onChange={(value) => update("page", value)} themeAccent={themeAccent(draft.theme)} onPendingChange={onPagePending} avatarUrl={draft.avatarUrl} initials={getInitials(draft.displayName || "")} />
+            <PageDesigner value={draft.page} onChange={(value) => update("page", value)} themeAccent={themeAccent(draft.theme)} onPendingChange={onPagePending} avatarUrl={draft.avatarUrl} initials={getInitials(draft.displayName || "")} canRemoveBranding={canRemoveBranding} onLockedBranding={onLockedBranding} />
           </div>
 
           <div className="form-section">

@@ -104,13 +104,15 @@ class GoogleOAuthService {
       sub: string;
       name?: string;
       email?: string;
+      email_verified?: boolean;
       picture?: string;
     };
 
     return {
       openId: data.sub,
       name: data.name || "",
-      email: data.email ?? null,
+      // An unverified address is never stored: plan grants (COMPLIMENTARY_EMAILS) and mail both trust it.
+      email: data.email_verified === false ? null : data.email ?? null,
       platform: "google",
       loginMethod: "google",
     };

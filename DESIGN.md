@@ -10,7 +10,7 @@ Key tokens live in `client/src/index.css`: `--ink`, `--paper`, `--purple`, `--aq
 
 ## Landing page and personal pages
 
-`/` is the marketing landing page (`client/src/pages/Landing.tsx`, `lp-*` classes): a sticky glass pill nav, an editorial hero with a live tilting demo card and theme swatches, a channel marquee, three steps, a bento feature grid, an ink "free forever" panel, and a closing call to action. A scroll progress bar and scroll-linked parallax carry the motion.
+`/` is the marketing landing page (`client/src/pages/Landing.tsx`, `lp-*` classes): a sticky glass pill nav, an editorial hero with a live tilting demo card and theme swatches, a channel marquee, three steps, a bento feature grid, an ink pricing panel ("Start free. Upgrade when it pays."), and a closing call to action. A scroll progress bar and scroll-linked parallax carry the motion.
 
 `/c/:slug` renders each card as a personal landing page (`pl-*` classes): a parallax cover (uploaded image or an animated mesh in the card theme), a glass hero with a ringed avatar, "Hey, it's" greeting, role, location, and bio, then contact rows, portfolio, and references. On desktop a sticky aside holds the tilting card and QR; on mobile a floating dock keeps Save contact in reach. Theme colors flow in as `--pl-a/--pl-b/--pl-c`. Instrument Serif italic carries the emphasis phrases.
 
@@ -37,3 +37,11 @@ Clips are always muted, looped, inline, lazy-loaded, and paused off-screen. They
 - Display: DM Sans 800, ≤104px, tracking ≥ -0.04em. Instrument Serif italic only in quotes.
 - Photo frames (owner choice): circle, rounded square (superellipse), portrait 4:5 glass card, organic blob (morph stops after 3 cycles). Default per template: portrait / squircle / circle.
 - Motion: spring presets in `cardMotion.tsx`; name + lead never start invisible (LCP); everything off for reduced motion; solid panels for reduced transparency / no backdrop-filter.
+
+## Plans and billing surfaces (2026-09-28)
+- Plan chips: Free = neutral white chip, Pro = violet (`--purple-deep`), Teams = ink with an aqua underline, Founding Member = warm coral. Every chip carries its plan name in text, so color is never the only signal.
+- Locked features show a small Pro chip or lock icon. Existing user content is never blurred or hidden.
+- The upgrade dialog is one solid white surface over the workspace (no glass inside glass). Primary action is violet-ink, minimum 48 px tall.
+- `/pricing` uses solid white plan cards on the paper field; the Pro card has a 2 px violet border and a "Recommended" label. Cards stack at 900 px and below.
+- Styles live in `client/src/components/billing/billing.css` and `client/src/pages/pricing.css`.
+- There is no custom Google Pay button. The 2C2P hosted page renders the official wallet buttons; our button reads "Continue to secure checkout".

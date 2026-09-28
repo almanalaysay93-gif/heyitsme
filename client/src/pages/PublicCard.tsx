@@ -191,6 +191,7 @@ export default function PublicCardPage() {
         references={references}
         interactive
         canExchange={canExchange}
+        acceptsDetails={rawCard ? rawCard.acceptsDetails !== false : true}
         pageUrl={window.location.href}
         onSaveContact={saveContact}
         onExchange={openForm}
