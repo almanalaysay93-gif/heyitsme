@@ -14,6 +14,7 @@ import {
 } from "../drizzle/schema";
 import { DEMO_CARD, DEMO_CARD_ID, DEMO_REFERENCES, DEMO_SLUG } from "@shared/demoCard";
 import { ENV } from "./_core/env";
+import { BILLING_SCHEMA_STATEMENTS } from "./billing/schemaSql";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _schemaReady: Promise<void> | null = null;
@@ -62,6 +63,20 @@ async function ensureSchema(client: postgres.Sql) {
   const present = new Set(indexes.map((row) => row.indexname));
   for (const [name, statement] of SCHEMA_INDEXES) {
     if (!present.has(name)) await client.unsafe(statement);
+  }
+
+  // Billing tables (drizzle/0009). offerCounters is created last, so its presence means the whole set exists.
+  const billing = await client<{ table_name: string }[]>`
+    select table_name from information_schema.tables where table_schema = current_schema() and table_name = 'offerCounters'`;
+  if (billing.length === 0) {
+    for (const statement of BILLING_SCHEMA_STATEMENTS) {
+      if (statement.startsWith("alter table")) {
+        // Only the table owner may enable RLS. The app role owns tables it just created; if not, apply by hand.
+        await client.unsafe(statement).catch((error) => console.warn("[Database] RLS not enabled, apply drizzle/0009 by hand:", String(error)));
+      } else {
+        await client.unsafe(statement);
+      }
+    }
   }
 }
 

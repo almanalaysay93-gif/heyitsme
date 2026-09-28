@@ -16,7 +16,6 @@ import { tidyOwnerUploads } from "./uploadSweep";
 import { buildCardExport } from "./cardExport";
 import {
   createReference,
-  createCard,
   createContact,
   deleteCard,
   deleteContact,
@@ -36,6 +35,8 @@ import {
   updateContact,
 } from "./db";
 import { buildInsights, INSIGHTS_RANGES, insightsSince } from "./insights";
+import { billingRouter } from "./billing/router";
+import { assertBrandingAllowed, assertInsightRange, createCardForOwner, leadCaptureOpen, withLeadQuota } from "./billing/gate";
 
 // Rendered as <img src>, so only http(s) or same-origin storage paths — never data:/javascript:.
 const imageUrl = z
@@ -162,6 +163,7 @@ async function enforceRateLimit(scope: string, identity: string, limit: number, 
 }
 
 export const appRouter = router({
+  billing: billingRouter,
   system: systemRouter,
   auth: router({
     me: publicProcedure.query((opts) => opts.ctx.user),
@@ -193,7 +195,8 @@ export const appRouter = router({
         }
         // Set once here. update never touches slug, so shared links and printed QR codes survive renames.
         const slug = makeCardSlug(input.displayName, nanoid(6));
-        const created = await createCard({
+        await assertBrandingAllowed(ctx.user, input.page);
+        const created = await createCardForOwner(ctx.user, {
           ...input,
           title: input.title ?? "",
           ownerUserId: ctx.user.id,
@@ -220,6 +223,7 @@ export const appRouter = router({
         if (!before) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Card not found." });
         }
+        if (rest.page !== undefined) await assertBrandingAllowed(ctx.user, rest.page, before.page);
         const updated = await updateCard(id, ctx.user.id, {
           ...rest,
           title: rest.title ?? "",
@@ -293,8 +297,9 @@ export const appRouter = router({
   }),
   insights: router({
     summary: protectedProcedure
-      .input(z.object({ days: z.union([z.literal(7), z.literal(30), z.literal(90)]).default(INSIGHTS_RANGES[0]) }))
+      .input(z.object({ days: z.union([z.literal(7), z.literal(30), z.literal(90), z.literal(365)]).default(INSIGHTS_RANGES[0]) }))
       .query(async ({ ctx, input }) => {
+        await assertInsightRange(ctx.user, input.days);
         const now = new Date();
         const [rows, cards] = await Promise.all([
           getInsightsRows(ctx.user.id, insightsSince(input.days, now)),
@@ -358,7 +363,13 @@ export const appRouter = router({
         if (firstView.allowed) await recordAnalytics(card.id, "view", "public_card");
       }
       // null, not undefined: a missing slug is an empty result. undefined makes the client treat it as a failed query.
-      return card ? { ...card, references: await getReferencesByCard(card.id, true) } : null;
+      if (!card) return null;
+      const [refs, acceptsDetails] = await Promise.all([
+        getReferencesByCard(card.id, true),
+        card.id === DEMO_CARD_ID ? true : leadCaptureOpen(card.ownerUserId).catch(() => true),
+      ]);
+      // acceptsDetails false: the owner's free lead quota is used up, so the page offers direct contact instead of the form.
+      return { ...card, references: refs, acceptsDetails };
     }),
     exchange: publicProcedure
       .input(z.object({
@@ -399,8 +410,7 @@ export const appRouter = router({
         }
         const card = await getCardById(input.cardId);
         if (!card || !card.published || card.deletedAt) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
-        await recordAnalytics(input.cardId, "save", "exchange_form");
-        const contact = await createContact({
+        const contact = await withLeadQuota(card.ownerUserId, () => createContact({
           ownerUserId: card.ownerUserId,
           cardId: input.cardId,
           name: input.name,
@@ -411,7 +421,8 @@ export const appRouter = router({
           notes: input.notes ?? null,
           tags: "[]",
           source: "exchange_form",
-        });
+        }));
+        await recordAnalytics(input.cardId, "save", "exchange_form");
         await notifyOwnerOfContact(card, contact, siteOrigin(ctx.req));
         return contact;
       }),

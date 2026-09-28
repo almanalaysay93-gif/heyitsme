@@ -138,3 +138,31 @@ Ship live after gates pass.
 ### Open follow-ups
 - LCP still > 2.5s on throttled mobile: client-rendered SPA + data round trip. Next: inline card JSON in the server-rendered /c/:slug HTML (type="application/json", CSP-safe) as query initialData, or prerender the hero.
 - Guest (signed-out) builder preview shows no references (local-only references are not passed to the preview).
+
+---
+
+## 2026-09-28 — Buildme run: monetization phases 0–5
+
+### Design Read (confirmed via Grill Me)
+Freemium billing, pricing, upgrade and billing screens for heyitsme.fyi professionals, in the existing Apple-glass
+language (lilac paper, navy ink, violet/aqua/coral, DM Sans + Instrument Serif), on React 19 + tRPC + Drizzle/Supabase on Vercel.
+Source spec: `D:\Downloads\heyitsmepayment.txt` (v1.0).
+
+### Decisions
+- D1: The free-only product rule is dropped. CLAUDE.md, PRODUCT.md, DESIGN.md and marketing copy are rewritten.
+- D2: Checkout runs on the 2C2P hosted payment page (PGW v4.5, JWT HS256). Channels: Google Pay (`GOOGLEPAY`) and GCash (`DPAY`). All payment flags stay off until the owner confirms 2C2P capability for the merchant account.
+- D3: Accounts listed in env `COMPLIMENTARY_EMAILS` get Pro + Teams entitlements with no expiry. The address is never in the repo.
+- D4: Free = 1 card total. Cards above the limit stay usable and editable. Only new card creation is blocked.
+- D5: Free limits are enforced only when `PLAN_LIMITS_ENABLED=true`, so users are never limited while checkout is off.
+- D6: Monthly checkout is disabled until `GOOGLE_PAY_RECURRING_ENABLED=true`. Annual is a one-time charge that sets `currentPeriodEnd`.
+- D7: A founding slot is taken only in the verified-payment transaction, by one conditional UPDATE on a single-row counter. A payer who loses the race still gets the paid term, without founding status.
+- D8: Scope is spec phases 0–5. Teams, NFC store and admin screens come in a later run. Ship as branch + PR, no deploy, no migration applied.
+
+### Work units (single owner each)
+- Contract: `shared/plans.ts` (plans, prices in centavos, limits, entitlement resolver, period keys).
+- Data: `drizzle/schema.ts`, `drizzle/0009_billing.sql`, `ensureSchema` in `server/db.ts`, `server/billing/*.ts`.
+- Payments: `server/billing/provider.ts`, `server/billing/twoc2p.ts`, `server/billing/paymentRoutes.ts`.
+- API: `billing` router, enforcement in `cards.create`, `publicCard.exchange`, `publicCard.bySlug`, `insights.summary`.
+- UI: pricing page, upgrade dialog, billing view, plan badge, usage lines, locked insight ranges, public exchange pause.
+- Copy/docs: landing, FAQ, terms, privacy, CLAUDE.md, PRODUCT.md, DESIGN.md, PROJECT_MEMORY.md, runbook.
+- Gates: `pnpm check`, `pnpm test`, `pnpm build`, browser pass, anti-slop and a11y review.

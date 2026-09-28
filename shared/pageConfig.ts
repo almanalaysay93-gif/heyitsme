@@ -102,6 +102,8 @@ export const pageConfigSchema = z.object({
     .default([]),
   hours: z.array(z.object({ days: text(32).min(1), time: text(40).min(1) })).max(PAGE_LIMITS.hours).optional().default([]),
   address: optionalText(240),
+  /** Hides the heyitsme name in the page header and footer. Turning it on needs Pro (server/billing/gate.ts). */
+  hideBranding: z.boolean().optional().default(false),
 });
 
 export type PageConfig = z.infer<typeof pageConfigSchema>;

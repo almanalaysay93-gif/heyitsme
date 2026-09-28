@@ -2,6 +2,7 @@ import "dotenv/config";
 import express, { type ErrorRequestHandler, type Express, type RequestHandler } from "express";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
+import { registerPaymentRoutes } from "../billing/paymentRoutes";
 import { registerSeoRoutes, logJson } from "./seo";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
@@ -57,6 +58,7 @@ export function createApp(): Express {
   app.use(express.urlencoded({ limit: "100kb", extended: true }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
+  registerPaymentRoutes(app);
   registerSeoRoutes(app);
   app.use(
     "/api/trpc",

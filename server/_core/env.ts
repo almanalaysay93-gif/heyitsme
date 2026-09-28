@@ -25,4 +25,35 @@ export const ENV = {
   resendApiKey: process.env.RESEND_API_KEY ?? "",
   // The address must be on the domain verified in Resend, send.heyitsme.fyi.
   mailFrom: process.env.MAIL_FROM || "heyitsme <notifications@send.heyitsme.fyi>",
+
+  // Paid plans. Every flag defaults off except the founding offer. See docs/billing.md.
+  // Free-plan limits (1 card, 10 leads a month, 7 days of insights). Keep off until checkout works.
+  planLimitsEnabled: flag("PLAN_LIMITS_ENABLED", false),
+  paymentsEnabled: flag("PAYMENTS_ENABLED", false),
+  paymentProvider: process.env.PAYMENT_PROVIDER || "2c2p",
+  // "production" talks to the live gateway. Anything else uses the sandbox.
+  paymentProviderEnv: process.env.PAYMENT_PROVIDER_ENV === "production" ? "production" : "sandbox",
+  paymentGatewayMerchantId: process.env.PAYMENT_GATEWAY_MERCHANT_ID ?? "",
+  paymentGatewaySecret: process.env.PAYMENT_GATEWAY_SECRET ?? "",
+  googlePayEnabled: flag("GOOGLE_PAY_ENABLED", false),
+  googlePayRecurringEnabled: flag("GOOGLE_PAY_RECURRING_ENABLED", false),
+  gcashEnabled: flag("GCASH_ENABLED", false),
+  // Used when Google Pay is loaded on our own pages. The 2C2P hosted page does not need them.
+  googlePayMerchantId: process.env.GOOGLE_PAY_MERCHANT_ID ?? "",
+  googlePayMerchantName: process.env.GOOGLE_PAY_MERCHANT_NAME || "heyitsme",
+  googlePayEnv: process.env.GOOGLE_PAY_ENV === "PRODUCTION" ? "PRODUCTION" : "TEST",
+  nfcStoreEnabled: flag("NFC_STORE_ENABLED", false),
+  teamsEnabled: flag("TEAMS_ENABLED", false),
+  foundingOfferEnabled: flag("FOUNDING_MEMBER_OFFER_ENABLED", true),
+  // Comma-separated Google account emails that keep every feature with no plan. Compared lowercase.
+  complimentaryEmails: (process.env.COMPLIMENTARY_EMAILS ?? "")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean),
 };
+
+function flag(name: string, fallback: boolean): boolean {
+  const value = process.env[name]?.trim().toLowerCase();
+  if (!value) return fallback;
+  return value === "true" || value === "1";
+}
