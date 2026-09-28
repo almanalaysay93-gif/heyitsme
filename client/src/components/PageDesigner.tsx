@@ -15,10 +15,13 @@ import {
   type TemplateId,
 } from "@shared/pageConfig";
 import { ArrowDown, ArrowUp, Eye, EyeOff, Plus, RotateCcw, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import "./pageDesigner.css";
 
+type Panels = { address: string; setAddress: (address: string) => void; layout: ReactNode; contact: ReactNode; appearance: ReactNode; content: ReactNode };
+
 type Props = {
+  children?: (panels: Panels) => ReactNode;
   value: string | undefined;
   onChange: (json: string) => void;
   /** The palette's own accent, shown when the owner has not picked one. */
@@ -33,7 +36,7 @@ type Props = {
   onLockedBranding?: () => void;
 };
 
-export function PageDesigner({ value, onChange, themeAccent, onPendingChange, avatarUrl, initials = "", canRemoveBranding = false, onLockedBranding }: Props) {
+export function PageDesigner({ children, value, onChange, themeAccent, onPendingChange, avatarUrl, initials = "", canRemoveBranding = false, onLockedBranding }: Props) {
   // Working copy keeps half-typed rows (a service with no name yet); only the valid subset is emitted.
   const [config, setConfig] = useState<PageConfig>(() => parsePageConfig(value));
   const lastEmitted = useRef<string | undefined>(value);
@@ -78,17 +81,19 @@ export function PageDesigner({ value, onChange, themeAccent, onPendingChange, av
   const removeRow = (key: "stats" | "services" | "hours" | "links" | "contactPersons", index: number) =>
     commit({ ...config, [key]: config[key].filter((_, i) => i !== index) });
 
-  return (
-    <div className="pd">
+  const panels: Panels = {
+    address: config.address,
+    setAddress: (address) => commit({ ...config, address }),
+    layout: <div className="pd">
       <TemplatePicker value={config.template} onSelect={(id) => { if (id !== config.template) commit(switchTemplate(config, id)); }} />
 
       {config.template === "services" ? (
         <div className="pd-block">
           <div className="pd-block-head">
-            <h3>Headline</h3>
-            <p>Your offer in a few words. It becomes the title of your page.</p>
+            <h3>Service page title</h3>
+            <p>This is the large page title. Your name identifies the provider. About you adds a description below.</p>
           </div>
-          <TextField label="Headline" value={config.headline} maxLength={80} placeholder="Color, cuts and care in Makati" onChange={(headline) => commit({ ...config, headline })} />
+          <TextField label="Service page title" value={config.headline} maxLength={80} placeholder="Color, cuts and care in Makati" onChange={(headline) => commit({ ...config, headline })} />
         </div>
       ) : null}
 
@@ -124,29 +129,6 @@ export function PageDesigner({ value, onChange, themeAccent, onPendingChange, av
           />
           Hide the heyitsme name on my page
         </label>
-      </div>
-
-      <div className="pd-block">
-        <div className="pd-block-head">
-          <h3>Accent color</h3>
-          <p>Used for buttons and highlights on your page.</p>
-        </div>
-        <div className="pd-accent">
-          <label className="pd-swatch">
-            <input
-              type="color"
-              value={config.accent || themeAccent}
-              onChange={(event) => commit({ ...config, accent: event.target.value })}
-              aria-label="Accent color"
-            />
-            <span>{config.accent ? config.accent.toUpperCase() : "Palette color"}</span>
-          </label>
-          {config.accent ? (
-            <button type="button" className="outline-button pd-small-button" onClick={() => commit({ ...config, accent: "" })}>
-              <RotateCcw size={13} /> Reset
-            </button>
-          ) : null}
-        </div>
       </div>
 
       <div className="pd-block">
@@ -197,10 +179,37 @@ export function PageDesigner({ value, onChange, themeAccent, onPendingChange, av
         <p className="pd-sr-only" role="status" aria-live="polite">{announcement}</p>
       </div>
 
+    </div>,
+    appearance: <div className="pd">
+      <div className="pd-block">
+        <div className="pd-block-head">
+          <h3>Accent color</h3>
+          <p>The palette sets the background and default accent. A custom accent overrides button and highlight colors. Reset uses the palette color.</p>
+        </div>
+        <div className="pd-accent">
+          <label className="pd-swatch">
+            <input
+              type="color"
+              value={config.accent || themeAccent}
+              onChange={(event) => commit({ ...config, accent: event.target.value })}
+              aria-label="Accent color"
+            />
+            <span>{config.accent ? config.accent.toUpperCase() : "Palette color"}</span>
+          </label>
+          {config.accent ? (
+            <button type="button" className="outline-button pd-small-button" onClick={() => commit({ ...config, accent: "" })}>
+              <RotateCcw size={13} /> Reset
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+    </div>,
+    contact: <div className="pd">
       <div className="pd-block">
         <div className="pd-block-head">
           <h3>Primary button</h3>
-          <p>One clear next step, shown near the top. Leave it empty to skip.</p>
+          <p>Shown near the top, independently of the Contact & links section. Leave it empty to skip.</p>
         </div>
         <div className="field-grid">
           <TextField label="Button label" value={config.cta?.label ?? ""} maxLength={40} placeholder="Book a call" onChange={(label) => commit({ ...config, cta: { label, url: config.cta?.url ?? "" } })} />
@@ -215,55 +224,11 @@ export function PageDesigner({ value, onChange, themeAccent, onPendingChange, av
         </div>
       </div>
 
-      <div className="pd-block">
-        <RowsHead title="Highlights" hint="Short numbers people remember, like 12 years or 300 clients." count={config.stats.length} limit={PAGE_LIMITS.stats} />
-        {config.stats.map((row, index) => (
-          <div className="pd-row pd-row-stat" key={index}>
-            <input className="pd-input" value={row.value} maxLength={16} placeholder="12" aria-label={`Highlight ${index + 1} value`} onChange={(e) => setRow("stats", index, { value: e.target.value })} />
-            <input className="pd-input" value={row.label} maxLength={48} placeholder="years in practice" aria-label={`Highlight ${index + 1} label`} onChange={(e) => setRow("stats", index, { label: e.target.value })} />
-            <RemoveButton label={`Remove highlight ${index + 1}`} onClick={() => removeRow("stats", index)} />
-            {Boolean(row.value.trim()) !== Boolean(row.label.trim()) ? <span className="pd-warn pd-row-warn">Add both a number and a label to show this.</span> : null}
-          </div>
-        ))}
-        <AddButton label="Add highlight" disabled={config.stats.length >= PAGE_LIMITS.stats} onClick={() => commit({ ...config, stats: [...config.stats, { value: "", label: "" }] })} />
-      </div>
-
-      <div className="pd-block">
-        <RowsHead title="Services & prices" hint="Rows without a name stay here until you fill them in." count={config.services.length} limit={PAGE_LIMITS.services} />
-        {config.services.map((row, index) => (
-          <div className="pd-service" key={index}>
-            <div className="pd-row pd-row-service">
-              <input className="pd-input" value={row.name} maxLength={80} placeholder="Service name" aria-label={`Service ${index + 1} name`} onChange={(e) => setRow("services", index, { name: e.target.value })} />
-              <input className="pd-input" value={row.price} maxLength={32} placeholder="From $80" aria-label={`Service ${index + 1} price`} onChange={(e) => setRow("services", index, { price: e.target.value })} />
-              <RemoveButton label={`Remove service ${index + 1}`} onClick={() => removeRow("services", index)} />
-            </div>
-            <input className="pd-input" value={row.description} maxLength={240} placeholder="A short line on what's included" aria-label={`Service ${index + 1} description`} onChange={(e) => setRow("services", index, { description: e.target.value })} />
-            <input className="pd-input" value={row.url} maxLength={590} placeholder="Booking link (optional)" aria-label={`Service ${index + 1} booking link`} onChange={(e) => setRow("services", index, { url: e.target.value })} />
-            {isUnusableLink(row.url) ? <span className="pd-warn">This link won't be saved. Use a web address, email or phone number.</span> : null}
-          </div>
-        ))}
-        <AddButton label="Add service" disabled={config.services.length >= PAGE_LIMITS.services} onClick={() => commit({ ...config, services: [...config.services, { name: "", description: "", price: "", url: "" }] })} />
-      </div>
-
-      <div className="pd-block">
-        <RowsHead title="Hours & address" hint="Add a row for each set of days." count={config.hours.length} limit={PAGE_LIMITS.hours} />
-        {config.hours.map((row, index) => (
-          <div className="pd-row pd-row-hours" key={index}>
-            <input className="pd-input" value={row.days} maxLength={32} placeholder="Mon – Fri" aria-label={`Hours row ${index + 1} days`} onChange={(e) => setRow("hours", index, { days: e.target.value })} />
-            <input className="pd-input" value={row.time} maxLength={40} placeholder="9:00 – 18:00" aria-label={`Hours row ${index + 1} time`} onChange={(e) => setRow("hours", index, { time: e.target.value })} />
-            <RemoveButton label={`Remove hours row ${index + 1}`} onClick={() => removeRow("hours", index)} />
-            {Boolean(row.days.trim()) !== Boolean(row.time.trim()) ? <span className="pd-warn pd-row-warn">Add both days and times to show this.</span> : null}
-          </div>
-        ))}
-        <AddButton label="Add hours" disabled={config.hours.length >= PAGE_LIMITS.hours} onClick={() => commit({ ...config, hours: [...config.hours, { days: "", time: "" }] })} />
-        <TextField label="Address" value={config.address} maxLength={240} placeholder="12 Market Street, Springfield" onChange={(address) => commit({ ...config, address })} />
-      </div>
-
       {config.template === "business" || config.contactPersons.length > 0 ? (
         <div className="pd-block">
           <RowsHead
             title="Contact persons & office in-charge"
-            hint="List key personnel, department heads, or officers in charge."
+            hint="Use Contact persons in Sections to hide or move this block."
             count={config.contactPersons.length}
             limit={PAGE_LIMITS.contactPersons}
           />
@@ -319,8 +284,8 @@ export function PageDesigner({ value, onChange, themeAccent, onPendingChange, av
       {config.template === "business" || config.links.length > 0 ? (
         <div className="pd-block">
           <RowsHead
-            title="More links"
-            hint="Add direct links for your business, portal, or resources."
+            title="Resource links"
+            hint="Labeled resources. Use Resource links in Sections to hide or move this block."
             count={config.links.length}
             limit={PAGE_LIMITS.links}
           />
@@ -364,9 +329,71 @@ export function PageDesigner({ value, onChange, themeAccent, onPendingChange, av
         </div>
       ) : null}
 
-      {tooLarge ? <p className="pd-warn" role="status">This page has more text than we can save. Shorten a few descriptions or links.</p> : null}
-    </div>
-  );
+    </div>,
+    content: <div className="pd">
+      <OptionalEditor optional={config.template === "services" && !config.stats.length} label="Highlights">
+      <div className="pd-block">
+        <RowsHead title="Highlights" hint="Short numbers people remember, like 12 years or 300 clients." count={config.stats.length} limit={PAGE_LIMITS.stats} />
+        {config.stats.map((row, index) => (
+          <div className="pd-row pd-row-stat" key={index}>
+            <input className="pd-input" value={row.value} maxLength={16} placeholder="12" aria-label={`Highlight ${index + 1} value`} onChange={(e) => setRow("stats", index, { value: e.target.value })} />
+            <input className="pd-input" value={row.label} maxLength={48} placeholder="years in practice" aria-label={`Highlight ${index + 1} label`} onChange={(e) => setRow("stats", index, { label: e.target.value })} />
+            <RemoveButton label={`Remove highlight ${index + 1}`} onClick={() => removeRow("stats", index)} />
+            {Boolean(row.value.trim()) !== Boolean(row.label.trim()) ? <span className="pd-warn pd-row-warn">Add both a number and a label to show this.</span> : null}
+          </div>
+        ))}
+        <AddButton label="Add highlight" disabled={config.stats.length >= PAGE_LIMITS.stats} onClick={() => commit({ ...config, stats: [...config.stats, { value: "", label: "" }] })} />
+      </div>
+      </OptionalEditor>
+
+      <OptionalEditor optional={config.template === "professional" && !config.services.length} label="Services & prices">
+      <div className="pd-block">
+        <RowsHead title="Services & prices" hint="Rows without a name stay here until you fill them in." count={config.services.length} limit={PAGE_LIMITS.services} />
+        {config.services.map((row, index) => (
+          <div className="pd-service" key={index}>
+            <div className="pd-row pd-row-service">
+              <input className="pd-input" value={row.name} maxLength={80} placeholder="Service name" aria-label={`Service ${index + 1} name`} onChange={(e) => setRow("services", index, { name: e.target.value })} />
+              <input className="pd-input" value={row.price} maxLength={32} placeholder="From $80" aria-label={`Service ${index + 1} price`} onChange={(e) => setRow("services", index, { price: e.target.value })} />
+              <RemoveButton label={`Remove service ${index + 1}`} onClick={() => removeRow("services", index)} />
+            </div>
+            <input className="pd-input" value={row.description} maxLength={240} placeholder="A short line on what's included" aria-label={`Service ${index + 1} description`} onChange={(e) => setRow("services", index, { description: e.target.value })} />
+            <input className="pd-input" value={row.url} maxLength={590} placeholder="Booking link (optional)" aria-label={`Service ${index + 1} booking link`} onChange={(e) => setRow("services", index, { url: e.target.value })} />
+            {isUnusableLink(row.url) ? <span className="pd-warn">This link won't be saved. Use a web address, email or phone number.</span> : null}
+          </div>
+        ))}
+        <AddButton label="Add service" disabled={config.services.length >= PAGE_LIMITS.services} onClick={() => commit({ ...config, services: [...config.services, { name: "", description: "", price: "", url: "" }] })} />
+      </div>
+      </OptionalEditor>
+
+      <OptionalEditor optional={config.template === "professional" && !config.hours.length && !config.address} label="Hours & address">
+      <div className="pd-block">
+        <RowsHead title="Hours & address" hint="Add a row for each set of days." count={config.hours.length} limit={PAGE_LIMITS.hours} />
+        {config.hours.map((row, index) => (
+          <div className="pd-row pd-row-hours" key={index}>
+            <input className="pd-input" value={row.days} maxLength={32} placeholder="Mon – Fri" aria-label={`Hours row ${index + 1} days`} onChange={(e) => setRow("hours", index, { days: e.target.value })} />
+            <input className="pd-input" value={row.time} maxLength={40} placeholder="9:00 – 18:00" aria-label={`Hours row ${index + 1} time`} onChange={(e) => setRow("hours", index, { time: e.target.value })} />
+            <RemoveButton label={`Remove hours row ${index + 1}`} onClick={() => removeRow("hours", index)} />
+            {Boolean(row.days.trim()) !== Boolean(row.time.trim()) ? <span className="pd-warn pd-row-warn">Add both days and times to show this.</span> : null}
+          </div>
+        ))}
+        <AddButton label="Add hours" disabled={config.hours.length >= PAGE_LIMITS.hours} onClick={() => commit({ ...config, hours: [...config.hours, { days: "", time: "" }] })} />
+        <p className="field-hint">Uses the address in Essentials.</p>
+      </div>
+      </OptionalEditor>
+
+    </div>,
+  };
+  return <>
+    {children ? children(panels) : <>{panels.layout}{panels.content}{panels.contact}{panels.appearance}</>}
+    {tooLarge ? <p className="pd-warn" role="status">This page has more text than we can save. Shorten a few descriptions or links.</p> : null}
+  </>;
+}
+
+export function OptionalEditor({ optional, label, children }: { optional: boolean; label: string; children: ReactNode }) {
+  return <details className={`optional-editor${optional ? "" : " is-core"}`} open={optional ? undefined : true}>
+    <summary>{label} (optional)</summary>
+    {children}
+  </details>;
 }
 
 function TemplatePicker({ value, onSelect }: { value: TemplateId; onSelect: (id: TemplateId) => void }) {

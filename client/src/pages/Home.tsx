@@ -1,3 +1,4 @@
+import { parsePageConfig } from "@shared/pageConfig";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startGoogleLogin, SUPPORT_EMAIL } from "@/const";
 import { BrandMark, LogoLoader } from "@/components/BrandMark";
@@ -6,7 +7,7 @@ import { CardVisual, Field } from "@/components/CardVisual";
 import type { ContactPatch, ContactRow } from "@/components/ContactsView";
 import { LegalLinks } from "@/components/LegalLinks";
 import { isVideoUrl } from "@/components/LoopVideo";
-import { PageDesigner } from "@/components/PageDesigner";
+import { PageDesigner, OptionalEditor } from "@/components/PageDesigner";
 import { ShareSheet } from "@/components/ShareSheet";
 import {
   DropdownMenu,
@@ -312,6 +313,7 @@ function Workspace() {
   const editId = editMatch ? Number(editMatch[1]) : 0;
 
   useEffect(() => {
+    if (loading) return;
     if (editId > 0) {
       if (isAuthenticated && cardsQuery.isLoading && !cardsQuery.data) return;
       if (isAuthenticated && cardsQuery.isError && !cardsQuery.data) return;
@@ -327,7 +329,7 @@ function Workspace() {
     } else if (activeCard && !isBuilder) {
       setDraft(activeCard);
     }
-  }, [editId, cards, activeCard?.id, isBuilder, isAuthenticated, cardsQuery.isLoading, cardsQuery.isError, cardsQuery.isSuccess, cardsQuery.data]);
+  }, [loading, editId, cards, activeCard?.id, isBuilder, isAuthenticated, cardsQuery.isLoading, cardsQuery.isError, cardsQuery.isSuccess, cardsQuery.data]);
 
   // Preview mode promises "sign in to sync it", so the first signed-in visit moves that card into the account.
   const importingPreview = useRef(false);
@@ -1267,6 +1269,7 @@ function BuilderView({
   // Same query key as the references editor below, so this reuses its data rather than fetching twice.
   const previewReferences = trpc.references.list.useQuery({ cardId: draft.id }, { enabled: isAuthenticated && draft.id > 0 });
   const update = (key: keyof CardDraft, value: string) => setDraft((current: CardDraft) => ({ ...current, [key]: value }));
+  const page = parsePageConfig(draft.page);
   return (
     <motion.div className="builder-page" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="page-heading-row builder-heading">
@@ -1283,7 +1286,7 @@ function BuilderView({
         </div>
         <div className="builder-save-actions">
           {!isDirty ? (
-            <span className="save-status-indicator" title="All changes saved in this browser">
+            <span className="save-status-indicator" title={isAuthenticated ? "All changes saved to your account" : "All changes saved in this browser"}>
               <Check size={14} /> Saved
             </span>
           ) : null}
@@ -1292,15 +1295,16 @@ function BuilderView({
             {!isAuthenticated ? (
               <><LogIn size={15} /> Sign in to publish</>
             ) : (
-              <><Share2 size={15} /> {saving ? "Publishing…" : "Publish & copy link"}</>
+              <><Share2 size={15} /> {saving ? "Publishing…" : (draft.published ? "Save & copy public link" : "Publish & copy link")}</>
             )}
           </button>
           <GlassButton onClick={onSave} disabled={saving}>
-            {saving ? "Saving…" : <><Check size={16} /> Save card</>}
+            {saving ? "Saving…" : <><Check size={16} /> {draft.published ? "Save live changes" : "Save draft"}</>}
           </GlassButton>
         </div>
       </div>
 
+      <p className="field-hint">{draft.published ? "This card is public. Saving updates the live page." : "Save draft keeps this card private. Publish makes it public and copies its link."}</p>
       <div className="mobile-builder-tabs" role="tablist" aria-label="Builder view">
         <button
           type="button"
@@ -1327,6 +1331,8 @@ function BuilderView({
       </div>
 
       <div className={`builder-layout mobile-view-${mobileTab}`}>
+        <PageDesigner value={draft.page} onChange={(value) => update("page", value)} themeAccent={themeAccent(draft.theme)} onPendingChange={onPagePending} avatarUrl={draft.avatarUrl} initials={getInitials(draft.displayName || "")} canRemoveBranding={canRemoveBranding} onLockedBranding={onLockedBranding}>
+        {(panels) => (
         <div id="builder-form-panel" className="builder-form glass-panel" role="tabpanel" aria-labelledby="mobile-tab-edit">
           <div className="form-section">
             <div className="form-section-heading">
@@ -1336,7 +1342,8 @@ function BuilderView({
                 <p>Pick how your page reads, then choose which sections show and in what order.</p>
               </div>
             </div>
-            <PageDesigner value={draft.page} onChange={(value) => update("page", value)} themeAccent={themeAccent(draft.theme)} onPendingChange={onPagePending} avatarUrl={draft.avatarUrl} initials={getInitials(draft.displayName || "")} canRemoveBranding={canRemoveBranding} onLockedBranding={onLockedBranding} />
+            {panels.layout}
+            {panels.content}
           </div>
 
           <div className="form-section">
@@ -1355,12 +1362,11 @@ function BuilderView({
               <Field id="field-displayName" label="Your name" value={draft.displayName} onChange={(value: string) => { update("displayName", value); onClearError?.("displayName"); }} error={fieldErrors.displayName} placeholder="Alex Morgan" required hint={(draft as any).id > 0 ? "Your card link stays the same when you change your name." : undefined} />
               <Field id="field-title" label="Role / title" value={draft.title} onChange={(value: string) => { update("title", value); onClearError?.("title"); }} error={fieldErrors.title} placeholder="Creative director" />
               <Field id="field-company" label="Company" value={draft.company} onChange={(value: string) => { update("company", value); onClearError?.("company"); }} error={fieldErrors.company} placeholder="Studio North" />
-              <Field id="field-location" label="Location" value={draft.location} onChange={(value: string) => { update("location", value); onClearError?.("location"); }} error={fieldErrors.location} placeholder="San Francisco, CA" />
-              <Field id="field-email" label="Email" value={draft.email} onChange={(value: string) => { update("email", value); onClearError?.("email"); }} error={fieldErrors.email} placeholder="hello@you.co" type="email" />
-              <Field id="field-phone" label="Phone" value={draft.phone} onChange={(value: string) => { update("phone", value); onClearError?.("phone"); }} error={fieldErrors.phone} placeholder="+1 415 555 0183" />
+              <Field id="field-location" label="Address or service area" value={panels.address || draft.location} onChange={(value: string) => { panels.setAddress(value); update("location", value); onClearError?.("location"); }} error={fieldErrors.location} placeholder="Street address, city, or service area" hint="Used on your page, directions, and contact card. Maximum 160 characters." />
+              {page.address && draft.location && page.address !== draft.location ? <p className="field-hint">Previous location: {draft.location}. Edit the address to use one value everywhere.</p> : null}
             </div>
             <label className="field-label">
-              <span>A little context</span>
+              <span>About you</span>
               <textarea id="field-bio" value={draft.bio} onChange={(event) => update("bio", event.target.value)} placeholder="What do you want people to remember about you?" />
             </label>
           </div>
@@ -1369,9 +1375,13 @@ function BuilderView({
             <div className="form-section-heading">
               <span>03</span>
               <div>
-                <h2>Links</h2>
-                <p>Add a few places for the conversation to continue.</p>
+                <h2>Contact &amp; links</h2>
+                <p>Email, phone, websites, and social channels. The Contact & links toggle controls these details.</p>
               </div>
+            </div>
+            <div className="field-grid">
+              <Field id="field-email" label="Email" value={draft.email} onChange={(value: string) => { update("email", value); onClearError?.("email"); }} error={fieldErrors.email} placeholder="hello@you.co" type="email" />
+              <Field id="field-phone" label="Phone" value={draft.phone} onChange={(value: string) => { update("phone", value); onClearError?.("phone"); }} error={fieldErrors.phone} placeholder="+1 415 555 0183" />
             </div>
             <label className="field-label" htmlFor="field-links">
               <span>Links</span>
@@ -1386,8 +1396,13 @@ function BuilderView({
               />
               {fieldErrors.links ? <span id="field-links-error" className="field-error-text" role="alert">{fieldErrors.links}</span> : null}
             </label>
+            <Field id="field-contactHeading" label="Contact heading" value={draft.contactHeading || ""} onChange={(value: string) => update("contactHeading", value)} placeholder="Pick the easiest way in." />
+            {fieldErrors.channels ? <span id="field-channels" tabIndex={-1} className="field-error-text" role="alert">{fieldErrors.channels}</span> : null}
+            <ChannelsEditor raw={draft.channels} onChange={(value: string) => { update("channels", value); onClearError?.("channels"); }} />
+            {panels.contact}
           </div>
 
+          <OptionalEditor optional={page.template === "services" && !parsePortfolio(draft.portfolio).length} label="Portfolio">
           <div className="form-section">
             <div className="form-section-heading">
               <span>04</span>
@@ -1407,22 +1422,12 @@ function BuilderView({
             />
           </div>
 
+          </OptionalEditor>
+
+          <OptionalEditor optional={page.template === "services" && !(previewReferences.data?.length)} label="Client references">
           <div className="form-section">
             <div className="form-section-heading">
               <span>05</span>
-              <div>
-                <h2>Contact buttons</h2>
-                <p>Add social profiles and direct channels — Viber, WhatsApp, Telegram, and more.</p>
-              </div>
-            </div>
-            <Field id="field-contactHeading" label="Contact heading" value={draft.contactHeading || ""} onChange={(value: string) => update("contactHeading", value)} placeholder="Pick the easiest way in." />
-            {fieldErrors.channels ? <span id="field-channels" tabIndex={-1} className="field-error-text" role="alert">{fieldErrors.channels}</span> : null}
-            <ChannelsEditor raw={draft.channels} onChange={(value: string) => { update("channels", value); onClearError?.("channels"); }} />
-          </div>
-
-          <div className="form-section">
-            <div className="form-section-heading">
-              <span>06</span>
               <div>
                 <h2>Client references</h2>
                 <p>Show the thoughtful words people remember after the work is done.</p>
@@ -1431,14 +1436,17 @@ function BuilderView({
             <ReferencesEditor cardId={draft.id} onAddReference={onAddReference} onDeleteReference={onDeleteReference} isAuthenticated={isAuthenticated} />
           </div>
 
+          </OptionalEditor>
+
           <div className="form-section">
             <div className="form-section-heading">
-              <span>07</span>
+              <span>06</span>
               <div>
                 <h2>Appearance</h2>
                 <p>Choose a palette and page background that fits your style.</p>
               </div>
             </div>
+            {panels.appearance}
             <div className="theme-picker">
               {themeOptions.map((theme) => (
                 <button
@@ -1463,6 +1471,9 @@ function BuilderView({
           </div>
         </div>
 
+        )}
+        </PageDesigner>
+
         <div id="builder-preview-panel" className="builder-preview-column" role="tabpanel" aria-labelledby="mobile-tab-preview">
           <div className={`preview-sticky${draft.backgroundUrl ? " has-page-bg" : ""}`}>
             {draft.backgroundUrl ? (
@@ -1483,14 +1494,7 @@ function BuilderView({
         </div>
       </div>
 
-      <button
-        type="button"
-        className="mobile-floating-preview-btn"
-        onClick={() => setMobileTab((tab) => (tab === "edit" ? "preview" : "edit"))}
-        aria-label={mobileTab === "edit" ? "Preview card" : "Back to editing"}
-      >
-        {mobileTab === "edit" ? <><Eye size={16} /> Preview card</> : <><PenLine size={16} /> Back to editing</>}
-      </button>
+
     </motion.div>
   );
 }
@@ -1829,7 +1833,7 @@ function PortfolioEditor({
             <div className="portfolio-headings-fields">
               <Field
                 id="field-galleryHeading"
-                label="Photo gallery heading"
+                label="Portfolio photos heading"
                 value={galleryHeading}
                 onChange={(val: string) => onUpdateHeading("galleryHeading", val)}
                 placeholder="Moments & work in focus."
@@ -1837,7 +1841,7 @@ function PortfolioEditor({
               />
               <Field
                 id="field-portfolioHeading"
-                label="Project list heading"
+                label="Portfolio projects heading"
                 value={portfolioHeading}
                 onChange={(val: string) => onUpdateHeading("portfolioHeading", val)}
                 placeholder="A little proof of the practice."
@@ -2015,8 +2019,8 @@ function ReferencesEditor({
       <div className="reference-form">
         <div className="field-grid">
           <Field label="Client name" value={clientName} onChange={setClientName} placeholder="Mina Park" />
-          <Field label="Role" value={clientRole} onChange={setClientRole} placeholder="Founder" />
-          <Field label="Company" value={company} onChange={setCompany} placeholder="Field Notes" />
+          <Field label="Client role" value={clientRole} onChange={setClientRole} placeholder="Founder" />
+          <Field label="Client company" value={company} onChange={setCompany} placeholder="Field Notes" />
         </div>
         <label className="field-label">
           Their words

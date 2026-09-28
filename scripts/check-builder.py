@@ -1,0 +1,96 @@
+import json, time, os
+from pathlib import Path
+from playwright.sync_api import sync_playwright
+# Uses intercepted local API responses only. No account or database writes.
+# Start Vite on port 5178, then run: uv run --with playwright python scripts/check-builder.py
+CARD=dict(id=28,displayName='Builder Test',title='Designer',company='Test Studio',email='test@example.com',phone='',location='Old city',bio='Test biography',links='[]',portfolio='[]',channels='[]',theme='midnight',avatarUrl='',coverUrl='',backgroundUrl='',slug='builder-test',published=False,page=json.dumps(dict(template='business',address='12 Test Street',contactPersons=[dict(name='Test Officer',role='Manager')],links=[dict(title='Test Portal',url='https://example.com/portal')])))
+def run():
+ with sync_playwright() as p:
+  browser=p.chromium.launch(channel='chrome',headless=True)
+  context=browser.new_context(viewport=dict(width=1440,height=1000))
+  page=context.new_page()
+  errors=[]
+  page.on('pageerror',lambda e: errors.append(str(e)))
+  def api(route):
+   names=route.request.url.split('/api/trpc/')[1].split('?')[0].split(',')
+   results=[]
+   for name in names:
+    if name=='auth.me':
+     time.sleep(0.7)
+     data=dict(id=1,name='Test Owner',email='owner@example.com',role='user')
+    elif name=='cards.list':
+     time.sleep(0.3)
+     data=[CARD]
+    elif name=='billing.me': data=dict(entitlements=dict(plan='free',canRemoveBranding=False),usage={})
+    elif name=='contacts.list': data=dict(items=[],nextCursor=None)
+    elif name=='insights.summary': data=dict(daily=[],totals={})
+    elif name=='references.list': data=[]
+    elif name=='cards.update':
+     body=json.loads(route.request.post_data or '{}')
+     patch=body.get('0',body).get('json',{})
+     CARD.update(patch)
+     data=CARD
+    else: data=None
+    results.append(dict(result=dict(data=dict(json=data))))
+   route.fulfill(content_type='application/json',body=json.dumps(results if 'batch=1' in route.request.url else results[0]))
+  context.route('**/api/trpc/**',api)
+  page.goto('http://127.0.0.1:5178/app/cards/28/edit')
+  page.wait_for_timeout(3500)
+  assert page.url.endswith('/app/cards/28/edit'), 'Direct edit redirected: '+page.url
+  page.locator('#field-displayName').wait_for()
+  assert page.locator('#field-displayName').input_value()=='Builder Test'
+  assert page.get_by_text('Card not found.',exact=True).count()==0
+  print('PASS delayed authentication direct edit')
+  assert page.locator('#field-email').locator('xpath=ancestor::div[contains(@class,"form-section")][1]').get_by_role('heading',name='Contact & links',exact=True).count()==1
+  assert page.locator('.mobile-floating-preview-btn').count()==0
+  assert page.locator('#field-location').input_value()=='12 Test Street'
+  assert page.locator('.lx-section-contactPersons').count()==1
+  assert page.locator('.lx-byline-roster').count()==0
+  page.get_by_role('button',name='Show Contact persons on page',exact=True).click()
+  assert page.locator('.lx-section-contactPersons').count()==0
+  page.get_by_role('button',name='Show Contact persons on page',exact=True).click()
+  assert page.locator('.lx-section-contactPersons').count()==1
+  page.get_by_role('button',name='Move Resource links up',exact=True).click()
+  order=page.locator('[class*="lx-section-"]').evaluate_all('(els)=>els.map(e=>e.className)')
+  assert next(i for i,x in enumerate(order) if 'lx-section-resourceLinks' in x)<next(i for i,x in enumerate(order) if 'lx-section-contactPersons' in x)
+  page.get_by_role('button',name='Show Resource links on page',exact=True).click()
+  assert page.locator('.lx-section-resourceLinks').count()==0
+  page.get_by_role('button',name='Show Resource links on page',exact=True).click()
+  print('PASS business visibility, ordering, single directory')
+  page.get_by_role('radio',name='Professional',exact=False).click()
+  assert not page.get_by_role('button',name='Add service',exact=True).is_visible()
+  page.get_by_role('radio',name='Services',exact=False).click()
+  assert page.get_by_role('button',name='Add service',exact=True).is_visible()
+  assert not page.get_by_role('button',name='Add highlight',exact=True).is_visible()
+  assert not page.get_by_label('Client name',exact=True).is_visible()
+  page.get_by_role('radio',name='Business',exact=False).click()
+  assert page.get_by_label('Contact person 1 name',exact=True).input_value()=='Test Officer'
+  print('PASS optional template fields and preserved business content')
+  page.get_by_role('button',name='Add highlight',exact=True).click()
+  page.get_by_label('Highlight 1 value',exact=True).fill('12')
+  page.locator('#field-location').fill('34 New Street')
+  assert page.get_by_label('Highlight 1 value',exact=True).input_value()=='12'
+  page.get_by_label('Highlight 1 label',exact=True).fill('years')
+  page.get_by_role('button',name='Save draft',exact=False).click()
+  page.wait_for_timeout(700)
+  assert CARD['location']=='34 New Street', CARD['location']
+  assert json.loads(CARD['page'])['address']=='34 New Street'
+  assert json.loads(CARD['page'])['stats'][0]['value']=='12'
+  print('PASS single address save and incomplete row retention')
+  # Return to editor if save navigated.
+  if not page.url.endswith('/edit'): page.goto('http://127.0.0.1:5178/app/cards/28/edit'); page.locator('#field-displayName').wait_for()
+  for width in [360,390,430,1440]:
+   page.set_viewport_size(dict(width=width,height=900))
+   page.wait_for_timeout(250)
+   dimensions=page.evaluate('({width:innerWidth,scroll:document.documentElement.scrollWidth})')
+   assert dimensions['scroll']<=dimensions['width'],dimensions
+   if width==390:
+    page.screenshot(path=str(Path(os.environ['TEMP'])/'heyitsme-builder-mobile.png'),full_page=True)
+    page.get_by_role('tab',name='Preview',exact=True).click()
+    assert page.locator('#builder-preview-panel').is_visible()
+    page.get_by_role('tab',name='Edit',exact=True).click()
+   if width==1440: page.screenshot(path=str(Path(os.environ['TEMP'])/'heyitsme-builder-desktop.png'),full_page=True)
+  assert not errors,errors
+  print('PASS mobile 360/390/430, desktop 1440, preview tabs, no runtime errors')
+  browser.close()
+if __name__=='__main__': run()

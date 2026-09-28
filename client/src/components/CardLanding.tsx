@@ -168,6 +168,7 @@ export function CardLanding(props: CardLandingProps) {
   };
 
   const template = config.template;
+  const address = config.address || card.location;
   // The builder preview sits inside the builder's own <main>: one main landmark per page.
   const MainTag = interactive ? "main" : "div";
   const firstName = card.displayName.split(" ")[0] || card.displayName;
@@ -204,10 +205,12 @@ export function CardLanding(props: CardLandingProps) {
   const hasContent: Record<SectionId, boolean> = {
     stats: config.stats.length > 0,
     services: config.services.length > 0,
-    visit: config.hours.length > 0 || Boolean(config.address),
+    visit: config.hours.length > 0 || Boolean(address),
     portfolio: portfolio.length > 0,
     references: references.length > 0,
-    contact: contactRows.length > 0 || channels.length > 0 || (config.links?.length ?? 0) > 0 || (config.contactPersons?.length ?? 0) > 0,
+    contact: contactRows.length > 0 || channels.length > 0,
+    contactPersons: config.contactPersons.length > 0,
+    resourceLinks: config.links.length > 0,
   };
   const sections = resolveSections(config).filter((section) => !section.hidden && hasContent[section.id]);
 
@@ -239,7 +242,7 @@ export function CardLanding(props: CardLandingProps) {
     </div>
   );
 
-  const socials = channels.length ? (
+  const socials = channels.length && !resolveSections(config).find((section) => section.id === "contact")?.hidden ? (
     <div className="lx-socials">
       {channels.map((channel: ChannelItem, index: number) => (
         <a key={`${channel.provider}-${index}`} href={channelHref(channel)} target="_blank" rel="noreferrer" aria-label={`${providerName(channel.provider)}: ${channelValue(channel)}`} onClick={() => track("link", channelLabel(channel))}>
@@ -276,31 +279,14 @@ export function CardLanding(props: CardLandingProps) {
         <section className="lx-hero lx-hero-business" ref={heroRef}>
           <motion.p className="lx-eyebrow" {...enter("eyebrow")}>
             {card.avatarUrl ? <img className="lx-logo" src={card.avatarUrl} alt="" /> : null}
-            {card.location || card.title}
+            {address || card.title}
           </motion.p>
           <motion.h1 className="lx-masthead" style={fitName(brand)} {...enter("name")}>{brand}</motion.h1>
           {heroPanel(
             <>
               {card.bio ? <p className="lx-lead">{card.bio}</p> : null}
               {actions}
-              {config.contactPersons?.length ? (
-                <div className="lx-byline lx-byline-roster">
-                  <span className="lx-byline-label">Office in-charge & contacts:</span>
-                  <ul className="lx-byline-people">
-                    {config.contactPersons.map((p, idx) => (
-                      <li key={idx}>
-                        <strong>{p.name}</strong>
-                        {p.role ? <span className="lx-byline-role"> ({p.role})</span> : null}
-                        {p.phone ? (
-                          <a href={`tel:${encodeURIComponent(p.phone.replace(/\s+/g, ""))}`} className="lx-byline-link" onClick={() => track("link", `Call: ${p.name}`)}>
-                            {" "}· {p.phone}
-                          </a>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : card.company ? (
+              {card.company ? (
                 <p className="lx-byline">
                   Ask for <strong>{card.displayName}</strong>{card.title ? `, ${card.title}` : ""}
                 </p>
@@ -322,7 +308,7 @@ export function CardLanding(props: CardLandingProps) {
           {heroPanel(
             <>
               {card.bio ? <p className="lx-lead">{card.bio}</p> : null}
-              {card.location ? <p className="lx-place"><MapPin size={14} aria-hidden="true" /> {card.location}</p> : null}
+              {address ? <p className="lx-place"><MapPin size={14} aria-hidden="true" /> {address}</p> : null}
               {actions}
               {socials}
             </>,
@@ -343,7 +329,7 @@ export function CardLanding(props: CardLandingProps) {
             {heroPanel(
               <>
                 {card.bio ? <p className="lx-lead">{card.bio}</p> : null}
-                {card.location ? <p className="lx-place"><MapPin size={14} aria-hidden="true" /> {card.location}</p> : null}
+                {address ? <p className="lx-place"><MapPin size={14} aria-hidden="true" /> {address}</p> : null}
                 {actions}
                 {socials}
               </>,
@@ -403,10 +389,10 @@ export function CardLanding(props: CardLandingProps) {
                   ))}
                 </dl>
               ) : null}
-              {config.address ? (
+              {address ? (
                 <div className="lx-address">
-                  <p>{config.address}</p>
-                  <a className="lx-text-link" href={mapLink(config.address)} target="_blank" rel="noreferrer" onClick={() => track("link", "Directions")}>
+                  <p>{address}</p>
+                  <a className="lx-text-link" href={mapLink(address)} target="_blank" rel="noreferrer" onClick={() => track("link", "Directions")}>
                     Get directions <ArrowUpRight size={14} aria-hidden="true" />
                   </a>
                 </div>
@@ -419,13 +405,13 @@ export function CardLanding(props: CardLandingProps) {
           <>
             {photos.length ? (
               <div className="lx-gallery">
-                {heading("Gallery", card.galleryHeading)}
+                {heading("Portfolio photos", card.galleryHeading)}
                 <PhotoCarousel items={photos} onSelectPhoto={(index) => { setLightboxIndex(index); track("link", `Work: ${photos[index].title}`); }} />
               </div>
             ) : null}
             {works.length ? (
               <div>
-                {heading("Selected work", card.portfolioHeading)}
+                {heading("Portfolio projects", card.portfolioHeading)}
                 <div className="lx-work-grid">
                   {works.map((item: PortfolioItem) => {
                     const href = toHref(item.url);
@@ -470,11 +456,8 @@ export function CardLanding(props: CardLandingProps) {
             </div>
           </>
         );
-      case "contact": {
-        return (
-          <>
-            {heading(template === "business" ? "Contact & directory" : "Contact", card.contactHeading)}
-
+      case "contactPersons":
+        return <>{heading("Contact persons")}
             {config.contactPersons?.length ? (
               <div className="lx-contact-section-group">
                 <h3 className="lx-contact-group">
@@ -519,6 +502,36 @@ export function CardLanding(props: CardLandingProps) {
               </div>
             ) : null}
 
+        </>;
+      case "resourceLinks":
+        return <>{heading("Resource links")}
+            {config.links?.length ? (
+              <div className="lx-contact-section-group">
+                <ul className="lx-contact lx-more-links">
+                  {config.links.map((item, idx) => {
+                    const clean = item.url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+                    return (
+                      <li key={`custom-link-${idx}`}>
+                        <a href={item.url} {...external(item.url)} onClick={() => track("link", item.title)}>
+                          <Globe2 size={17} aria-hidden="true" />
+                          <span>
+                            <strong>{item.title}</strong>
+                            {item.description ? <small>{item.description}</small> : <small>{clean}</small>}
+                          </span>
+                          <ArrowUpRight className="lx-row-arrow" size={16} aria-hidden="true" />
+                        </a>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : null}
+        </>;
+      case "contact": {
+        return (
+          <>
+            {heading(template === "business" ? "Contact & directory" : "Contact", card.contactHeading)}
+
             {contactRows.length ? (
               <h3 className="lx-contact-group">{template === "business" ? "General contact" : "Reach me directly"}</h3>
             ) : null}
@@ -544,28 +557,6 @@ export function CardLanding(props: CardLandingProps) {
               ))}
             </ul>
 
-            {config.links?.length ? (
-              <div className="lx-contact-section-group">
-                <h3 className="lx-contact-group">{template === "business" ? "Quick links" : "More links"}</h3>
-                <ul className="lx-contact lx-more-links">
-                  {config.links.map((item, idx) => {
-                    const clean = item.url.replace(/^https?:\/\//, "").replace(/\/$/, "");
-                    return (
-                      <li key={`custom-link-${idx}`}>
-                        <a href={item.url} {...external(item.url)} onClick={() => track("link", item.title)}>
-                          <Globe2 size={17} aria-hidden="true" />
-                          <span>
-                            <strong>{item.title}</strong>
-                            {item.description ? <small>{item.description}</small> : <small>{clean}</small>}
-                          </span>
-                          <ArrowUpRight className="lx-row-arrow" size={16} aria-hidden="true" />
-                        </a>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ) : null}
             {[
               { title: "Message or book", items: channels.filter((channel) => MESSAGING.has(channel.provider)) },
               { title: "Social profiles", items: channels.filter((channel) => !MESSAGING.has(channel.provider)) },

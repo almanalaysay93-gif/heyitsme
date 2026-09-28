@@ -26,24 +26,24 @@ export const DEFAULT_FRAME: Record<"professional" | "business" | "services", Fra
   services: "circle",
 };
 
-export const SECTION_IDS = ["stats", "services", "visit", "portfolio", "references", "contact"] as const;
+export const SECTION_IDS = ["stats", "services", "visit", "portfolio", "references", "contact", "contactPersons", "resourceLinks"] as const;
 export type SectionId = (typeof SECTION_IDS)[number];
 
 export const TEMPLATES: Record<TemplateId, { label: string; blurb: string; sections: SectionId[] }> = {
   professional: {
     label: "Professional",
     blurb: "Your name up front, your work and references close behind.",
-    sections: ["stats", "portfolio", "references", "services", "contact", "visit"],
+    sections: ["stats", "portfolio", "references", "services", "contact", "visit", "contactPersons", "resourceLinks"],
   },
   business: {
     label: "Business",
     blurb: "Company first, with hours, address and what you offer.",
-    sections: ["stats", "services", "visit", "portfolio", "references", "contact"],
+    sections: ["stats", "services", "visit", "portfolio", "references", "contact", "contactPersons", "resourceLinks"],
   },
   services: {
     label: "Services",
     blurb: "A priced menu of what you do and one clear way to book.",
-    sections: ["services", "stats", "references", "portfolio", "visit", "contact"],
+    sections: ["services", "stats", "references", "portfolio", "visit", "contact", "contactPersons", "resourceLinks"],
   },
 };
 
@@ -51,9 +51,11 @@ export const SECTION_LABELS: Record<SectionId, string> = {
   stats: "Highlights",
   services: "Services & prices",
   visit: "Hours & address",
-  portfolio: "Work & gallery",
+  portfolio: "Portfolio",
   references: "Client references",
   contact: "Contact & links",
+  contactPersons: "Contact persons",
+  resourceLinks: "Resource links",
 };
 
 export const PAGE_LIMITS = { services: 12, stats: 4, hours: 7, links: 12, contactPersons: 8, pageJson: 12000 } as const;
@@ -156,7 +158,12 @@ export function resolveSections(config: PageConfig): PageSection[] {
     out.push({ id: section.id, hidden: Boolean(section.hidden) });
   }
   for (const id of TEMPLATES[config.template].sections) {
-    if (!seen.has(id)) out.push({ id, hidden: false });
+    if (!seen.has(id)) {
+      // Business blocks previously belonged to Contact. Keep a saved hidden choice on old cards.
+      const inheritedHidden = (id === "contactPersons" || id === "resourceLinks")
+        && Boolean(config.sections?.find((section) => section.id === "contact")?.hidden);
+      out.push({ id, hidden: inheritedHidden });
+    }
   }
   return out;
 }

@@ -99,3 +99,34 @@ describe("frames", () => {
     expect(pageConfigField.safeParse(JSON.stringify({ frame: "tombstone" })).success).toBe(false);
   });
 });
+
+
+describe("business section compatibility", () => {
+  it("gives business blocks their own hide and order controls without losing content", () => {
+    const config = parsePageConfig(JSON.stringify({
+      template: "business",
+      sections: [{ id: "resourceLinks", hidden: true }, { id: "contactPersons" }],
+      links: [{ title: "Portal", url: "https://example.com" }],
+      contactPersons: [{ name: "Officer" }],
+    }));
+    expect(config.template).toBe("business");
+    expect(resolveSections(config).slice(0, 2)).toEqual([
+      { id: "resourceLinks", hidden: true }, { id: "contactPersons", hidden: false },
+    ]);
+    const switched = switchTemplate(config, "services");
+    expect(switched.links).toEqual(config.links);
+    expect(switched.contactPersons).toEqual(config.contactPersons);
+    expect(resolveSections(switched).find((section) => section.id === "resourceLinks")?.hidden).toBe(true);
+  });
+
+  it("keeps old hidden contact directories hidden when new controls are introduced", () => {
+    const config = parsePageConfig(JSON.stringify({
+      template: "business", sections: [{ id: "contact", hidden: true }],
+      links: [{ title: "Portal", url: "https://example.com" }],
+      contactPersons: [{ name: "Officer" }],
+    }));
+    for (const id of ["contactPersons", "resourceLinks"]) {
+      expect(resolveSections(config).find((section) => section.id === id)?.hidden).toBe(true);
+    }
+  });
+});
