@@ -86,6 +86,7 @@ A card that already hides branding keeps it after a downgrade. Turning it on aga
 ## Activation checklist
 
 1. Apply `drizzle/0009_billing.sql` in the Supabase SQL Editor, or let `ensureSchema` create the tables on first use.
+   A Vercel preview deploy of this branch also runs `ensureSchema` on the Preview `DATABASE_URL`. The PR #1 preview did this on 2026-09-28, and the owner kept the tables.
 2. Run the RLS check in `docs/database.md` and confirm the six billing tables show `true`.
 3. Set `COMPLIMENTARY_EMAILS` for the owner account.
 4. Get 2C2P sandbox credentials. Set `PAYMENT_GATEWAY_MERCHANT_ID` and `PAYMENT_GATEWAY_SECRET` with `PAYMENT_PROVIDER_ENV=sandbox`.
