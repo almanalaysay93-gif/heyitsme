@@ -203,7 +203,7 @@ Public card profile photo in `client/src/components/cardLanding.css`. Desktop `.
 - Server: `shared/plans.ts` (prices in centavos, limits, entitlement resolver), `server/billing/` (service, gate, router, 2C2P PGW v4.5 adapter, payment routes), `drizzle/0009_billing.sql` (also run by `ensureSchema`).
 - Every flag defaults off except the founding offer. Nothing changes for users until `PLAN_LIMITS_ENABLED` and `PAYMENTS_ENABLED` are set. Order and checklist: `docs/billing.md`.
 - The owner account keeps every feature through `COMPLIMENTARY_EMAILS` (set in Vercel, never in the repo).
-- Checks: `pnpm check` clean, `pnpm test` 313 passed / 3 skipped, `pnpm build` clean. PGlite tests cover settlement, idempotency, founding cap, lead quota, card limit and the checkout flow. 12 guards were mutation-checked; the card-creation advisory lock was not (PGlite has one connection).
+- Checks: `pnpm check` clean, `pnpm test` 313 passed / 3 skipped, `pnpm build` clean. PGlite tests cover settlement, idempotency, founding cap, lead quota, card limit and the checkout flow. 11 guard mutations were caught by the tests. Removing the card-creation advisory lock was not caught (PGlite has one connection).
 - Browser check on a local in-process PGlite harness: pricing (desktop and 485 px), contacts lead bar, upgrade dialog, locked insight ranges, billing page (Pro founding member), paused public card, complimentary account. Fixed B1–B9 found there.
 - Not tested: a real 2C2P sandbox payment (no credentials), production deploy, the migration on Supabase.
 - Open owner actions: refund policy (marked `[Owner: ...]` in Terms and FAQ), 2C2P merchant capability for Google Pay and GCash (`DPAY`) in PHP, backend notification URL.
