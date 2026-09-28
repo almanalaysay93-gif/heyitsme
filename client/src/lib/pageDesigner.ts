@@ -46,6 +46,23 @@ export function toEmittable(config: PageConfig): PageConfig | null {
       .filter((h) => h.days && h.time)
       .slice(0, PAGE_LIMITS.hours),
     address: config.address.trim(),
+    links: (config.links ?? [])
+      .map((l) => ({
+        title: l.title.trim(),
+        url: normalizeLink(l.url),
+        description: (l.description ?? "").trim(),
+      }))
+      .filter((l) => l.title && l.url)
+      .slice(0, PAGE_LIMITS.links),
+    contactPersons: (config.contactPersons ?? [])
+      .map((c) => ({
+        name: c.name.trim(),
+        role: (c.role ?? "").trim(),
+        phone: (c.phone ?? "").trim(),
+        email: (c.email ?? "").trim(),
+      }))
+      .filter((c) => c.name)
+      .slice(0, PAGE_LIMITS.contactPersons),
   };
   const parsed = pageConfigSchema.safeParse(candidate);
   if (!parsed.success) return null;
@@ -60,6 +77,8 @@ export function hasPendingEdits(config: PageConfig): boolean {
     config.stats.some((s) => half(s.value, s.label)) ||
     config.hours.some((h) => half(h.days, h.time)) ||
     config.services.some((s) => !s.name.trim() && Boolean(s.price.trim() || s.description.trim() || s.url.trim())) ||
+    (config.links ?? []).some((l) => (!l.title.trim() && Boolean(l.url.trim())) || isUnusableLink(l.url)) ||
+    (config.contactPersons ?? []).some((c) => !c.name.trim() && Boolean(c.role.trim() || c.phone.trim() || c.email.trim())) ||
     isUnusableLink(config.cta?.url ?? "") ||
     config.services.some((s) => isUnusableLink(s.url)) ||
     toEmittable(config) === null

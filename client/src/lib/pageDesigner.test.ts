@@ -43,8 +43,18 @@ describe("toEmittable", () => {
 
   it("refuses configs over the size cap", () => {
     const long = "x".repeat(240);
-    const services = Array.from({ length: 12 }, (_, i) => ({ name: `S${i}`, description: long, price: "", url: `https://example.com/${"y".repeat(400)}` }));
-    expect(toEmittable({ ...base(), services })).toBeNull();
+    const services = Array.from({ length: 12 }, (_, i) => ({
+      name: `S${i}`,
+      description: long,
+      price: "100".repeat(10),
+      url: `https://example.com/${"y".repeat(550)}`,
+    }));
+    const links = Array.from({ length: 12 }, (_, i) => ({
+      title: `Link ${i}`,
+      url: `https://example.com/link/${"z".repeat(500)}`,
+      description: long,
+    }));
+    expect(toEmittable({ ...base(), services, links })).toBeNull();
   });
 });
 
@@ -103,5 +113,32 @@ describe("gate regressions", () => {
 
   it("keeps the services headline", () => {
     expect(toEmittable({ ...defaultPageConfig("services"), headline: "  Color & cuts  " })!.headline).toBe("Color & cuts");
+  });
+
+  it("handles business links and contact persons in toEmittable and hasPendingEdits", () => {
+    const config: PageConfig = {
+      ...defaultPageConfig("business"),
+      links: [
+        { title: "  Portal  ", url: "portal.example.com", description: "  Login here  " },
+        { title: "Empty URL", url: "", description: "" },
+      ],
+      contactPersons: [
+        { name: "  Dr. Jane Doe ", role: " Officer in Charge ", phone: " +63 912 345 ", email: "jane@example.com" },
+        { name: "", role: "Ghost", phone: "", email: "" },
+      ],
+    };
+    const out = toEmittable(config)!;
+    expect(out).not.toBeNull();
+    expect(out.links).toEqual([
+      { title: "Portal", url: "https://portal.example.com", description: "Login here" },
+    ]);
+    expect(out.contactPersons).toEqual([
+      { name: "Dr. Jane Doe", role: "Officer in Charge", phone: "+63 912 345", email: "jane@example.com" },
+    ]);
+
+    expect(hasPendingEdits(out)).toBe(false);
+    expect(hasPendingEdits({ ...out, links: [{ title: "", url: "https://example.com", description: "" }] })).toBe(true);
+    expect(hasPendingEdits({ ...out, links: [{ title: "Broken", url: "not a url", description: "" }] })).toBe(true);
+    expect(hasPendingEdits({ ...out, contactPersons: [{ name: "", role: "Manager", phone: "", email: "" }] })).toBe(true);
   });
 });

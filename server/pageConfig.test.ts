@@ -60,11 +60,27 @@ describe("pageConfigField (server validation)", () => {
   it("rejects unsafe links, bad colors, oversized lists and non-JSON", () => {
     const bad = [
       JSON.stringify({ cta: { label: "Go", url: "javascript:alert(1)" } }),
+      JSON.stringify({ links: [{ title: "Bad", url: "javascript:alert(1)" }] }),
       JSON.stringify({ accent: "red" }),
       JSON.stringify({ stats: Array.from({ length: 5 }, () => ({ value: "1", label: "x" })) }),
+      JSON.stringify({ links: Array.from({ length: 13 }, (_, i) => ({ title: `L${i}`, url: "https://example.com" })) }),
+      JSON.stringify({ contactPersons: Array.from({ length: 9 }, (_, i) => ({ name: `P${i}` })) }),
       "{nope",
     ];
     for (const value of bad) expect(pageConfigField.safeParse(value).success).toBe(false);
+  });
+
+  it("accepts valid business links and contact persons", () => {
+    const valid = JSON.stringify({
+      template: "business",
+      contactPersons: [
+        { name: "Maria Santos", role: "Office in Charge", phone: "+63 912 345 6789", email: "maria@example.com" },
+      ],
+      links: [
+        { title: "Portal", url: "https://portal.example.com", description: "Online portal" },
+      ],
+    });
+    expect(pageConfigField.safeParse(valid).success).toBe(true);
   });
 });
 

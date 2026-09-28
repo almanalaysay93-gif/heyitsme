@@ -83,6 +83,14 @@ export const DEMO_CARD: DemoCardData = {
       { days: "Fri", time: "By appointment" },
     ],
     address: "500 Example Street, San Francisco, CA",
+    contactPersons: [
+      { name: "Alex Morgan", role: "Creative Director", phone: "+1 555-0100", email: "alex@example.com" },
+      { name: "Jordan Lee", role: "Studio Lead", phone: "+1 555-0102", email: "jordan@example.com" },
+    ],
+    links: [
+      { title: "Client Portal", url: "https://example.com/portal", description: "Project dashboard & file downloads" },
+      { title: "Brand Guidelines", url: "https://example.com/guidelines", description: "Design kit & brand identity" },
+    ],
   }),
   slug: DEMO_SLUG,
   published: true,
