@@ -103,3 +103,6 @@ A card that already hides branding keeps it after a downgrade. Turning it on aga
 - There is no renewal reminder email or expiry job yet. Access ends on `currentPeriodEnd` without a job, because entitlements read the date directly.
 - The card-creation advisory lock is not tested against parallel Postgres sessions. PGlite has one connection.
 - Assumption: channel `DPAY` lists GCash for PHP on the hosted page. 2C2P must confirm it.
+- 2026-09-28 sandbox check: the public demo merchant `JT01` with its published SHA key returns `9042 Invalid Request`, also for the documented sample request.
+- Our JWT signing is byte-identical to the sample token in the 2C2P JWT docs, so the adapter signs correctly. Merchant sandbox keys must come from 2C2P.
+- The 2C2P Philippines test page lists test cards and a GrabPay wallet only. It lists no GCash or Google Pay test account.
