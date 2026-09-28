@@ -175,8 +175,10 @@ export function FaqPage() {
 
       <h3>Can I get a refund?</h3>
       <p>
-        The refund policy is being finalized and will be published here before paid plans open. <strong>[Owner: set the refund policy
-        before enabling production checkout.]</strong>
+        Yes. We offer a full refund within 14 days of your first payment on a paid plan.
+        Send an email to <ContactLine /> with your account email address and payment reference.
+        Cancellations made after 14 days take effect at the end of your current billing period without a partial refund.
+        If you experience a billing error or duplicate charge, contact us and we will refund the incorrect amount.
       </p>
 
       <h3>Does my card work with NFC?</h3>

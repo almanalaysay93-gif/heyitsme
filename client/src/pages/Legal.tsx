@@ -187,8 +187,12 @@ export function TermsPage() {
         contacts, or insights data. If a price changes, it applies from your next payment, never to a period you already paid for.
       </p>
       <p>
-        <strong>Refunds:</strong> [Owner: define the refund and cancellation-refund policy here before enabling production
-        checkout. Until then, paid checkout stays switched off.]
+        <strong>Refunds:</strong> We offer a full refund within 14 days of your first payment for a paid plan.
+        To request a refund, send an email to <ContactLine /> with your account email address and payment reference.
+        We do not offer partial or prorated refunds for cancellations made after the 14-day period.
+        When you cancel your plan, you keep paid access until the end of the billing period.
+        If a billing error or duplicate charge occurs, contact us and we will refund the incorrect charge.
+        We issue approved refunds to your original payment method through our payment processor within 5 to 10 business days.
       </p>
 
       <h2>Your account</h2>
