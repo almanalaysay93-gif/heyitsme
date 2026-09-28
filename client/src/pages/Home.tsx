@@ -1396,26 +1396,15 @@ function BuilderView({
                 <p>Add images, videos, files, or a project link. Uploads are served from secure storage.</p>
               </div>
             </div>
-            <div className="field-grid">
-              <Field
-                id="field-galleryHeading"
-                label="Image gallery heading"
-                value={draft.galleryHeading || ""}
-                onChange={(value: string) => update("galleryHeading", value)}
-                placeholder="Moments & work in focus."
-                hint="Heading shown above your photo gallery."
-              />
-              <Field
-                id="field-portfolioHeading"
-                label="Project list heading"
-                value={draft.portfolioHeading || ""}
-                onChange={(value: string) => update("portfolioHeading", value)}
-                placeholder="A little proof of the practice."
-                hint="Heading shown above project links, documents, and videos."
-              />
-            </div>
             {fieldErrors.portfolio ? <span id="field-portfolio" tabIndex={-1} className="field-error-text" role="alert">{fieldErrors.portfolio}</span> : null}
-            <PortfolioEditor raw={draft.portfolio} onChange={(value: string) => { update("portfolio", value); onClearError?.("portfolio"); }} onUpload={onUpload} />
+            <PortfolioEditor
+              raw={draft.portfolio}
+              galleryHeading={draft.galleryHeading || ""}
+              portfolioHeading={draft.portfolioHeading || ""}
+              onUpdateHeading={(field, val) => update(field, val)}
+              onChange={(value: string) => { update("portfolio", value); onClearError?.("portfolio"); }}
+              onUpload={onUpload}
+            />
           </div>
 
           <div className="form-section">
@@ -1539,41 +1528,90 @@ function ImagePicker({ label, hint, shape, value, onChange, onUpload, allowVideo
   );
 }
 
-function PortfolioEditor({ raw, onChange, onUpload }: { raw: string; onChange: (value: string) => void; onUpload: (file: File) => Promise<string> }) {
+function PortfolioEditor({
+  raw,
+  onChange,
+  onUpload,
+  galleryHeading,
+  portfolioHeading,
+  onUpdateHeading,
+}: {
+  raw: string;
+  onChange: (value: string) => void;
+  onUpload: (file: File) => Promise<string>;
+  galleryHeading: string;
+  portfolioHeading: string;
+  onUpdateHeading: (field: "galleryHeading" | "portfolioHeading", value: string) => void;
+}) {
   const items = parsePortfolio(raw);
   const latestItems = useRef(items);
   latestItems.current = items;
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [url, setUrl] = useState("");
-  const [kind, setKind] = useState<PortfolioItem["kind"]>("image");
+
+  const [mode, setMode] = useState<"photos" | "projects">("photos");
+  const [projectKind, setProjectKind] = useState<"link" | "video" | "file">("link");
+  const [projectTitle, setProjectTitle] = useState("");
+  const [projectUrl, setProjectUrl] = useState("");
+  const [projectDesc, setProjectDesc] = useState("");
+
+  const [showPhotoUrlInput, setShowPhotoUrlInput] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState("");
+  const [photoCaption, setPhotoCaption] = useState("");
+
+  const hasCustomHeadings = Boolean(galleryHeading.trim() || portfolioHeading.trim());
+  const [showHeadings, setShowHeadings] = useState(false);
+
   const [busy, setBusy] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
   const addItem = (item: PortfolioItem) => onChange(JSON.stringify([...items, item]));
 
-  const addUrlItem = () => {
-    if (!url.trim()) return;
+  const addProjectItem = () => {
+    if (!projectUrl.trim()) return;
     if (items.length >= MAX_PORTFOLIO_ITEMS) {
       toast.error(`Portfolio is full (maximum ${MAX_PORTFOLIO_ITEMS} items).`);
       return;
     }
     const newItem: PortfolioItem = {
       id: crypto.randomUUID(),
-      kind,
-      title: kind === "image" ? "" : (title.trim() || url.trim()),
-      url: url.trim(),
-      description: description.trim() || undefined,
+      kind: projectKind,
+      title: projectTitle.trim() || projectUrl.trim(),
+      url: projectUrl.trim(),
+      description: projectDesc.trim() || undefined,
     };
     if (portfolioStoredLength([...items, newItem]) > MAX_PORTFOLIO_LENGTH) {
       toast.error("Portfolio size limit reached.");
       return;
     }
     addItem(newItem);
-    setTitle("");
-    setUrl("");
-    setDescription("");
+    setProjectTitle("");
+    setProjectUrl("");
+    setProjectDesc("");
+    toast.success("Added to portfolio.");
+  };
+
+  const addPhotoByUrl = () => {
+    if (!photoUrl.trim()) return;
+    if (items.length >= MAX_PORTFOLIO_ITEMS) {
+      toast.error(`Portfolio is full (maximum ${MAX_PORTFOLIO_ITEMS} items).`);
+      return;
+    }
+    const newItem: PortfolioItem = {
+      id: crypto.randomUUID(),
+      kind: "image",
+      title: "",
+      url: photoUrl.trim(),
+      description: photoCaption.trim() || undefined,
+    };
+    if (portfolioStoredLength([...items, newItem]) > MAX_PORTFOLIO_LENGTH) {
+      toast.error("Portfolio size limit reached.");
+      return;
+    }
+    addItem(newItem);
+    setPhotoUrl("");
+    setPhotoCaption("");
+    setShowPhotoUrlInput(false);
+    toast.success("Photo added.");
   };
 
   const handleFiles = async (fileList: FileList | File[]) => {
@@ -1587,7 +1625,7 @@ function PortfolioEditor({ raw, onChange, onUpload }: { raw: string; onChange: (
         files,
         onUpload,
         {
-          description,
+          description: "",
           onProgress: setUploadProgress,
           onError: (name, error) => toast.error(`Failed to upload ${name}: ${error?.message || "Upload error"}`),
         }
@@ -1598,15 +1636,12 @@ function PortfolioEditor({ raw, onChange, onUpload }: { raw: string; onChange: (
       } else {
         if (result.warning) toast.warning(result.warning);
         if (result.newItems.length > 0) {
-          // Uploads take a while; append to the list as it is now, so edits made meanwhile are kept.
           onChange(JSON.stringify([...latestItems.current, ...result.newItems]));
           if (result.newItems.length > 1) {
             toast.success(`Uploaded ${result.newItems.length} photos! Add descriptions below.`);
           } else {
             toast.success("Photo uploaded.");
           }
-          setDescription("");
-          setTitle("");
         }
       }
     } finally {
@@ -1636,74 +1671,181 @@ function PortfolioEditor({ raw, onChange, onUpload }: { raw: string; onChange: (
   return (
     <div className="portfolio-editor">
       <div className="portfolio-add-box">
-        <div className="portfolio-add-row">
-          <select value={kind} onChange={(event) => setKind(event.target.value as PortfolioItem["kind"])}>
-            <option value="image">Photo / Image</option>
-            <option value="link">Website link</option>
-            <option value="video">Video URL</option>
-            <option value="file">Document URL</option>
-          </select>
-          {kind !== "image" && (
-            <input
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="Project title"
-            />
-          )}
-          <input
-            value={url}
-            onChange={(event) => setUrl(event.target.value)}
-            placeholder={kind === "image" ? "Photo URL https://… (or upload below)" : "https://…"}
-          />
-          <button className="outline-button" type="button" onClick={addUrlItem} disabled={!url.trim()}>
-            <Plus size={14} /> Add
+        <div className="portfolio-mode-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "photos"}
+            className={`portfolio-mode-tab ${mode === "photos" ? "is-active" : ""}`}
+            onClick={() => setMode("photos")}
+          >
+            <ImageIcon size={14} />
+            <span>Upload Photos</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "projects"}
+            className={`portfolio-mode-tab ${mode === "projects" ? "is-active" : ""}`}
+            onClick={() => setMode("projects")}
+          >
+            <Link2 size={14} />
+            <span>Project Link, Video, or Doc</span>
           </button>
         </div>
 
-        <textarea
-          className="portfolio-add-desc"
-          value={description}
-          onChange={(event) => setDescription(event.target.value)}
-          placeholder={kind === "image" ? "Photo description (optional, shown in carousel & lightbox gallery)..." : "Project description or context (optional)..."}
-          rows={2}
-        />
+        {mode === "photos" && (
+          <div className="portfolio-photos-pane">
+            <label
+              className={`upload-drop upload-drop-rich ${isDragging ? "is-dragover" : ""}`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDragging(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDragging(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDragging(false);
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                  void handleFiles(e.dataTransfer.files);
+                }
+              }}
+            >
+              <Upload size={20} />
+              <strong>{busy ? (uploadProgress || "Uploading photos…") : "Drop photos here or click to browse"}</strong>
+              <small>Upload multiple images · JPG, PNG, WebP up to 3MB each</small>
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                disabled={busy}
+                onChange={(event) => {
+                  if (event.target.files && event.target.files.length > 0) {
+                    void handleFiles(event.target.files);
+                  }
+                  event.currentTarget.value = "";
+                }}
+              />
+            </label>
 
-        <label
-          className={`upload-drop ${isDragging ? "is-dragover" : ""}`}
-          onDragOver={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsDragging(true);
-          }}
-          onDragLeave={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsDragging(false);
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsDragging(false);
-            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-              void handleFiles(e.dataTransfer.files);
-            }
-          }}
-        >
-          <Upload size={17} />
-          <span>{busy ? (uploadProgress || "Uploading photos…") : "Upload photos (click to select or drag & drop multiple images)"}</span>
-          <input
-            type="file"
-            multiple
-            accept="image/*,video/*,.pdf,.doc,.docx,.zip"
-            disabled={busy}
-            onChange={(event) => {
-              if (event.target.files && event.target.files.length > 0) {
-                void handleFiles(event.target.files);
-              }
-              event.currentTarget.value = "";
-            }}
-          />
-        </label>
+            <button
+              type="button"
+              className="portfolio-url-toggle"
+              onClick={() => setShowPhotoUrlInput(!showPhotoUrlInput)}
+            >
+              <Plus size={12} /> {showPhotoUrlInput ? "Hide image URL input" : "Or add photo by web URL"}
+            </button>
+
+            {showPhotoUrlInput && (
+              <div className="portfolio-url-panel">
+                <input
+                  value={photoUrl}
+                  onChange={(e) => setPhotoUrl(e.target.value)}
+                  placeholder="Image URL https://..."
+                />
+                <input
+                  value={photoCaption}
+                  onChange={(e) => setPhotoCaption(e.target.value)}
+                  placeholder="Photo caption (optional)"
+                />
+                <button
+                  type="button"
+                  className="outline-button"
+                  onClick={addPhotoByUrl}
+                  disabled={!photoUrl.trim()}
+                >
+                  <Plus size={14} /> Add photo
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {mode === "projects" && (
+          <div className="portfolio-project-form">
+            <div className="portfolio-project-row">
+              <select
+                value={projectKind}
+                onChange={(e) => setProjectKind(e.target.value as "link" | "video" | "file")}
+                aria-label="Item type"
+              >
+                <option value="link">Website link</option>
+                <option value="video">Video URL</option>
+                <option value="file">Document URL</option>
+              </select>
+              <input
+                value={projectTitle}
+                onChange={(e) => setProjectTitle(e.target.value)}
+                placeholder="Project title (e.g. Acme Website, Brand Reel)"
+              />
+            </div>
+
+            <input
+              value={projectUrl}
+              onChange={(e) => setProjectUrl(e.target.value)}
+              placeholder="Target URL https://..."
+            />
+
+            <textarea
+              className="portfolio-add-desc"
+              value={projectDesc}
+              onChange={(e) => setProjectDesc(e.target.value)}
+              placeholder="Short description or context (optional)..."
+              rows={2}
+            />
+
+            <button
+              type="button"
+              className="portfolio-submit-btn"
+              onClick={addProjectItem}
+              disabled={!projectUrl.trim()}
+            >
+              <Plus size={14} /> Add to portfolio
+            </button>
+          </div>
+        )}
+
+        <div className="portfolio-headings-section">
+          <button
+            type="button"
+            className="portfolio-headings-toggle"
+            onClick={() => setShowHeadings(!showHeadings)}
+            aria-expanded={showHeadings}
+          >
+            <div className="portfolio-headings-toggle-left">
+              <Settings2 size={13} />
+              <span>Section titles in public view</span>
+              {hasCustomHeadings ? <span className="portfolio-headings-badge">Customized</span> : null}
+            </div>
+            {showHeadings ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+          {showHeadings && (
+            <div className="portfolio-headings-fields">
+              <Field
+                id="field-galleryHeading"
+                label="Photo gallery heading"
+                value={galleryHeading}
+                onChange={(val: string) => onUpdateHeading("galleryHeading", val)}
+                placeholder="Moments & work in focus."
+                hint="Shown above photo carousel and lightbox."
+              />
+              <Field
+                id="field-portfolioHeading"
+                label="Project list heading"
+                value={portfolioHeading}
+                onChange={(val: string) => onUpdateHeading("portfolioHeading", val)}
+                placeholder="A little proof of the practice."
+                hint="Shown above links, documents, and videos."
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="portfolio-list">
