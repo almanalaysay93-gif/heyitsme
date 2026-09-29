@@ -322,9 +322,6 @@ function Workspace() {
         setSelectedId(found.id);
         setDraft(found);
         setInitialDraftBaseline(JSON.stringify(found));
-      } else if (!found && (!isAuthenticated || cardsQuery.isSuccess)) {
-        toast.error("Card not found.");
-        navigate("/app/cards");
       }
     } else if (activeCard && !isBuilder) {
       setDraft(activeCard);
@@ -380,6 +377,7 @@ function Workspace() {
     if (isSavingRef.current || importingPreview.current) return null;
     isSavingRef.current = true;
     try {
+      if (pagePending) { toast.error("Complete or remove unfinished page fields before saving."); return null; }
       const validation = validateCardData(draft);
       if (!validation.isValid) {
         setFieldErrors(validation.errors);
@@ -702,7 +700,7 @@ function Workspace() {
     return result.url;
   };
 
-  if (loading) return <div className="loading-screen" role="status"><LogoLoader /><p>Warming up your presence…</p></div>;
+  if (loading) return <div className="loading-screen" role="status"><LogoLoader /><p>Checking your sign-in… Your cards load next.</p></div>;
 
   return (
     <div className="app-frame">
@@ -894,6 +892,13 @@ function Workspace() {
                   </div>
                 </div>
               </motion.div>
+            ) : editId > 0 && !cards.some((card) => card.id === editId) ? (
+              <div className="empty-state glass-panel" role="status">
+                <CircleUserRound size={24} />
+                <h1>Card not found</h1>
+                <p>This card was deleted, or it belongs to another account.</p>
+                <GlassButton onClick={() => navigate("/app/cards")}>Back to My cards</GlassButton>
+              </div>
             ) : (
               <BuilderView
                 draft={draft}
@@ -1117,7 +1122,7 @@ function OverviewView({
               activeCard.published ? (
                 <button type="button" className="link-button" onClick={onCopy}><Copy size={14} /> Copy link</button>
               ) : (
-                <button type="button" className="link-button" onClick={onShare}><Share2 size={14} /> Share</button>
+                <button type="button" className="link-button" onClick={onShare}><Share2 size={14} /> {activeCard.published ? "Share" : "Publish to share"}</button>
               )
             ) : null}
           </div>
@@ -1223,7 +1228,7 @@ function CardsView({
                   {archived ? null : (
                     <>
                       <button onClick={() => onEdit(card)}><Pencil size={14} /> Edit</button>
-                      <button onClick={() => onShare(card)}><Share2 size={14} /> Share</button>
+                      <button onClick={() => onShare(card)}><Share2 size={14} /> {card.published ? "Share" : "Publish to share"}</button>
                       <button onClick={() => onPublish(card)} disabled={publishing}>
                         <span className="publish-toggle" />{card.published ? "Unpublish" : "Publish"}
                       </button>
@@ -1270,6 +1275,7 @@ function BuilderView({
   const previewReferences = trpc.references.list.useQuery({ cardId: draft.id }, { enabled: isAuthenticated && draft.id > 0 });
   const update = (key: keyof CardDraft, value: string) => setDraft((current: CardDraft) => ({ ...current, [key]: value }));
   const page = parsePageConfig(draft.page);
+  const liveErrors = validateCardData(draft).errors;
   return (
     <motion.div className="builder-page" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="page-heading-row builder-heading">
@@ -1290,7 +1296,7 @@ function BuilderView({
               <Check size={14} /> Saved
             </span>
           ) : null}
-          <button className="text-button" onClick={onCancel}>Discard</button>
+          <button className="text-button" onClick={onCancel}>Discard changes</button>
           <button className="publish-copy-button" onClick={onPublishAndCopy} disabled={saving}>
             {!isAuthenticated ? (
               <><LogIn size={15} /> Sign in to publish</>
@@ -1380,8 +1386,8 @@ function BuilderView({
               </div>
             </div>
             <div className="field-grid">
-              <Field id="field-email" label="Email" value={draft.email} onChange={(value: string) => { update("email", value); onClearError?.("email"); }} error={fieldErrors.email} placeholder="hello@you.co" type="email" />
-              <Field id="field-phone" label="Phone" value={draft.phone} onChange={(value: string) => { update("phone", value); onClearError?.("phone"); }} error={fieldErrors.phone} placeholder="+1 415 555 0183" />
+              <Field id="field-email" label="Email" value={draft.email} onChange={(value: string) => { update("email", value); onClearError?.("email"); }} error={fieldErrors.email || liveErrors.email} placeholder="hello@you.co" type="email" />
+              <Field id="field-phone" label="Phone" value={draft.phone} onChange={(value: string) => { update("phone", value); onClearError?.("phone"); }} error={fieldErrors.phone || liveErrors.phone} placeholder="+1 415 555 0183" />
             </div>
             <label className="field-label" htmlFor="field-links">
               <span>Links</span>
@@ -1389,12 +1395,12 @@ function BuilderView({
                 id="field-links"
                 value={parseLinks(draft.links).join(", ")}
                 onChange={(event) => { update("links", JSON.stringify(event.target.value.split(",").map((item) => item.trim()).filter(Boolean))); onClearError?.("links"); }}
-                aria-invalid={Boolean(fieldErrors.links)}
-                aria-describedby={fieldErrors.links ? "field-links-error" : undefined}
-                className={fieldErrors.links ? "has-error" : undefined}
+                aria-invalid={Boolean(fieldErrors.links || liveErrors.links)}
+                aria-describedby={(fieldErrors.links || liveErrors.links) ? "field-links-error" : undefined}
+                className={(fieldErrors.links || liveErrors.links) ? "has-error" : undefined}
                 placeholder="yourwebsite.com, linkedin.com/in/you"
               />
-              {fieldErrors.links ? <span id="field-links-error" className="field-error-text" role="alert">{fieldErrors.links}</span> : null}
+              {(fieldErrors.links || liveErrors.links) ? <span id="field-links-error" className="field-error-text" role="alert">{fieldErrors.links || liveErrors.links}</span> : null}
             </label>
             <Field id="field-contactHeading" label="Contact heading" value={draft.contactHeading || ""} onChange={(value: string) => update("contactHeading", value)} placeholder="Pick the easiest way in." />
             {fieldErrors.channels ? <span id="field-channels" tabIndex={-1} className="field-error-text" role="alert">{fieldErrors.channels}</span> : null}

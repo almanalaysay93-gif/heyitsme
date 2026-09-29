@@ -1,3 +1,4 @@
+import { isContactLink } from "./contactLink";
 import { z } from "zod";
 
 /**
@@ -66,7 +67,7 @@ const safeUrl = z
   .string()
   .trim()
   .max(600)
-  .refine((value) => !value || /^(https?:\/\/|mailto:|tel:)/i.test(value), "Links must start with https://, mailto: or tel:")
+  .refine((value) => isContactLink(value), "Links must start with https://, mailto: or tel:")
   .optional()
   .default("");
 

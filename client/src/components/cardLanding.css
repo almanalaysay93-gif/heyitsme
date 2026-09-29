@@ -889,3 +889,6 @@
 /* Nav: Copy link sits beside Share (native share does not copy). */
 .lx-nav-actions { display: inline-flex; gap: 6px; }
 .lx-nav-copy { width: 44px; padding: 0; justify-content: center; }
+
+.lx-website-placeholder { display: grid; gap: 6px; padding: 12px; text-align: center; overflow-wrap: anywhere; }
+.lx-website-placeholder small { font-size: 12px; font-weight: 400; }

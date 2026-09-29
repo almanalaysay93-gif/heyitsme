@@ -132,9 +132,10 @@ function ContactSheet({
     toast.success("Contact file (.vcf) downloaded.");
   };
 
+  const [emailCopied, setEmailCopied] = useState(false);
   const copyEmail = async () => {
     if (!contact.email) return;
-    if (await copyToClipboard(contact.email)) toast.success("Email copied.");
+    if (await copyToClipboard(contact.email)) { setEmailCopied(true); toast.success("Email copied."); }
     else toast.info(contact.email);
   };
 
@@ -170,7 +171,7 @@ function ContactSheet({
         <div className="contact-sheet-actions">
           {contact.email ? <a className="outline-button" href={`mailto:${contact.email}`}><Mail size={15} /> Email</a> : null}
           {contact.phone ? <a className="outline-button" href={`tel:${contact.phone.replace(/\s+/g, "")}`}><Phone size={15} /> Call</a> : null}
-          {contact.email ? <button type="button" className="outline-button" onClick={() => void copyEmail()}><Copy size={15} /> Copy email</button> : null}
+          {contact.email ? <button type="button" className="outline-button" onClick={() => void copyEmail()}><Copy size={15} /> {emailCopied ? "Email copied" : "Copy email"}</button> : null}
           <button type="button" className="outline-button" onClick={downloadContact}><Download size={15} /> Save .vcf</button>
         </div>
 

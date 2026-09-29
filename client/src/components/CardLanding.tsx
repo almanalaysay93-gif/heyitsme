@@ -1,3 +1,5 @@
+import { phoneHref } from "@shared/phone";
+import { isValidEmail, normalizeWebsiteUrl } from "@shared/cardValidation";
 import { BrandMark } from "@/components/BrandMark";
 import { GalleryLightbox } from "@/components/GalleryLightbox";
 import { LegalLinks } from "@/components/LegalLinks";
@@ -75,6 +77,7 @@ export type CardLandingProps = {
   onSaveContact: () => void;
   onExchange: () => void;
   onShare: () => void;
+  shareLabel?: string;
   onCopyLink: () => void;
   /** Demo card only: booking and phone actions explain themselves instead of leaving the page. */
   onDemoAction?: (kind: "booking" | "phone") => void;
@@ -118,18 +121,26 @@ function external(href: string) {
 function WebsiteShot({ request, title }: { request: string; title: string }) {
   const [src, setSrc] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [fallback, setFallback] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
-    fetch(request)
+    setSrc(null); setFallback(null); setReady(false);
+    const controller = new AbortController();
+    fetch(request, { signal: controller.signal })
       .then((response) => response.json())
-      .then((answer) => { if (active) setSrc(websiteShotFrom(answer)); })
+      .then((answer) => { if (active) {
+        const image = answer?.data?.image?.url;
+        const backup = typeof image === "string" && image.startsWith("https://") ? image : null;
+        setFallback(backup); setSrc(websiteShotFrom(answer) || backup);
+      } })
       .catch(() => undefined);
-    return () => { active = false; };
+    return () => { active = false; controller.abort(); };
   }, [request]);
   return (
     <div className="lx-work-media lx-work-file">
       <Globe2 size={22} aria-hidden="true" />
-      {src ? <img src={src} alt={`Screenshot of ${title}`} className={ready ? "is-ready" : undefined} onLoad={() => setReady(true)} onError={() => setSrc(null)} /> : null}
+      {!ready ? <span className="lx-website-placeholder">{title}<small>Website preview</small></span> : null}
+      {src ? <img src={src} alt={`Screenshot of ${title}`} className={ready ? "is-ready" : undefined} onLoad={() => setReady(true)} onError={() => { setReady(false); setSrc(src !== fallback ? fallback : null); }} /> : null}
     </div>
   );
 }
@@ -150,7 +161,7 @@ export function CardLanding(props: CardLandingProps) {
   const parallax = useHeroParallax(heroRef, interactive);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
-  const links = parseLinks(card.links);
+  const links = parseLinks(card.links).filter((link) => normalizeWebsiteUrl(link));
   const channels = parseChannels(card.channels);
   const portfolio = parsePortfolio(card.portfolio);
   const photos = portfolio.filter((item) => item.kind === "image");
@@ -193,8 +204,8 @@ export function CardLanding(props: CardLandingProps) {
   }, [motionOn]);
 
   const contactRows = [
-    card.email ? { key: "email", icon: Mail, label: "Email", value: card.email, href: `mailto:${encodeURIComponent(card.email)}`, copy: card.email, target: "Email" } : null,
-    card.phone ? { key: "phone", icon: Phone, label: "Call or text", value: card.phone, href: `tel:${encodeURIComponent(card.phone.replace(/\s+/g, ""))}`, copy: card.phone, target: "Phone" } : null,
+    card.email && isValidEmail(card.email) ? { key: "email", icon: Mail, label: "Email", value: card.email, href: `mailto:${encodeURIComponent(card.email)}`, copy: card.email, target: "Email" } : null,
+    card.phone ? { key: "phone", icon: Phone, label: phoneHref(card.phone) ? "Call or text" : "Phone information (not dialable)", value: card.phone, href: phoneHref(card.phone) || "", copy: card.phone, target: "Phone" } : null,
     ...links.map((link) => {
       const value = link.replace(/^https?:\/\//, "").replace(/\/$/, "");
       // Insights groups website clicks by domain, so that stays the tracked target.
@@ -279,7 +290,7 @@ export function CardLanding(props: CardLandingProps) {
         <section className="lx-hero lx-hero-business" ref={heroRef}>
           <motion.p className="lx-eyebrow" {...enter("eyebrow")}>
             {card.avatarUrl ? <img className="lx-logo" src={card.avatarUrl} alt="" /> : null}
-            {address || card.title}
+            {address ? <a href={mapLink(address)} target="_blank" rel="noreferrer">{address}</a> : card.title}
           </motion.p>
           <motion.h1 className="lx-masthead" style={fitName(brand)} {...enter("name")}>{brand}</motion.h1>
           {heroPanel(
@@ -308,7 +319,7 @@ export function CardLanding(props: CardLandingProps) {
           {heroPanel(
             <>
               {card.bio ? <p className="lx-lead">{card.bio}</p> : null}
-              {address ? <p className="lx-place"><MapPin size={14} aria-hidden="true" /> {address}</p> : null}
+              {address ? <a className="lx-place" href={mapLink(address)} target="_blank" rel="noreferrer" onClick={() => track("link", "Directions")}><MapPin size={14} aria-hidden="true" /> {address}</a> : null}
               {actions}
               {socials}
             </>,
@@ -329,7 +340,7 @@ export function CardLanding(props: CardLandingProps) {
             {heroPanel(
               <>
                 {card.bio ? <p className="lx-lead">{card.bio}</p> : null}
-                {address ? <p className="lx-place"><MapPin size={14} aria-hidden="true" /> {address}</p> : null}
+                {address ? <a className="lx-place" href={mapLink(address)} target="_blank" rel="noreferrer" onClick={() => track("link", "Directions")}><MapPin size={14} aria-hidden="true" /> {address}</a> : null}
                 {actions}
                 {socials}
               </>,
@@ -474,7 +485,7 @@ export function CardLanding(props: CardLandingProps) {
                         <div className="lx-officer-actions">
                           {person.phone ? (
                             <a
-                              href={`tel:${encodeURIComponent(person.phone.replace(/\s+/g, ""))}`}
+                              href={phoneHref(person.phone) || undefined}
                               className="lx-officer-btn"
                               title={`Call ${person.name}`}
                               onClick={() => track("link", `Call: ${person.name}`)}
@@ -538,7 +549,7 @@ export function CardLanding(props: CardLandingProps) {
             <ul className="lx-contact">
               {contactRows.map((row) => (
                 <li key={row.key}>
-                  <a href={row.href} {...external(row.href)} onClick={(row.key === "phone" && demoClick("phone")) || (() => track("link", row.target))}>
+                  <a href={row.href || undefined} {...external(row.href)} onClick={(row.key === "phone" && demoClick("phone")) || (() => track("link", row.target))}>
                     <row.icon size={17} aria-hidden="true" />
                     <span><small>{row.label}</small><strong>{row.value}</strong></span>
                     <ArrowUpRight className="lx-row-arrow" size={16} aria-hidden="true" />
@@ -607,7 +618,7 @@ export function CardLanding(props: CardLandingProps) {
           {branded ? <a className="lx-brand" href="/"><BrandMark /><span>heyitsme</span></a> : <span />}
           <span className="lx-nav-actions">
             <button type="button" className="lx-nav-share lx-nav-copy" onClick={onCopyLink} aria-label="Copy link to this page"><Copy size={15} aria-hidden="true" /></button>
-            <button type="button" className="lx-nav-share" onClick={onShare}><Share2 size={15} aria-hidden="true" /> Share</button>
+            <button type="button" className="lx-nav-share" onClick={onShare}><Share2 size={15} aria-hidden="true" /> {props.shareLabel ?? "Share"}</button>
           </span>
         </header>
       ) : null}
@@ -650,7 +661,7 @@ export function CardLanding(props: CardLandingProps) {
             )}
             {cta ? <button type="button" className="lx-btn lx-btn-ghost" onClick={onSaveContact} aria-label="Save contact"><Download size={16} aria-hidden="true" /></button> : null}
             {showExchange ? <button type="button" className="lx-btn lx-btn-ghost" onClick={onExchange} aria-label="Exchange details"><UserRoundPlus size={16} aria-hidden="true" /></button> : null}
-            <button type="button" className="lx-btn lx-btn-ghost" onClick={onShare} aria-label="Share this page"><Share2 size={16} aria-hidden="true" /></button>
+            <button type="button" className="lx-btn lx-btn-ghost" onClick={onShare} aria-label={props.shareLabel ?? "Share this page"}><Share2 size={16} aria-hidden="true" /></button>
           </div>
           <GalleryLightbox items={photos} currentIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} onNavigate={setLightboxIndex} />
         </>

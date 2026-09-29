@@ -8,6 +8,7 @@ def run():
  with sync_playwright() as p:
   browser=p.chromium.launch(channel='chrome',headless=True)
   context=browser.new_context(viewport=dict(width=1440,height=1000))
+  context.add_init_script("Object.defineProperty(navigator, 'share', {value: undefined, configurable: true})")
   page=context.new_page()
   errors=[]
   page.on('pageerror',lambda e: errors.append(str(e)))
@@ -59,14 +60,28 @@ def run():
   page.get_by_role('button',name='Show Resource links on page',exact=True).click()
   print('PASS business visibility, ordering, single directory')
   page.get_by_role('radio',name='Professional',exact=False).click()
+  assert page.get_by_role('button',name='Add contact person',exact=True).is_visible()
+  assert page.get_by_role('button',name='Add link',exact=True).is_visible()
   assert not page.get_by_role('button',name='Add service',exact=True).is_visible()
   page.get_by_role('radio',name='Services',exact=False).click()
+  assert page.get_by_role('button',name='Add contact person',exact=True).is_visible()
+  assert page.get_by_role('button',name='Add link',exact=True).is_visible()
   assert page.get_by_role('button',name='Add service',exact=True).is_visible()
   assert not page.get_by_role('button',name='Add highlight',exact=True).is_visible()
   assert not page.get_by_label('Client name',exact=True).is_visible()
   page.get_by_role('radio',name='Business',exact=False).click()
   assert page.get_by_label('Contact person 1 name',exact=True).input_value()=='Test Officer'
   print('PASS optional template fields and preserved business content')
+  page.locator('#field-email').fill('bad-email')
+  assert page.locator('#field-email-error').is_visible()
+  page.locator('#field-email').fill('test@example.com')
+  page.locator('#field-phone').fill('letters ABC')
+  assert page.locator('#field-phone-error').is_visible()
+  page.locator('#field-phone').fill('')
+  page.get_by_label('Button link',exact=False).fill('not a url')
+  page.get_by_role('button',name='Save draft',exact=False).click()
+  assert page.get_by_text('Complete or remove unfinished page fields before saving.',exact=True).is_visible()
+  page.get_by_label('Button link',exact=False).fill('')
   page.get_by_role('button',name='Add highlight',exact=True).click()
   page.get_by_label('Highlight 1 value',exact=True).fill('12')
   page.locator('#field-location').fill('34 New Street')
@@ -101,8 +116,13 @@ def run():
     page.get_by_role('tab',name='Edit',exact=True).click()
    if width < 760: page.get_by_role('tab',name='Edit',exact=True).click()
    if width==1440: page.screenshot(path=str(Path(os.environ['TEMP'])/'heyitsme-builder-desktop.png'),full_page=True)
+  page.goto('http://127.0.0.1:5178/app/cards/999999/edit')
+  page.get_by_role('heading',name='Card not found',exact=True).wait_for()
+  assert page.url.endswith('/999999/edit')
   page.goto('http://127.0.0.1:5178/c/demo')
   page.locator('.lx-section-resourceLinks').wait_for()
+  assert page.locator('.lx-hero a[href*="google.com/maps"]').count() > 0
+  assert page.locator('.lx-nav-share:not(.lx-nav-copy)').inner_text() == 'Copy link'
   for width in [360,390,430,844,1440]:
    page.set_viewport_size(dict(width=width,height=900))
    page.wait_for_timeout(200)
@@ -114,6 +134,13 @@ def run():
    assert title.evaluate("el => getComputedStyle(el).whiteSpace === 'normal' && el.scrollWidth <= el.clientWidth + 1")
    if width==390: page.locator('.lx-section-resourceLinks').screenshot(path=str(Path(os.environ['TEMP'])/'heyitsme-resource-mobile.png'))
   print('PASS public resource title and long URL at 360/390/430/844/1440px')
+  page.goto('http://127.0.0.1:5178/app/cards/new')
+  page.get_by_role('radio',name='Professional',exact=False).wait_for()
+  for template in ['Professional','Services','Business']:
+   page.get_by_role('radio',name=template,exact=False).click()
+   assert page.get_by_role('button',name='Add contact person',exact=True).is_visible(), template
+   assert page.get_by_role('button',name='Add link',exact=True).is_visible(), template
+  print('PASS empty contact-person and resource editors on every template')
   assert not errors,errors
   print('PASS mobile 360/390/430, desktop 1440, preview tabs, no runtime errors')
   browser.close()

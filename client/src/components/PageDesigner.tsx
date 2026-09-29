@@ -224,7 +224,6 @@ export function PageDesigner({ children, value, onChange, themeAccent, onPending
         </div>
       </div>
 
-      {config.template === "business" || config.contactPersons.length > 0 ? (
         <div className="pd-block">
           <RowsHead
             title="Contact persons & office in-charge"
@@ -279,9 +278,7 @@ export function PageDesigner({ children, value, onChange, themeAccent, onPending
             onClick={() => commit({ ...config, contactPersons: [...config.contactPersons, { name: "", role: "", phone: "", email: "" }] })}
           />
         </div>
-      ) : null}
 
-      {config.template === "business" || config.links.length > 0 ? (
         <div className="pd-block">
           <RowsHead
             title="Resource links"
@@ -327,7 +324,6 @@ export function PageDesigner({ children, value, onChange, themeAccent, onPending
             onClick={() => commit({ ...config, links: [...config.links, { title: "", url: "", description: "" }] })}
           />
         </div>
-      ) : null}
 
     </div>,
     content: <div className="pd">

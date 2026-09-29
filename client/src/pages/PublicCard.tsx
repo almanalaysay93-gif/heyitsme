@@ -195,6 +195,7 @@ export default function PublicCardPage() {
         pageUrl={window.location.href}
         onSaveContact={saveContact}
         onExchange={openForm}
+        shareLabel={typeof navigator !== "undefined" && typeof navigator.share === "function" ? "Share" : "Copy link"}
         onShare={() => void shareLink()}
         onCopyLink={() => void copyLink()}
         track={track}
