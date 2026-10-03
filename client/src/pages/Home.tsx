@@ -89,6 +89,7 @@ import { toast } from "sonner";
 import { useLocation } from "wouter";
 import { InfoDialog } from "@/components/InfoDialog";
 import { isPlanLimitError, PLAN_LABELS, UpgradeProvider, useBilling, useUpgrade } from "@/lib/billing";
+import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 import "@/components/billing/billing.css";
 
 // Contacts and Insights are only needed on their own tabs, so they load on demand.
@@ -728,6 +729,7 @@ function Workspace() {
             <PanelLeftClose size={17} />
           </button>
         </div>
+        <WorkspaceSwitcher current="personal" signedIn={isAuthenticated} onNavigate={() => setMobileNavOpen(false)} />
         <div className="nav-section-label">Workspace</div>
         <nav>
           <NavItem label="Overview" icon={LayoutGrid} active={mode === "overview"} onClick={() => { navigate("/app"); setMobileNavOpen(false); }} />

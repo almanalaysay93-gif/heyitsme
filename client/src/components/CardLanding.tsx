@@ -44,6 +44,7 @@ import {
   CalendarDays,
   UserRoundPlus,
 } from "lucide-react";
+import type { CardTeamExtras } from "@shared/teamKit";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -87,6 +88,8 @@ export type CardLandingProps = {
   /** Demo card only: booking and phone actions explain themselves instead of leaving the page. */
   onDemoAction?: (kind: "booking" | "phone" | "link") => void;
   track: Track;
+  /** Company cards only: the banners running now and the files the company approved for this card. */
+  team?: CardTeamExtras | null;
 };
 
 function ChannelIcon({ provider }: { provider: string }) {
@@ -731,11 +734,35 @@ export function CardLanding(props: CardLandingProps) {
 
       <MainTag className="lx-main" {...(interactive ? { id: "main", tabIndex: -1 } : {})}>
         {hero}
+        {(props.team?.banners ?? []).map((banner) => (
+          <GlassPanel enabled={interactive} key={`banner-${banner.id}`} className="lx-section lx-team-banner">
+            <h2>{banner.title}</h2>
+            {banner.description ? <p>{banner.description}</p> : null}
+            {banner.ctaLabel && banner.ctaUrl ? (
+              <a className="lx-btn lx-btn-primary" href={banner.ctaUrl} target="_blank" rel="noopener noreferrer" onClick={() => track("link", banner.ctaUrl ?? undefined)}>{banner.ctaLabel}</a>
+            ) : null}
+          </GlassPanel>
+        ))}
         {sections.map((section) => (
           <GlassPanel enabled={interactive} light={section.id !== "stats" && section.id !== "references"} key={section.id} className={`lx-section lx-section-${section.id}`}>
             {renderSection(section.id)}
           </GlassPanel>
         ))}
+
+        {props.team && props.team.files.length > 0 ? (
+          <GlassPanel enabled={interactive} className="lx-section lx-team-files">
+            {heading("From the company")}
+            <ul>
+              {props.team.files.map((file) => (
+                <li key={file.id}>
+                  <a className="lx-btn lx-btn-ghost" href={file.url} target="_blank" rel="noopener noreferrer" onClick={() => track("link", file.url)}>
+                    {file.kind === "link" ? <ArrowUpRight size={16} aria-hidden="true" /> : <Download size={16} aria-hidden="true" />} {file.title}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </GlassPanel>
+        ) : null}
 
         {interactive && canExchange ? (
           <GlassPanel enabled={interactive} className="lx-section lx-take">

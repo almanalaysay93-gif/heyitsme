@@ -22,6 +22,7 @@
     { "source": "/storage/(.*)", "destination": "/api" },
     { "source": "/c/(.*)", "destination": "/api" },
     { "source": "/r/(.*)", "destination": "/index.html" },
+    { "source": "/event/(.*)", "destination": "/index.html" },
     { "source": "/robots.txt", "destination": "/api" },
     { "source": "/sitemap.xml", "destination": "/api" },
     { "source": "/app", "destination": "/index.html" },

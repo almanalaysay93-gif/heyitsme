@@ -132,7 +132,8 @@ export const qrCampaignRouter = router({
           and(
             eq(cards.id, input.cardId),
             eq(cards.published, true),
-            isNull(cards.deletedAt)
+            isNull(cards.deletedAt),
+            isNull(cards.teamStatus)
           )
         );
       if (!card) return { ok: false };
@@ -148,7 +149,7 @@ export async function exportContactsForOwner(user: {
   const rows = await (await requireDb())
     .select()
     .from(contacts)
-    .where(eq(contacts.ownerUserId, user.id));
+    .where(and(eq(contacts.ownerUserId, user.id), isNull(contacts.workspaceId)));
   const keys = [
     "name",
     "email",

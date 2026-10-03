@@ -221,3 +221,101 @@ Public card profile photo in `client/src/components/cardLanding.css`. Desktop `.
 - Pro design, campaign and analytics flags now default on, with explicit environment kill switches retained. Live billing.offer confirms PHP29900 Pro monthly and these three flags enabled.
 - Payments and plan limits remain disabled until real merchant checkout is verified. No payment credentials changed.
 - Production release 1ee6572 reached Vercel READY and public smoke checks passed, including health. Campaign editor restored in the combined Contacts view for final follow-up release.
+
+## 2026-10-03: Teams plan, phase 1 of 8 (Claude)
+- [stated] Source: the owner's 65-section Teams spec, pasted with no other text. [my reading] Treated as a build request, in the spec's own phase order.
+- Built: team workspaces, membership, email invitations, the three roles (owner, admin, member), workspace switcher. Not built: phases 2–8 (company cards, departments, brand, templates, shared contacts, analytics, events, assets, seat billing).
+- Server: `drizzle/0013_teams.sql` (4 new tables, no change to existing tables), `server/teams/` (`access.ts` holds the shared permission checks, `entitlements.ts`, `router.ts`, `schemaSql.ts` is the migration copied for `ensureSchema`), `shared/teams.ts`.
+- Client: `client/src/pages/Team.tsx` (`/app/team`, `/app/team/:id`, `/app/team/join/:token`), `client/src/components/WorkspaceSwitcher.tsx` in the Home sidebar. Lazy-loaded, never on public card pages.
+- Off by default behind `TEAMS_ENABLED`. Invitation links are stored as SHA-256 hashes, last 7 days, one use, and only work for the invited email address.
+- Safety caps, not prices: 3 teams per owner, 50 people per team (`shared/teams.ts`). No Teams price is set anywhere in this work.
+- Checks: `pnpm check` clean, `pnpm test` 374 passed, `pnpm build` clean. 20 new tests in `server/teams/teams.test.ts`.
+- Not tested: any screen in a browser, the migration on Supabase, a real invitation email.
+- Before switching on: run `drizzle/0013_teams.sql` in Supabase as the table owner so row-level security is enabled, then set `TEAMS_ENABLED=true`.
+- Not committed.
+
+## 2026-10-03: Teams plan, phase 2 of 8 (Claude)
+- [stated] Owner said "continue" after the phase 1 report.
+- Built: company-owned cards (create, edit, publish, assign, pause, archive, restore), departments (create, rename, archive, lead, move people), card choice when removing a person (unassign, archive, transfer). Not built: phases 3–8.
+- Server: `drizzle/0014_team_cards.sql` is the first Teams change to existing tables: nullable `cards.workspaceId`, `cards.assignedUserId`, `cards.teamStatus`, `contacts.workspaceId`, `contacts.capturedByUserId`, plus the new `workspaceDepartments` table. `server/teams/cardsRouter.ts` (`teamCards`, `teamDepartments`), `canManageWorkspaceCard` in `server/teams/access.ts`.
+- Personal queries now filter `workspaceId is null`, so company cards never count toward a personal plan limit or show in the personal card list. Public card, exchange and tracking refuse paused or archived company cards. `publicCard.bySlug` no longer returns the team columns.
+- Client: `client/src/pages/TeamCards.tsx` (Cards and Departments tabs), `Team.tsx` (department select, card count, removal panel, activity labels).
+- [my choices, open to change] A company card's lead quota follows the team owner's plan until seat billing (phase 8). Members may publish their own company card. Department lead is a label with no extra access. Company cards have text fields only until brand and templates (phase 3). Leads from a company card go to the card holder's contacts, tagged with the team, until shared contacts (phase 4). The contacts half of the removal flow waits for phase 4.
+- Safety caps, not prices: 200 cards and 50 departments per team.
+- Checks: `pnpm check` clean, `pnpm test` 391 passed, `pnpm build` clean. 17 new tests in `server/teams/teamCards.test.ts`.
+- Not tested: any screen in a browser, the migration on Supabase.
+- Before switching on: run `drizzle/0013_teams.sql` then `drizzle/0014_team_cards.sql` in Supabase as the table owner. `ensureSchema` also adds the 0014 columns at server start, with or without `TEAMS_ENABLED`.
+- Not committed.
+
+## 2026-10-03: Teams plan, phase 3 of 8 (Claude)
+
+Brand, templates, locked details and change requests. Behind `TEAMS_ENABLED`, like phases 1 and 2.
+
+- **Migration `drizzle/0015_team_brand.sql`**: adds `workspaces.lockedFields`, `cards.templateId` (both nullable) and tables `workspaceTemplates`, `workspaceChangeRequests` with RLS. `ensureSchema` applies it on first use (gated on `workspaceChangeRequests`); RLS may need the table owner, so run the file by hand in Supabase project `gomtjpaotoqnwskjqpgk`.
+- **Server**: `server/teams/cardRules.ts` (lock union of team and template, template values written to a card), `server/teams/brandRouter.ts` mounted as `teamBrand` (get/save/uploadLogo/removeLogo), `teamTemplates` (list/create/update/setArchived/setDefault/applyTo), `teamRequests` (list/create/cancel/decide). `teamCards.update` refuses a member's change to a locked detail; admins are not held by locks. New cards take the default template and the team logo.
+- **Logo storage**: `team-<workspaceId>/logo-…`, outside the `<userId>-portfolio` prefix so the personal upload sweep never removes it. Old logo files are not deleted when replaced.
+- **Client**: `client/src/pages/TeamBrand.tsx` (Brand and Templates tabs, admins only), change-request panel and template picker on the Cards tab, member edits to locked details become a request.
+- **Interim choices**: a template look is one of the 15 ready-made looks plus optional brand colors on buttons and highlights (no free-form design editor yet). Templates may use Pro-grade looks on company cards with no plan check; phase 8 (seat billing and entitlements) decides that. A card cannot be detached from a template, only moved to another. No email is sent for requests.
+- **Checks**: `pnpm check` clean, `pnpm test` 406 passed (42 files), `pnpm build` clean. Not browser-tested. Not committed.
+
+## 2026-10-04: Teams plan, phase 4 of 8 (Claude)
+
+Shared team contacts. Behind `TEAMS_ENABLED`, like phases 1 to 3.
+
+- [stated] Owner said "done" after the phase 3 report (migration 0015 run).
+- **Migration `drizzle/0016_team_contacts.sql`**: nullable `contacts.assignedUserId`, `contacts.departmentId`, index `contacts_workspace_idx`, and two updates that move contacts phase 2 filed under the card holder (holder stays assigned, row held in the team owner's name). `ensureSchema` applies it once, gated on the `contacts.departmentId` column. No new table, no RLS statement. Run by hand in Supabase project `gomtjpaotoqnwskjqpgk`.
+- **Model**: a team contact mirrors a company card: `ownerUserId` = team owner, `workspaceId` set, `assignedUserId` = who looks after it now, `capturedByUserId` = who held the card at capture, `departmentId` = holder's department at capture. Archive = status `archived` (existing status), no new column.
+- **Personal side**: `personalContact()` in `server/db.ts` adds `workspaceId is null` to personal list, update, delete, mark seen; `exportContactsForOwner` too. Team contacts never show in, or change through, anyone's personal contacts.
+- **Server**: `server/teams/contactsRouter.ts` mounted as `teamContacts` (list, update, reassign, remove, exportCsv, duplicates, merge), `canViewWorkspaceContact` in `server/teams/access.ts`. Members see their own, admins all. Duplicates = same email or same phone digits; merge is manual, admin only, archives the other contact. `teams.removeMember` takes `contacts: keep | transfer | archive` (+ `contactsToMemberId`); `leave` unassigns; `transferOwnership` moves `ownerUserId`. `teams.members` returns `contactCount` for admins. New-contact email for a company card links to `/app/team/<id>`.
+- **Client**: `client/src/pages/TeamContacts.tsx` (Contacts tab for everyone), contact choice in the removal panel in `Team.tsx`, activity labels.
+- [my choices, open to change] Lead quota for a company card still follows the team owner's personal plan until phase 8. Department on a contact is fixed at capture and does not follow reassignment. Members get no duplicate hint about colleagues' contacts. Admin delete is permanent and logged, meant for "forget me" requests. Export capped at 10,000 rows. No bulk select in the UI (server reassign takes up to 200 ids).
+- **Checks**: `pnpm check` clean, `pnpm test` 420 passed (43 files), `pnpm build` clean. 14 new tests in `server/teams/teamContacts.test.ts`. Not browser-tested. Not committed.
+
+## 2026-10-04: Teams plan, phase 5 of 8 (Claude)
+
+Team analytics. Behind `TEAMS_ENABLED`, like phases 1 to 4.
+
+- **Migration `drizzle/0017_team_analytics.sql`**: one column, `workspaces.leaderboardEnabled boolean default false not null`. `ensureSchema` applies it once, gated on that column. Run by hand in Supabase project `gomtjpaotoqnwskjqpgk`. No data copied: team numbers read the existing `analyticsEvents` rows of company cards.
+- **Server**: `server/teams/analyticsRouter.ts` mounted as `teamAnalytics`, capability `canViewWorkspaceAnalytics`. `summary` (ranges 7/30/90/365 days from `TEAM_ANALYTICS_RANGES` in `shared/teams.ts`; totals for views, saves, exchanges, QR scans, link clicks, shares; conversion rate; daily views; by card, by person, by department). Admin filters: person or unassigned, department, card, template. A member always gets only cards assigned to them, filters ignored. `filters` and `adoption` (people, active, cards published or not, shared this month, never shared) are admin only. `setLeaderboard` is admin only and logged (`analytics.leaderboard_on` / `_off`).
+- **Leaderboard**: off by default. When on, every member sees the top ten (views, exchanges, QR scans) for the chosen range, whole team, not the filtered view. The admin "By person" table is in name order, never ranked.
+- **Client**: `client/src/pages/TeamAnalytics.tsx`, loaded only when the Analytics tab opens (it reuses `DailyViewsChart` from `InsightsView`). Analytics tab for everyone in `Team.tsx`.
+- [my choices, open to change] Days are UTC, like personal insights. Sharing in adoption counts for whoever holds the card today; "this month" is the UTC calendar month. No QR campaign filter yet: team QR campaigns do not exist until the Team QR work. Deleted cards are left out.
+- **Checks**: `pnpm check` clean, `pnpm test` 428 passed (44 files), `pnpm build` clean. 8 new tests in `server/teams/teamAnalytics.test.ts`. Not browser-tested. Not committed.
+
+## 2026-10-04: Teams plan, phase 6 of 8 (Claude)
+
+Team events with RSVP. Behind `TEAMS_ENABLED`, like phases 1 to 5.
+
+- **Migration `drizzle/0018_team_events.sql`**: new tables `workspaceEvents`, `workspaceEventFields`, `workspaceEventRsvps`, `workspaceEventRsvpAnswers`, RLS on. `ensureSchema` applies it once, gated on `workspaceEventRsvpAnswers`. Run by hand in Supabase project `gomtjpaotoqnwskjqpgk`. Touches no existing table.
+- **Shared**: `shared/events.ts` holds statuses, RSVP statuses, question types, the ready-made questions, limits, `readAnswer` (per-type answer validation, used by the server) and the wall-time helpers.
+- **Server**: `server/teams/eventsRouter.ts`. `teamEvents` (capability `canCreateEvents`; admins manage, checked by `canManageEvent` in `access.ts`; members can only `list` and only see public events, no counts): create, update, setStatus, saveFields, uploadCover, removeCover, rsvps, updateRsvp, deleteRsvp, checkIn, exportCsv. `publicEvent.get` and `publicEvent.rsvp` are open to visitors and return event details and the form only, never counts or attendees.
+- **RSVP safety**: answers validated on the server per question type with length limits and control characters stripped; only enabled questions of that event are accepted, any other field id is refused; honeypot field `website`; rate limits 10 per 10 minutes per IP and 600 per hour per event; capacity checked under advisory lock 7018.
+- **Client**: `client/src/pages/TeamEvents.tsx` (Events tab in `Team.tsx`, loaded only when opened): list, create, details, banner, status buttons, RSVP form builder, responses with search, filters, check-in, edit, delete and CSV download, share link and branded QR (PNG and SVG). `client/src/pages/PublicEvent.tsx` at `/event/:slug` (route in `App.tsx`, rewrite in `vercel.json`), `client/src/components/EventAnswerInput.tsx`, `client/src/pages/event.css`.
+- [my choices, open to change] Times are typed and shown in the team's time zone. Capacity counts each person coming plus their guests; when full, people can still answer Maybe or Not attending. An event past its end time counts as ended. The same email can reply more than once. Admin edits skip required and capacity checks. Check-ins are stored on the response, not in the activity log. No event delete: Archive hides the page and keeps responses. Removing a question that has answers hides it. The QR logo is left out when the browser cannot read the logo file.
+- **Checks**: `pnpm check` clean, `pnpm test` 438 passed (45 files), `pnpm build` clean. 10 new tests in `server/teams/teamEvents.test.ts`. Not browser-tested. Not committed.
+
+## 2026-10-04: Teams plan, phase 7 of 8 (Claude)
+
+Company files, email signature, meeting background, scheduled banners. Behind `TEAMS_ENABLED`, like phases 1 to 6.
+
+- **Migration `drizzle/0019_team_assets.sql`**: new tables `workspaceAssets`, `workspaceCardAssets`, `workspaceBanners` (RLS on) and two new nullable columns on `workspaces` (`signatureSettings`, `backgroundSettings`). `ensureSchema` applies it once, gated on `workspaceBanners`. Run by hand in Supabase project `gomtjpaotoqnwskjqpgk`. Changes no existing data.
+- **Shared**: `shared/teamKit.ts` holds limits, banner targets, `CardTeamExtras`, the settings readers, and `signatureHtml` / `signatureText` (one table, inline styles, every value escaped, only http, https, mailto and tel links).
+- **Server**: `server/teams/kitRouter.ts`. `teamAssets` (capability `canUseAssetLibrary`): admins `addLink`, `upload`, `update`, `replaceFile`, `setArchived`; any member `list` and `setOnCard` for a card they may manage (`manageableCard`). `teamBanners` (capability `canManageBrand`, admins only): `list`, `save`, `remove`. `teamKit`: `get` for members, `saveSignature` / `saveBackground` for admins. `cardTeamExtras(card)` adds `team` (running banners aimed at the card, attached non-archived files) to `publicCard.bySlug`; it returns null on any failure so the public card never breaks. New Express route `GET /api/qr/c/:slug.png` in `server/_core/app.ts` gives the QR picture a signature needs; it only encodes the link of a published card and is rate limited.
+- **Uploads**: 3MB, same content checks as personal uploads, plus PowerPoint and Excel checked by first bytes. Stored under `team-<workspaceId>/file-...`. Cards reference the file row, so a new version or a rename reaches every card at once.
+- **Client**: `client/src/pages/TeamAssets.tsx` (Assets tab in `Team.tsx`, loaded only when opened) with Files, Email signature, Meeting background, and Banners (admins). Background is drawn in the browser at 1920x1080 or 1280x720. `client/src/lib/teamFiles.ts` holds the helpers `TeamEvents.tsx` and `TeamAssets.tsx` share. `CardLanding.tsx` takes an optional `team` prop: banners under the hero, a "From the company" files section.
+- [my choices, open to change] Files are archived, never deleted. A card shows up to 12 company files and 3 banners at once. Banner times are typed in the team's time zone. A banner aimed at a department reaches cards whose holder is in that department. Banners are removed for good (they hold no visitor data). One 16:9 background fits Zoom, Meet and Teams. Signature and background use published company cards only.
+- **Not built** (in the spec, in no phase of its build order): Team QR management (section 21), CTA settings by template or department (47), translations (48), NFC device inventory (49).
+- **Checks**: `pnpm check` clean, `pnpm test` 449 passed (46 files), `pnpm build` clean. 11 new tests in `server/teams/teamKit.test.ts`. The QR picture route has no automated test. Not browser-tested. Not committed.
+
+## 2026-10-04: Teams plan, phase 8 of 8 (Claude)
+
+Seats and per-team entitlements. No Teams price, no checkout: the owner has not given price per seat, billing interval or minimum seats.
+
+- Migration `drizzle/0020_team_seats.sql`: `workspaces.seatLimit` (empty = standard 50) and `workspaces.accessUntil` (empty = no end). Also applied by `ensureSchema`. Existing teams are unchanged.
+- `server/teams/entitlements.ts` decides entitlements per workspace. A team whose `accessUntil` has passed is read-only: `requireWorkspaceMember` refuses every Team mutation, except leave, remove member, close, and the two CSV downloads (`teamProcedure(cap, { afterPlanEnd: true })`). Nothing is deleted, nobody is removed, public company cards and event pages stay online.
+- Seats: invited, active and suspended people each hold one. Invites stop when seats are full; accepting an invitation is refused when the people already in fill the allowance. Lowering seats removes nobody.
+- Only heyitsme staff (`users.role = 'admin'`) set seats and dates: `teams.adminList`, `teams.adminSetPlan`, page `/app/admin/teams`. Audit action `plan.updated`.
+- Owner sees a Billing tab (`teams.billing`): seats used, allowed, free, plan date. No price shown.
+- Tests: `server/teams/teamSeats.test.ts` (8).
+- Not built: Teams checkout through 2C2P, per-seat price, renewals, receipts. Needs the owner's pricing first. Then `accessUntil` and `seatLimit` are what a settled payment should set.
+- Known gap: a member editing their own company card through the personal card editor is not paused when the plan has ended.

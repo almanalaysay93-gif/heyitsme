@@ -16,6 +16,7 @@ import { DEMO_CARD, DEMO_CARD_ID, DEMO_REFERENCES, DEMO_SLUG,
 } from "@shared/demoCard";
 import { ENV } from "./_core/env";
 import { BILLING_SCHEMA_STATEMENTS } from "./billing/schemaSql";
+import { TEAM_ANALYTICS_SCHEMA_STATEMENTS, TEAM_BRAND_SCHEMA_STATEMENTS, TEAM_ASSETS_SCHEMA_STATEMENTS, TEAM_SEATS_SCHEMA_STATEMENTS, TEAM_EVENTS_SCHEMA_STATEMENTS, TEAM_CARDS_SCHEMA_STATEMENTS, TEAM_CONTACTS_SCHEMA_STATEMENTS, TEAMS_SCHEMA_STATEMENTS } from "./teams/schemaSql";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _schemaReady: Promise<void> | null = null;
@@ -102,6 +103,75 @@ async function ensureSchema(client: postgres.Sql) {
       }
     }
   }
+
+  // Team tables (drizzle/0013). workspaceAuditLog is created last, so its presence means the whole set exists.
+  const teams = await client<{ table_name: string }[]>`
+    select table_name from information_schema.tables where table_schema = current_schema() and table_name = 'workspaceAuditLog'`;
+  if (teams.length === 0) {
+    for (const statement of TEAMS_SCHEMA_STATEMENTS) {
+      if (statement.startsWith("alter table")) {
+        await client
+          .unsafe(statement)
+          .catch(error =>
+            console.warn(
+              "[Database] RLS not enabled, apply drizzle/0013 by hand:",
+              String(error)
+            )
+          );
+      } else {
+        await client.unsafe(statement);
+      }
+    }
+  }
+
+  // Company cards and departments (drizzle/0014), then brand and templates (drizzle/0015). The new columns on
+  // "cards", "contacts" and "workspaces" must exist before any card is read, so only the row-level-security
+  // statements are allowed to fail. Each file is skipped once the last table it creates exists.
+  const teamSteps = [
+    ["workspaceDepartments", TEAM_CARDS_SCHEMA_STATEMENTS, "drizzle/0014"],
+    ["workspaceChangeRequests", TEAM_BRAND_SCHEMA_STATEMENTS, "drizzle/0015"],
+    ["workspaceEventRsvpAnswers", TEAM_EVENTS_SCHEMA_STATEMENTS, "drizzle/0018"],
+    ["workspaceBanners", TEAM_ASSETS_SCHEMA_STATEMENTS, "drizzle/0019"],
+  ] as const;
+  for (const [table, statements, file] of teamSteps) {
+    const present = await client<{ table_name: string }[]>`
+      select table_name from information_schema.tables where table_schema = current_schema() and table_name = ${table}`;
+    if (present.length > 0) continue;
+    for (const statement of statements) {
+      if (statement.endsWith("enable row level security")) {
+        await client
+          .unsafe(statement)
+          .catch(error => console.warn(`[Database] RLS not enabled, apply ${file} by hand:`, String(error)));
+      } else {
+        await client.unsafe(statement);
+      }
+    }
+  }
+
+  // Team contacts (drizzle/0016) add columns only, so the file is skipped once its last column exists. Its two
+  // updates move contacts that phase 2 filed under the card holder, and must run once, not on every start.
+  const teamContacts = await client<{ column_name: string }[]>`
+    select column_name from information_schema.columns
+    where table_schema = current_schema() and table_name = 'contacts' and column_name = 'departmentId'`;
+  if (teamContacts.length === 0) {
+    for (const statement of TEAM_CONTACTS_SCHEMA_STATEMENTS) await client.unsafe(statement);
+  }
+
+  // Team analytics (drizzle/0017) add one setting to "workspaces". Skipped once the column exists.
+  const teamAnalytics = await client<{ column_name: string }[]>`
+    select column_name from information_schema.columns
+    where table_schema = current_schema() and table_name = 'workspaces' and column_name = 'leaderboardEnabled'`;
+  if (teamAnalytics.length === 0) {
+    for (const statement of TEAM_ANALYTICS_SCHEMA_STATEMENTS) await client.unsafe(statement);
+  }
+
+  // Team seats (drizzle/0020) add two settings to "workspaces". Skipped once the last column exists.
+  const teamSeats = await client<{ column_name: string }[]>`
+    select column_name from information_schema.columns
+    where table_schema = current_schema() and table_name = 'workspaces' and column_name = 'accessUntil'`;
+  if (teamSeats.length === 0) {
+    for (const statement of TEAM_SEATS_SCHEMA_STATEMENTS) await client.unsafe(statement);
+  }
 }
 
 export async function getDb() {
@@ -186,7 +256,7 @@ export async function getCardsByOwner(ownerUserId: number) {
   return db
     .select()
     .from(cards)
-    .where(eq(cards.ownerUserId, ownerUserId))
+    .where(and(eq(cards.ownerUserId, ownerUserId), isNull(cards.workspaceId)))
     .orderBy(desc(cards.updatedAt))
     .limit(OWNER_CARD_LIMIT);
 }
@@ -205,7 +275,7 @@ export async function getCardByIdForOwner(id: number, ownerUserId: number) {
   const result = await db
     .select()
     .from(cards)
-    .where(and(eq(cards.id, id), eq(cards.ownerUserId, ownerUserId)))
+    .where(and(eq(cards.id, id), eq(cards.ownerUserId, ownerUserId), isNull(cards.workspaceId)))
     .limit(1);
   return result[0];
 }
@@ -221,7 +291,8 @@ export async function getPublicCardBySlug(slug: string) {
       and(
         eq(cards.slug, slug),
         eq(cards.published, true),
-        isNull(cards.deletedAt)
+        isNull(cards.deletedAt),
+        isNull(cards.teamStatus)
       )
     )
     .limit(1);
@@ -275,7 +346,7 @@ export async function updateCard(
   await db
     .update(cards)
     .set({ ...input, updatedAt: new Date() })
-    .where(and(eq(cards.id, id), eq(cards.ownerUserId, ownerUserId)));
+    .where(and(eq(cards.id, id), eq(cards.ownerUserId, ownerUserId), isNull(cards.workspaceId)));
   return getCardByIdForOwner(id, ownerUserId);
 }
 
@@ -286,7 +357,7 @@ export async function deleteCard(id: number, ownerUserId: number) {
   return db.transaction(async tx => {
     const [card] = await tx
       .delete(cards)
-      .where(and(eq(cards.id, id), eq(cards.ownerUserId, ownerUserId)))
+      .where(and(eq(cards.id, id), eq(cards.ownerUserId, ownerUserId), isNull(cards.workspaceId)))
       .returning();
     if (!card) return undefined;
     await tx.delete(references).where(eq(references.cardId, id));
@@ -339,6 +410,10 @@ export async function createReference(input: InsertReference) {
   return result[0];
 }
 
+// A person's own contacts. Contacts collected through a company card ("workspaceId" set) belong to the team and
+// are reached through server/teams/contactsRouter.ts, so every personal read and write leaves them out.
+const personalContact = (ownerUserId: number) => and(eq(contacts.ownerUserId, ownerUserId), isNull(contacts.workspaceId));
+
 /** Newest first, keyset-paginated on id so pages stay stable while new contacts arrive. */
 export async function getContactsByOwner(
   ownerUserId: number,
@@ -348,11 +423,8 @@ export async function getContactsByOwner(
   const db = await getDb();
   if (!db) return { items: [], nextCursor: null };
   const where = options.cursor
-    ? and(
-        eq(contacts.ownerUserId, ownerUserId),
-        lt(contacts.id, options.cursor)
-      )
-    : eq(contacts.ownerUserId, ownerUserId);
+    ? and(personalContact(ownerUserId), lt(contacts.id, options.cursor))
+    : personalContact(ownerUserId);
   const rows = await db
     .select()
     .from(contacts)
@@ -387,7 +459,7 @@ export async function deleteContact(id: number, ownerUserId: number) {
   if (!db) throw new Error("Database unavailable");
   await db
     .delete(contacts)
-    .where(and(eq(contacts.id, id), eq(contacts.ownerUserId, ownerUserId)));
+    .where(and(eq(contacts.id, id), personalContact(ownerUserId)));
   return true;
 }
 
@@ -406,7 +478,7 @@ export async function updateContact(
   const result = await db
     .update(contacts)
     .set(input)
-    .where(and(eq(contacts.id, id), eq(contacts.ownerUserId, ownerUserId)))
+    .where(and(eq(contacts.id, id), personalContact(ownerUserId)))
     .returning();
   return result[0];
 }
@@ -417,7 +489,7 @@ export async function markContactsSeen(ownerUserId: number) {
   const result = await db
     .update(contacts)
     .set({ seenAt: new Date() })
-    .where(and(eq(contacts.ownerUserId, ownerUserId), isNull(contacts.seenAt)))
+    .where(and(personalContact(ownerUserId), isNull(contacts.seenAt)))
     .returning({ id: contacts.id });
   return result.length;
 }
@@ -452,6 +524,7 @@ export async function getInsightsRows(ownerUserId: number, since: Date) {
     .where(
       and(
         eq(cards.ownerUserId, ownerUserId),
+        isNull(cards.workspaceId),
         gte(analyticsEvents.createdAt, since)
       )
     )

@@ -32,6 +32,35 @@ export async function sendMail(message: MailMessage): Promise<boolean> {
 const escapeHtml = (value: string) =>
   value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
+export type TeamInviteMail = {
+  to: string;
+  workspaceName: string;
+  inviterName: string | null;
+  role: string;
+  inviteUrl: string;
+};
+
+/** The invitation to join a team. The link in it is the only copy of the invitation token. */
+export function teamInviteMail(input: TeamInviteMail): MailMessage {
+  const oneLine = (value: string, max: number) => value.replace(/[\r\n]+/g, " ").trim().slice(0, max);
+  const team = oneLine(input.workspaceName, 80) || "a team";
+  const inviter = oneLine(input.inviterName ?? "", 80) || "Someone";
+  const text = [
+    `${inviter} invited you to join ${team} on heyitsme as ${input.role === "admin" ? "an admin" : "a member"}.`,
+    "",
+    `Accept the invitation: ${input.inviteUrl}`,
+    "",
+    "Sign in with this email address to accept. The link works for 7 days.",
+    "If you were not expecting this, you can ignore this email.",
+  ].join("\n");
+  const html = [
+    `<p>${escapeHtml(inviter)} invited you to join <strong>${escapeHtml(team)}</strong> on heyitsme as ${input.role === "admin" ? "an admin" : "a member"}.</p>`,
+    `<p><a href="${escapeHtml(input.inviteUrl)}">Accept the invitation</a></p>`,
+    "<p>Sign in with this email address to accept. The link works for 7 days.<br>If you were not expecting this, you can ignore this email.</p>",
+  ].join("\n");
+  return { to: input.to, subject: `Join ${team} on heyitsme`, text, html };
+}
+
 export type NewContactMail = {
   to: string;
   cardName: string;

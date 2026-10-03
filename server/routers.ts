@@ -36,6 +36,13 @@ import {
 } from "./db";
 import { buildInsights, INSIGHTS_RANGES, insightsSince } from "./insights";
 import { billingRouter } from "./billing/router";
+import { teamsRouter } from "./teams/router";
+import { teamCardsRouter, teamDepartmentsRouter } from "./teams/cardsRouter";
+import { teamBrandRouter, teamRequestsRouter, teamTemplatesRouter } from "./teams/brandRouter";
+import { teamAnalyticsRouter } from "./teams/analyticsRouter";
+import { teamContactFields, teamContactsRouter } from "./teams/contactsRouter";
+import { publicEventRouter, teamEventsRouter } from "./teams/eventsRouter";
+import { cardTeamExtras, teamAssetsRouter, teamBannersRouter, teamKitRouter } from "./teams/kitRouter";
 import {
   advancedInsights,
   campaignForCard,
@@ -88,7 +95,7 @@ type ContactNotice = {
 
 /** Emails the card owner about a new contact. The contact is already saved, so nothing here may throw. */
 async function notifyOwnerOfContact(
-  card: { ownerUserId: number; displayName: string },
+  card: { ownerUserId: number; displayName: string; contactsPath?: string },
   contact: ContactNotice,
   origin: string
 ) {
@@ -102,7 +109,7 @@ async function notifyOwnerOfContact(
         name: contact.name,
         email: contact.email,
         phone: contact.phone,
-        contactsUrl: `${origin}/app/contacts`,
+        contactsUrl: `${origin}${card.contactsPath ?? "/app/contacts"}`,
       })
     );
   } catch (error) {
@@ -270,6 +277,19 @@ const requestLimit = z.number().int().min(1).max(100_000_000);
 
 export const appRouter = router({
   billing: billingRouter,
+  teams: teamsRouter,
+  teamCards: teamCardsRouter,
+  teamDepartments: teamDepartmentsRouter,
+  teamBrand: teamBrandRouter,
+  teamTemplates: teamTemplatesRouter,
+  teamRequests: teamRequestsRouter,
+  teamContacts: teamContactsRouter,
+  teamAnalytics: teamAnalyticsRouter,
+  teamEvents: teamEventsRouter,
+  publicEvent: publicEventRouter,
+  teamAssets: teamAssetsRouter,
+  teamBanners: teamBannersRouter,
+  teamKit: teamKitRouter,
   qrCampaigns: qrCampaignRouter,
   system: systemRouter,
   admin: router({
@@ -675,14 +695,18 @@ export const appRouter = router({
         }
         // null, not undefined: a missing slug is an empty result. undefined makes the client treat it as a failed query.
         if (!card) return null;
-        const [refs, acceptsDetails] = await Promise.all([
+        const [refs, team, acceptsDetails] = await Promise.all([
           getReferencesByCard(card.id, true),
+          cardTeamExtras(card),
           card.id === DEMO_CARD_ID
             ? true
             : leadCaptureOpen(card.ownerUserId).catch(() => true),
         ]);
         // acceptsDetails false: the owner's free lead quota is used up, so the page offers direct contact instead of the form.
-        return { ...card, references: refs, acceptsDetails };
+        // Which team a card belongs to, and who holds it, is not the public's business.
+        const { workspaceId: _team, assignedUserId: _holder, teamStatus: _status, ...shown } = card;
+        // team: the banners and company files this card shows, or null. Never the team itself.
+        return { ...shown, references: refs, acceptsDetails, team };
       }),
     exchange: publicProcedure
       .input(
@@ -725,13 +749,18 @@ export const appRouter = router({
           };
         }
         const card = await getCardById(input.cardId);
-        if (!card || !card.published || card.deletedAt)
+        if (!card || !card.published || card.deletedAt || card.teamStatus)
           throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
         const campaign = await campaignForCard(input.campaignId, card.id);
+        // A company card's contact belongs to the team: it is held in the team owner's name, like the card,
+        // and assigned to the person holding the card. It never enters anyone's personal contacts.
+        const team = card.workspaceId ? await teamContactFields({ workspaceId: card.workspaceId, assignedUserId: card.assignedUserId }) : null;
+        const receiverUserId: number = card.assignedUserId ?? card.ownerUserId;
         const contact = await withLeadQuota(card.ownerUserId, () =>
           createContact({
             campaignId: campaign?.id ?? null,
             ownerUserId: card.ownerUserId,
+            ...team,
             cardId: input.cardId,
             name: input.name,
             email: input.email ?? null,
@@ -744,7 +773,11 @@ export const appRouter = router({
           })
         );
         await recordAnalytics(input.cardId, "save", "exchange_form");
-        await notifyOwnerOfContact(card, contact, siteOrigin(ctx.req));
+        await notifyOwnerOfContact(
+          { ownerUserId: receiverUserId, displayName: card.displayName, contactsPath: card.workspaceId ? `/app/team/${card.workspaceId}` : undefined },
+          contact,
+          siteOrigin(ctx.req)
+        );
         return contact;
       }),
     // Fire-and-forget visitor actions for the owner's Insights. Public, like views, so counts are best-effort.
@@ -765,7 +798,7 @@ export const appRouter = router({
         );
         if (!limit.allowed) return { ok: false };
         const card = await getCardById(input.cardId);
-        if (!card || !card.published || card.deletedAt) return { ok: false };
+        if (!card || !card.published || card.deletedAt || card.teamStatus) return { ok: false };
         await recordAnalytics(card.id, input.type, input.target || undefined);
         return { ok: true };
       }),

@@ -101,7 +101,7 @@ export async function getUserEntitlements(db: Db, user: { id: number; email: str
 }
 
 export async function countOwnedCards(db: Db, ownerUserId: number) {
-  const [row] = await db.select({ n: count() }).from(cards).where(and(eq(cards.ownerUserId, ownerUserId), isNull(cards.deletedAt)));
+  const [row] = await db.select({ n: count() }).from(cards).where(and(eq(cards.ownerUserId, ownerUserId), isNull(cards.deletedAt), isNull(cards.workspaceId)));
   return Number(row?.n ?? 0);
 }
 

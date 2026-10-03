@@ -895,3 +895,11 @@
 
 .lx-website-placeholder { display: grid; gap: 6px; padding: 12px; text-align: center; overflow-wrap: anywhere; }
 .lx-website-placeholder small { font-size: 12px; font-weight: 400; }
+/* Company cards: a running announcement, and the files the company approved. */
+.lx-team-banner { display: grid; gap: 8px; }
+.lx-team-banner h2 { font: 650 clamp(19px, 2.6cqi, 24px)/1.25 var(--sans); letter-spacing: -.015em; overflow-wrap: anywhere; }
+.lx-team-banner p { opacity: .86; white-space: pre-line; overflow-wrap: anywhere; }
+.lx-team-banner .lx-btn { justify-self: start; margin-top: 6px; max-width: 100%; }
+.lx-team-files ul { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.lx-team-files li { max-width: 100%; }
+.lx-team-files .lx-btn { max-width: 100%; height: auto; min-height: 44px; white-space: normal; overflow-wrap: anywhere; text-align: left; }

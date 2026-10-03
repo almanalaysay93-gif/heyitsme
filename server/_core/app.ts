@@ -3,7 +3,9 @@ import express, { type ErrorRequestHandler, type Express, type RequestHandler } 
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerPaymentRoutes } from "../billing/paymentRoutes";
-import { registerSeoRoutes, logJson } from "./seo";
+import QRCode from "qrcode";
+import { registerSeoRoutes, logJson, siteOrigin } from "./seo";
+import { getPublicCardBySlug } from "../db";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
@@ -62,6 +64,25 @@ export function createApp(): Express {
   registerOAuthRoutes(app);
   registerPaymentRoutes(app);
   registerSeoRoutes(app);
+  // The QR picture an email signature shows. Mail apps need a real image address, and this one only ever encodes
+  // the link of a published card, so it cannot be used to make a code for anything else.
+  app.get("/api/qr/c/:file", async (req, res) => {
+    const slug = /^([A-Za-z0-9_-]{1,120})\.png$/.exec(String(req.params.file ?? ""))?.[1];
+    if (!slug) return res.status(404).send("Not found.");
+    const limited = await rateLimit(`qr-image:${hashIdentifier(clientIp(req))}`, 120, 60_000);
+    if (!limited.allowed) return res.status(429).send("Please wait and try again.");
+    try {
+      const card = await getPublicCardBySlug(slug);
+      if (!card) return res.status(404).send("Not found.");
+      const png = await QRCode.toBuffer(`${siteOrigin(req)}/c/${card.slug}?source=signature`, { errorCorrectionLevel: "M", width: 336, margin: 2 });
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      return res.send(png);
+    } catch (error) {
+      logJson("error", "qr image failed", { error: String(error) });
+      return res.status(503).send("Temporarily unavailable.");
+    }
+  });
   app.get("/api/google-reviews/:slug/write", async (req, res) => {
     const slug = String(req.params.slug ?? "");
     if (!/^[A-Za-z0-9_-]{1,24}$/.test(slug)) return res.status(404).send("Review page not found.");

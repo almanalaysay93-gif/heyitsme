@@ -268,6 +268,7 @@ export default function PublicCardPage() {
         card={demoTheme ? { ...card, theme: demoTheme } : card}
         config={config}
         references={references}
+        team={rawCard?.team ?? null}
         googleReview={googleReview.data}
         interactive
         canExchange={canExchange}

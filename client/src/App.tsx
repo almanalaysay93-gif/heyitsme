@@ -19,7 +19,13 @@ const FaqPage = lazyRoute(() => import("./pages/Info").then((m) => ({ default: m
 const PricingPage = lazyRoute(() => import("./pages/Pricing"));
 const GoogleReviewsPage = lazyRoute(() => import("./pages/GoogleReviews"));
 const AdminGoogleApiPage = lazyRoute(() => import("./pages/AdminGoogleApi"));
+const AdminTeamsPage = lazyRoute(() => import("./pages/AdminTeams"));
+// Team screens load only on /app/team, never with a public card.
+const TeamHomePage = lazyRoute(() => import("./pages/Team").then((m) => ({ default: m.TeamHome })));
+const TeamWorkspacePage = lazyRoute(() => import("./pages/Team").then((m) => ({ default: m.TeamWorkspace })));
+const TeamJoinPage = lazyRoute(() => import("./pages/Team").then((m) => ({ default: m.TeamJoin })));
 const PublicReviewPage = lazyRoute(() => import("./pages/PublicReview"));
+const PublicEventPage = lazyRoute(() => import("./pages/PublicEvent"));
 
 function RouteLoading() {
   return <div className="loading-screen" role="status" aria-label="Loading"><LogoLoader /></div>;
@@ -42,7 +48,12 @@ function Router() {
         <Route path="/app/billing" component={Home} />
         <Route path="/app/google-reviews" component={GoogleReviewsPage} />
         <Route path="/app/admin/google-api" component={AdminGoogleApiPage} />
+        <Route path="/app/admin/teams" component={AdminTeamsPage} />
+        <Route path="/app/team" component={TeamHomePage} />
+        <Route path="/app/team/join/:token" component={TeamJoinPage} />
+        <Route path="/app/team/:id" component={TeamWorkspacePage} />
         <Route path="/r/:slug" component={PublicReviewPage} />
+        <Route path="/event/:slug" component={PublicEventPage} />
         <Route path="/c/:slug" component={PublicCardPage} />
         <Route path="/privacy" component={PrivacyPage} />
         <Route path="/terms" component={TermsPage} />

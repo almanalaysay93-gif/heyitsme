@@ -1,4 +1,4 @@
-import { and, eq, gte, ne, sql } from "drizzle-orm";
+import { and, eq, gte, isNull, ne, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { cards, googleReviewEvents, googleReviewPages, users } from "../drizzle/schema";
 import { getDb } from "./db";
@@ -51,7 +51,7 @@ export async function connectReviewPage(cardId: number, ownerId: number, place: 
     const [owner] = await tx.select({ id: users.id, email: users.email }).from(users).where(eq(users.id, ownerId)).for("update").limit(1);
     if (!owner) return null;
     const plan = (await getUserEntitlements(tx, owner)).plan;
-    const [card] = await tx.select().from(cards).where(and(eq(cards.id, cardId), eq(cards.ownerUserId, ownerId))).limit(1);
+    const [card] = await tx.select().from(cards).where(and(eq(cards.id, cardId), eq(cards.ownerUserId, ownerId), isNull(cards.workspaceId))).limit(1);
     if (!card || card.deletedAt) return null;
     const [other] = await tx.select({ id: googleReviewPages.id }).from(googleReviewPages).where(and(eq(googleReviewPages.ownerUserId, ownerId), ne(googleReviewPages.cardId, cardId), eq(googleReviewPages.enabled, true))).limit(1);
     if (!canConnectBusiness(plan, Boolean(other))) throw new ReviewPlanLimitError();
