@@ -747,6 +747,12 @@ function Workspace() {
         <nav>
           <NavItem label="Google Reviews" icon={QrCode} onClick={() => { navigate("/app/google-reviews"); setMobileNavOpen(false); }} />
         </nav>
+        {user?.role === "admin" ? <>
+          <div className="nav-section-label nav-section-spaced">Admin</div>
+          <nav>
+            <NavItem label="Google API Usage" icon={BarChart3} onClick={() => { navigate("/app/admin/google-api"); setMobileNavOpen(false); }} />
+          </nav>
+        </> : null}
         <div className="sidebar-bottom">
           {isAuthenticated && plan === "free" ? (
             <button type="button" className="free-pod plan-pod" onClick={() => openUpgrade("general")}>

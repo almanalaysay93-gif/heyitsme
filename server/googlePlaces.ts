@@ -28,9 +28,9 @@ async function readGoogle(response: Response) {
   return response.json();
 }
 
-export async function searchBusinesses(input: string, sessionToken: string, caller?: PlacesCaller) {
+export async function searchBusinesses(input: string, sessionToken: string, caller: PlacesCaller) {
   const apiKey = key();
-  if (caller) await recordPlacesRequest("autocomplete", { ...caller, sessionId: sessionToken });
+  await recordPlacesRequest("autocomplete", { ...caller, sessionId: sessionToken });
   const response = await fetch(`${base}/places:autocomplete`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Goog-Api-Key": apiKey },
@@ -45,11 +45,11 @@ export async function searchBusinesses(input: string, sessionToken: string, call
   }] : []);
 }
 
-export async function getPlaceDetails(id: string, sessionToken?: string, caller?: PlacesCaller): Promise<Place> {
+export async function getPlaceDetails(id: string, sessionToken: string, caller: PlacesCaller): Promise<Place> {
   const apiKey = key();
-  if (caller) await recordPlacesRequest("place_details", { ...caller, sessionId: sessionToken });
+  await recordPlacesRequest("place_details", { ...caller, sessionId: sessionToken });
   const url = new URL(`${base}/places/${encodeURIComponent(id)}`);
-  if (sessionToken) url.searchParams.set("sessionToken", sessionToken);
+  url.searchParams.set("sessionToken", sessionToken);
   const response = await fetch(url, {
     headers: { "X-Goog-Api-Key": apiKey, "X-Goog-FieldMask": fields },
     signal: AbortSignal.timeout(8000),

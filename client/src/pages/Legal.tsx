@@ -98,8 +98,9 @@ export function PrivacyPage() {
       <h3>Google Review pages</h3>
       <p>
         If you connect a business, we send your search and selected business to Google Maps to find its listing.
-        We store its place ID and use the name from your card on the review page.
-        We get the current Google review link when a visitor selects the review button.
+        When you confirm it, we save its place ID, name, address, location, category, rating, review count, and Google links.
+        We show the saved details on your review page until you reconnect or disconnect the business.
+        Visitors who open your review page or select the review button do not trigger a Google Maps lookup.
         We record page visits, QR and NFC use, Google button clicks, and customer completion confirmations as anonymous totals.
         A completion confirmation does not prove that Google published a review.
       </p>

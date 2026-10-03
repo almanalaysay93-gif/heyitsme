@@ -18,6 +18,7 @@ const AboutPage = lazyRoute(() => import("./pages/Info").then((m) => ({ default:
 const FaqPage = lazyRoute(() => import("./pages/Info").then((m) => ({ default: m.FaqPage })));
 const PricingPage = lazyRoute(() => import("./pages/Pricing"));
 const GoogleReviewsPage = lazyRoute(() => import("./pages/GoogleReviews"));
+const AdminGoogleApiPage = lazyRoute(() => import("./pages/AdminGoogleApi"));
 const PublicReviewPage = lazyRoute(() => import("./pages/PublicReview"));
 
 function RouteLoading() {
@@ -40,6 +41,7 @@ function Router() {
         <Route path="/app/insights" component={Home} />
         <Route path="/app/billing" component={Home} />
         <Route path="/app/google-reviews" component={GoogleReviewsPage} />
+        <Route path="/app/admin/google-api" component={AdminGoogleApiPage} />
         <Route path="/r/:slug" component={PublicReviewPage} />
         <Route path="/c/:slug" component={PublicCardPage} />
         <Route path="/privacy" component={PrivacyPage} />
