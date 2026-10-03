@@ -5,7 +5,7 @@ import { usePageMeta } from "@/hooks/usePageMeta";
 import type { ReactNode } from "react";
 import { Link } from "wouter";
 
-const LAST_UPDATED = "September 28, 2026";
+const LAST_UPDATED = "October 3, 2026";
 
 export function ContactLine() {
   return SUPPORT_EMAIL ? (
@@ -255,8 +255,8 @@ export function TermsPage() {
       <h2>Paid plans</h2>
       <p>
         Prices are in Philippine pesos and include the features listed on the
-        pricing page when you buy. A yearly plan is paid once and covers twelve
-        months from the confirmed payment. Pro starts when 2C2P confirms your
+        pricing page when you buy. Pro is paid monthly. Each payment covers one
+        month from the confirmed payment. Pro starts when 2C2P confirms your
         payment to us, not when your browser returns from the payment page. You
         can cancel from Billing at any time; your plan stays on until the end of
         the period you paid for, then your account moves to Free. Moving to Free

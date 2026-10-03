@@ -688,7 +688,10 @@
     display: flex; gap: 8px; padding: 8px;
     background: var(--glass-fill-strong);
     border-radius: 999px;
+    visibility: hidden; opacity: 0; transform: translateY(12px);
+    transition: opacity .2s ease, transform .2s ease, visibility 0s linear .2s;
   }
+  .lx-dock.is-shown { visibility: visible; opacity: 1; transform: none; transition-delay: 0s; }
   .lx-dock .lx-btn { min-height: 44px; }
   .lx-dock .lx-btn-primary { flex: 1; }
   .lx-dock .lx-btn-ghost { width: 44px; padding: 0; }

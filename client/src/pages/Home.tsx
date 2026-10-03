@@ -87,6 +87,7 @@ import {
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
+import { InfoDialog } from "@/components/InfoDialog";
 import { isPlanLimitError, PLAN_LABELS, UpgradeProvider, useBilling, useUpgrade } from "@/lib/billing";
 import "@/components/billing/billing.css";
 
@@ -199,6 +200,7 @@ function Workspace() {
   const [draft, setDraft] = useState<CardDraft>(() => readPreviewCard() ?? createClientDraft());
   const [initialDraftBaseline, setInitialDraftBaseline] = useState<string>(() => JSON.stringify(readPreviewCard() ?? createClientDraft()));
   const [showShare, setShowShare] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
   const [sharingCard, setSharingCard] = useState<CardDraft | null>(null);
   const [showGuestPublishModal, setShowGuestPublishModal] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -831,6 +833,7 @@ function Workspace() {
               <HomeIcon size={17} />
             </button>
             {isAuthenticated ? (
+              <>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
@@ -852,10 +855,8 @@ function Workspace() {
                   </div>
                   <DropdownMenuSeparator />
                   {SUPPORT_EMAIL ? (
-                    <DropdownMenuItem asChild>
-                      <a href={`mailto:${SUPPORT_EMAIL}?subject=heyitsme%20Support`} className="account-menu-link">
-                        <Mail size={14} /> Help & support
-                      </a>
+                    <DropdownMenuItem onSelect={() => setSupportOpen(true)} className="account-menu-link">
+                      <Mail size={14} /> Help & support
                     </DropdownMenuItem>
                   ) : (
                     <DropdownMenuItem asChild>
@@ -884,6 +885,17 @@ function Workspace() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              <InfoDialog
+                open={supportOpen}
+                onOpenChange={setSupportOpen}
+                title="Contact support"
+                description="Email us and we'll reply as soon as we can."
+                value={SUPPORT_EMAIL}
+                copyLabel="Copy email address"
+                copiedLabel="Email address copied."
+                action={{ label: "Open email app", href: `mailto:${SUPPORT_EMAIL}?subject=heyitsme%20support` }}
+              />
+              </>
             ) : null}
           </div>
         </header>

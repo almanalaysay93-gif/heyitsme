@@ -42,19 +42,19 @@ export const DEMO_CARD: DemoCardData = {
   phone: "+1 555-0100",
   location: "San Francisco, CA",
   bio: "I help small teams find the one sentence and visual craft that makes their brand click.",
-  links: JSON.stringify(["https://example.com"]),
+  links: JSON.stringify(["https://heyitsme.fyi"]),
   portfolio: JSON.stringify([
     {
       id: "demo-item-1",
       kind: "link",
       title: "Brand identity systems",
-      url: "https://example.com/work",
+      url: "https://heyitsme.fyi/about",
       description: "Selected visual craft and identity guidelines",
     },
   ]),
   channels: JSON.stringify([
-    { provider: "linkedin", url: "https://linkedin.com/in/example", label: "LinkedIn" },
-    { provider: "instagram", url: "https://instagram.com/example", label: "Instagram" },
+    { provider: "linkedin", url: "https://www.linkedin.com", label: "LinkedIn" },
+    { provider: "instagram", url: "https://www.instagram.com", label: "Instagram" },
   ]),
   theme: "midnight",
   logoUrl: null,
@@ -67,7 +67,7 @@ export const DEMO_CARD: DemoCardData = {
   page: JSON.stringify({
     template: "professional",
     headline: "Brand systems for small teams",
-    cta: { label: "Book an intro call", url: "https://example.com/book" },
+    cta: { label: "Book an intro call", url: "https://heyitsme.fyi/pricing" },
     stats: [
       { value: "12 yrs", label: "Brand & identity work" },
       { value: "140+", label: "Launches shipped" },
@@ -88,8 +88,8 @@ export const DEMO_CARD: DemoCardData = {
       { name: "Jordan Lee", role: "Studio Lead", phone: "+1 555-0102", email: "jordan@example.com" },
     ],
     links: [
-      { title: "Client Portal", url: "https://example.com/portal", description: "Project dashboard & file downloads" },
-      { title: "Brand Guidelines", url: "https://example.com/guidelines", description: "Design kit & brand identity" },
+      { title: "Client Portal", url: "https://heyitsme.fyi/faq", description: "Project dashboard & file downloads" },
+      { title: "Brand Guidelines", url: "https://heyitsme.fyi/about", description: "Design kit & brand identity" },
     ],
   }),
   slug: DEMO_SLUG,

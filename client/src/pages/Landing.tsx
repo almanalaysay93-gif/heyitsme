@@ -32,6 +32,7 @@ import { LegalLinks } from "@/components/LegalLinks";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { themeOptions, type CardDraft } from "@/lib/card";
+import { formatPeso, PLAN_LIMITS, PRICES_MINOR } from "@shared/plans";
 
 const ShareDemo = lazy(() => import("@/components/ShareDemo").then((m) => ({ default: m.ShareDemo })));
 
@@ -44,7 +45,7 @@ const demoCard: CardDraft = {
   phone: "+1 555-0100",
   location: "San Francisco, CA",
   bio: "I help small teams find the one sentence that makes their brand click.",
-  links: JSON.stringify(["https://example.com"]),
+  links: JSON.stringify(["https://heyitsme.fyi"]),
   portfolio: "[]",
   channels: "[]",
   theme: "midnight",
@@ -455,8 +456,8 @@ export default function Landing() {
             {[
               "Free: one card, QR code and NFC-ready link",
               "Free: 10 new leads a month, 7 days of insights",
-              "Pro ₱149/month or ₱1,290/year",
-              "Pro: up to 3 cards and unlimited leads",
+              `Pro ${formatPeso(PRICES_MINOR.pro.monthly)}/month`,
+              `Pro: up to ${PLAN_LIMITS.pro.cards} cards and unlimited leads`,
               "Pro: a year of insights, branding removable",
               "Teams: one brand across your whole team, coming soon",
             ].map((item, index) => (

@@ -312,3 +312,6 @@
 .lx-designed[data-animation="none"] *::after {
   animation: none !important;
 }
+.design-grid + .design-grid {
+  margin-top: 12px;
+}

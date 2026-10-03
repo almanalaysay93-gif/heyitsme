@@ -47,7 +47,7 @@ export default function PublicCardPage() {
   }, [cardQuery.data?.id, campaignId]);
   const [showForm, setShowForm] = useState(false);
   const [manualCopy, setManualCopy] = useState(false);
-  const [demoAction, setDemoAction] = useState<"booking" | "phone" | null>(
+  const [demoAction, setDemoAction] = useState<"booking" | "phone" | "link" | null>(
     null
   );
   const [sent, setSent] = useState(false);
@@ -295,10 +295,12 @@ export default function PublicCardPage() {
         onOpenChange={open => {
           if (!open) setDemoAction(null);
         }}
-        title={demoAction === "phone" ? "Demo phone number" : "Demo booking"}
+        title={demoAction === "phone" ? "Demo phone number" : demoAction === "link" ? "Demo link" : "Demo booking"}
         description={
           demoAction === "phone"
             ? "This is a fictional number, so nothing is dialled. On a real card, tapping it opens your phone app to call or text the owner."
+            : demoAction === "link"
+            ? "Alex Morgan is a made-up person, so this link goes nowhere. On a real card, it opens the owner's website, work, or social profile."
             : "Nothing was booked. On a real card, this button opens the owner's own booking page, like Calendly or Cal.com."
         }
       />

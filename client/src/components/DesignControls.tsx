@@ -7,16 +7,18 @@ import {
   THEMES,
   designSchema,
   designReadable,
+  fontStack,
   gradientCss,
   qrSchema,
   type CardDesign,
 } from "@shared/design";
 import type { PageConfig } from "@shared/pageConfig";
 import { useBilling, useUpgrade } from "@/lib/billing";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { QrPreview } from "./QrPreview";
 import "./proDesign.css";
 import { useAuth } from "@/_core/hooks/useAuth";
+import "./proFonts.css";
 
 function HexField({
   value,
@@ -45,6 +47,15 @@ function HexField({
     />
   );
 }
+
+const FONT_PRESETS = [
+  ["Modern", "DM Sans"],
+  ["Professional", "Arial"],
+  ["Editorial", "Instrument Serif"],
+  ["Minimal", "DM Sans"],
+  ["Bold", "Space Grotesk"],
+  ["Elegant", "Playfair Display"],
+] as const;
 
 export function DesignControls({
   config,
@@ -96,7 +107,9 @@ export function DesignControls({
     items: readonly string[],
     current: string,
     select: (v: any, i: number) => void,
-    freeCount = 0
+    freeCount = 0,
+    inOwnFont = false,
+    extra?: ReactNode
   ) => (
     <details className="design-section">
       <summary>{label}</summary>
@@ -108,19 +121,25 @@ export function DesignControls({
             aria-pressed={current === item}
             onClick={() => select(item, i)}
           >
-            {item.replaceAll("-", " ")}
+            {/* Font names are drawn in their own typeface, so the list doubles as a sample. */}
+            {inOwnFont ? (
+              <span style={{ fontFamily: fontStack(item) }}>{item}</span>
+            ) : (
+              item.replaceAll("-", " ")
+            )}
             {i >= freeCount ? (
               <small className="plan-chip plan-chip-pro">PRO</small>
             ) : null}
           </button>
         ))}
       </div>
+      {extra}
     </details>
   );
   return (
     <div className="pro-design">
       <h2>Design</h2>
-      <p>Preview changes instantly. Premium choices stay visible.</p>
+      <p>Free choices preview instantly. Choices marked PRO need a Pro plan.</p>
       <details className="design-section" open>
         <summary>Theme</summary>
         <div className="design-grid">
@@ -214,6 +233,8 @@ export function DesignControls({
           Direction
           <select
             value={d.direction}
+            disabled={d.colors.length < 2}
+            title={d.colors.length < 2 ? "Pick a gradient first" : undefined}
             onChange={e =>
               choose(
                 { direction: e.target.value as CardDesign["direction"] },
@@ -232,43 +253,23 @@ export function DesignControls({
         FONTS,
         d.font,
         (font, i) => choose({ font }, i > 2),
-        3
+        3,
+        true,
+        <div className="design-grid">
+          {FONT_PRESETS.map(([name, font], i) => (
+            <button
+              type="button"
+              key={name}
+              onClick={() => choose({ font }, i === 2 || i > 3)}
+            >
+              <span style={{ fontFamily: fontStack(font) }}>{name}</span>
+              {i === 2 || i > 3 ? (
+                <small className="plan-chip plan-chip-pro">PRO</small>
+              ) : null}
+            </button>
+          ))}
+        </div>
       )}
-      <div className="design-grid">
-        {[
-          "Modern",
-          "Professional",
-          "Editorial",
-          "Minimal",
-          "Bold",
-          "Elegant",
-        ].map((name, i) => (
-          <button
-            type="button"
-            key={name}
-            onClick={() =>
-              choose(
-                {
-                  font: (
-                    [
-                      "DM Sans",
-                      "Arial",
-                      "Instrument Serif",
-                      "DM Sans",
-                      "Space Grotesk",
-                      "Playfair Display",
-                    ] as const
-                  )[i],
-                },
-                i === 2 || i > 3
-              )
-            }
-          >
-            {name}
-            {i === 2 || i > 3 ? <small>PRO</small> : null}
-          </button>
-        ))}
-      </div>
       {options(
         "Button style",
         ["solid", "outline", "glass"],
@@ -294,6 +295,8 @@ export function DesignControls({
         Intensity
         <select
           value={d.animation.intensity}
+          disabled={d.animation.preset === "none"}
+          title={d.animation.preset === "none" ? "Pick an animation first" : undefined}
           onChange={e =>
             choose(
               {

@@ -48,7 +48,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import "./cardLanding.css";
-import { renderedBackground } from "@shared/design";
+import { fontStack, renderedBackground } from "@shared/design";
 import { QrPreview } from "./QrPreview";
 import "./proDesign.css";
 import "./proFonts.css";
@@ -85,7 +85,7 @@ export type CardLandingProps = {
   shareLabel?: string;
   onCopyLink: () => void;
   /** Demo card only: booking and phone actions explain themselves instead of leaving the page. */
-  onDemoAction?: (kind: "booking" | "phone") => void;
+  onDemoAction?: (kind: "booking" | "phone" | "link") => void;
   track: Track;
 };
 
@@ -155,8 +155,8 @@ export function CardLanding(props: CardLandingProps) {
   // Only the form depends on the quota. Save contact, QR and links always work.
   const showExchange = canExchange && props.acceptsDetails !== false;
   const branded = !config.hideBranding;
-  // On the demo, placeholder booking links and the fictional phone number open an explanation, not a blank tab or a call.
-  const demoClick = (kind: "booking" | "phone") =>
+  // On the demo, placeholder links and the fictional phone number open an explanation, not a blank tab or a call.
+  const demoClick = (kind: "booking" | "phone" | "link") =>
     onDemoAction ? (event: { preventDefault: () => void }) => { event.preventDefault(); onDemoAction(kind); } : undefined;
   const design = config.design;
   const motionEnabled =
@@ -170,6 +170,17 @@ export function CardLanding(props: CardLandingProps) {
 
   const press = usePressProps(interactive) as any;
   const rootRef = useRef<HTMLDivElement>(null);
+  // The phone dock repeats the hero buttons, so it stays away until those have scrolled off the top.
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const [dockShown, setDockShown] = useState(false);
+  useEffect(() => {
+    const node = actionsRef.current;
+    if (!interactive || !node) return;
+    if (typeof IntersectionObserver === "undefined") { setDockShown(true); return; }
+    const observer = new IntersectionObserver(([entry]) => setDockShown(!entry.isIntersecting && entry.boundingClientRect.top < 0));
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [interactive, config.template]);
   const heroRef = useRef<HTMLElement>(null);
   const parallax = useHeroParallax(
     heroRef,
@@ -210,8 +221,8 @@ export function CardLanding(props: CardLandingProps) {
           "--design-ink": design.text,
           "--design-button": design.button,
           "--design-button-text": design.buttonText,
-          "--design-heading": `"${design.headingFont ?? design.font}", Georgia, serif`,
-          "--design-font": `"${design.font}", ${design.font.includes("Serif") || design.font === "Georgia" ? "Georgia, serif" : "Arial, sans-serif"}`,
+          "--design-heading": fontStack(design.headingFont ?? design.font),
+          "--design-font": fontStack(design.font),
           "--design-radius":
             design.radius === "small"
               ? "8px"
@@ -283,7 +294,7 @@ export function CardLanding(props: CardLandingProps) {
   };
 
   const actions = (
-    <div className="lx-actions">
+    <div className="lx-actions" ref={actionsRef}>
       {cta ? (
         <motion.a className="lx-btn lx-btn-primary" href={cta.url} {...external(cta.url)} onClick={demoClick("booking") ?? (() => track("link", `CTA: ${cta.label}`))} {...press}>
           {cta.label} <ArrowUpRight size={16} aria-hidden="true" />
@@ -303,7 +314,7 @@ export function CardLanding(props: CardLandingProps) {
   const socials = channels.length && !resolveSections(config).find((section) => section.id === "contact")?.hidden ? (
     <div className="lx-socials">
       {channels.map((channel: ChannelItem, index: number) => (
-        <a key={`${channel.provider}-${index}`} href={channelHref(channel)} target="_blank" rel="noreferrer" aria-label={`${providerName(channel.provider)}: ${channelValue(channel)}`} onClick={() => track("link", channelLabel(channel))}>
+        <a key={`${channel.provider}-${index}`} href={channelHref(channel)} target="_blank" rel="noreferrer" aria-label={`${providerName(channel.provider)}: ${channelValue(channel)}`} onClick={demoClick("link") ?? (() => track("link", channelLabel(channel)))}>
           <ChannelIcon provider={channel.provider} />
           <span>{providerName(channel.provider)}</span>
         </a>
@@ -475,7 +486,7 @@ export function CardLanding(props: CardLandingProps) {
                     const href = toHref(item.url);
                     const shot = item.kind === "link" ? websiteShotRequest(item.url) : null;
                     return (
-                      <a className="lx-work" key={item.id} {...(href === "#" ? {} : { href, target: "_blank", rel: "noreferrer", onClick: () => track("link", `Work: ${item.title}`) })}>
+                      <a className="lx-work" key={item.id} {...(href === "#" ? {} : { href, target: "_blank", rel: "noreferrer", onClick: demoClick("link") ?? (() => track("link", `Work: ${item.title}`)) })}>
                         {item.kind === "video" ? (
                           <video className="lx-work-media" src={item.url} muted playsInline loop preload="metadata" onMouseEnter={(e) => void e.currentTarget.play().catch(() => undefined)} onMouseLeave={(e) => e.currentTarget.pause()} />
                         ) : shot && interactive ? (
@@ -584,7 +595,7 @@ export function CardLanding(props: CardLandingProps) {
                     const clean = item.url.replace(/^https?:\/\//, "").replace(/\/$/, "");
                     return (
                       <li key={`custom-link-${idx}`}>
-                        <a href={item.url} {...external(item.url)} onClick={() => track("link", item.title)}>
+                        <a href={item.url} {...external(item.url)} onClick={demoClick("link") ?? (() => track("link", item.title))}>
                           <Globe2 size={17} aria-hidden="true" />
                           <span>
                             <strong>{item.title}</strong>
@@ -610,7 +621,7 @@ export function CardLanding(props: CardLandingProps) {
             <ul className="lx-contact">
               {contactRows.map((row) => (
                 <li key={row.key}>
-                  <a href={row.href || undefined} {...external(row.href)} onClick={(row.key === "phone" && demoClick("phone")) || (() => track("link", row.target))}>
+                  <a href={row.href || undefined} {...external(row.href)} onClick={(row.key === "phone" && demoClick("phone")) || (row.key.startsWith("link-") && demoClick("link")) || (() => track("link", row.target))}>
                     <row.icon size={17} aria-hidden="true" />
                     <span><small>{row.label}</small><strong>{row.value}</strong></span>
                     <ArrowUpRight className="lx-row-arrow" size={16} aria-hidden="true" />
@@ -639,7 +650,7 @@ export function CardLanding(props: CardLandingProps) {
                   <ul className="lx-contact">
                     {group.items.map((channel: ChannelItem, index: number) => (
                       <li key={`row-${channel.provider}-${index}`}>
-                        <a href={channelHref(channel)} target="_blank" rel="noreferrer" onClick={() => track("link", channelLabel(channel))}>
+                        <a href={channelHref(channel)} target="_blank" rel="noreferrer" onClick={demoClick("link") ?? (() => track("link", channelLabel(channel)))}>
                           <ChannelIcon provider={channel.provider} />
                           <span><small>{providerName(channel.provider)}</small><strong>{channelValue(channel)}</strong></span>
                           <ArrowUpRight className="lx-row-arrow" size={16} aria-hidden="true" />
@@ -748,7 +759,7 @@ export function CardLanding(props: CardLandingProps) {
             <LegalLinks />
             {branded ? <a href="/">Make yours, free <ArrowUpRight size={13} aria-hidden="true" /></a> : null}
           </footer>
-          <div className="lx-dock" role="toolbar" aria-label="Quick actions">
+          <div className={`lx-dock${dockShown ? " is-shown" : ""}`} role="toolbar" aria-label="Quick actions">
             {cta ? (
               <a className="lx-btn lx-btn-primary" href={cta.url} {...external(cta.url)} onClick={demoClick("booking") ?? (() => track("link", `CTA: ${cta.label}`))}>{cta.label}</a>
             ) : (

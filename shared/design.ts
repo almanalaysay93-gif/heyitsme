@@ -55,6 +55,12 @@ export const FONTS = [
   "Poppins",
   "System Sans",
 ] as const;
+// The CSS family for a font choice. DM Sans is loaded under its variable-font name, and System Sans is no real family.
+export function fontStack(font: string) {
+  if (font === "System Sans") return "system-ui, sans-serif";
+  if (font === "DM Sans") return '"DM Sans Variable", "DM Sans", sans-serif';
+  return `"${font}", ${/Serif|Georgia|Playfair/.test(font) ? "Georgia, serif" : "Arial, sans-serif"}`;
+}
 export const ANIMATIONS = [
   "none",
   "fade-in",
