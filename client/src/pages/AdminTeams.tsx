@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { AppShell } from "@/components/AppShell";
 import { trpc } from "@/lib/trpc";
 import { MAX_SEAT_ALLOWANCE } from "@shared/teams";
 import { useState, type FormEvent } from "react";
@@ -51,17 +52,16 @@ export default function AdminTeams() {
   const isAdmin = user?.role === "admin";
   const teams = trpc.teams.adminList.useQuery(undefined, { enabled: isAdmin, retry: false });
 
-  if (loading || (isAdmin && teams.isLoading)) return <main className="gr-shell">Loading...</main>;
-  if (!isAdmin) return <main className="gr-shell"><h1>Not available</h1><p>This page is for heyitsme admins.</p><Link href="/app" className="gr-back">← Back to workspace</Link></main>;
-  if (!teams.data) return <main className="gr-shell"><h1>Teams</h1><p role="alert" className="gr-error">{teams.error?.message ?? "Teams could not be loaded."}</p></main>;
+  if (loading || (isAdmin && teams.isLoading)) return <AppShell area="Admin" crumb="Teams" active="admin-teams"><p role="status">Loading...</p></AppShell>;
+  if (!isAdmin) return <AppShell area="Admin" crumb="Teams" active="admin-teams"><h1>Not available</h1><p>This page is for heyitsme admins.</p><Link href="/app" className="gr-back">← Back to workspace</Link></AppShell>;
+  if (!teams.data) return <AppShell area="Admin" crumb="Teams" active="admin-teams"><h1>Teams</h1><p role="alert" className="gr-error">{teams.error?.message ?? "Teams could not be loaded."}</p></AppShell>;
 
-  return <main className="gr-shell" id="main">
-    <Link href="/app" className="gr-back">← Back to workspace</Link>
+  return <AppShell area="Admin" crumb="Teams" active="admin-teams">
     <header className="gr-heading"><div><span className="section-kicker">Admin</span><h1>Teams</h1><p>Seats and plan dates for every team. Leave seats empty for the standard allowance, and the date empty for no end.</p></div></header>
     <section className="gr-panel">
       <h2>All teams</h2>
       {teams.data.length ? <ul className="team-people">{teams.data.map(team => <TeamRow key={team.id} team={team} onSaved={() => teams.refetch()} />)}</ul> : <p>No teams yet.</p>}
       <p className="gr-attribution">Lowering seats below the people already on a team removes nobody. It only stops new invitations. A date in the past pauses changes for that team; nothing is deleted and its cards stay online.</p>
     </section>
-  </main>;
+  </AppShell>;
 }

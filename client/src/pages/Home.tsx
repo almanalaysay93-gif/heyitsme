@@ -755,6 +755,7 @@ function Workspace() {
           <div className="nav-section-label nav-section-spaced">Admin</div>
           <nav>
             <NavItem label="Google API Usage" icon={BarChart3} onClick={() => { navigate("/app/admin/google-api"); setMobileNavOpen(false); }} />
+            <NavItem label="Teams" icon={UsersRound} onClick={() => { navigate("/app/admin/teams"); setMobileNavOpen(false); }} />
           </nav>
         </> : null}
         <div className="sidebar-bottom">

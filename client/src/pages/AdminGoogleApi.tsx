@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { AppShell } from "@/components/AppShell";
 import { trpc } from "@/lib/trpc";
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
@@ -24,9 +25,9 @@ export default function AdminGoogleApi() {
   const [form, setForm] = useState<Settings | null>(null);
   useEffect(() => { if (usage.data && !form) setForm(usage.data.settings); }, [usage.data, form]);
 
-  if (loading || (isAdmin && usage.isLoading)) return <main className="gr-shell">Loading...</main>;
-  if (!isAdmin) return <main className="gr-shell"><h1>Not available</h1><p>This page is for heyitsme admins.</p><Link href="/app" className="gr-back">← Back to workspace</Link></main>;
-  if (!usage.data || !form) return <main className="gr-shell"><h1>Google API Usage</h1><p role="alert" className="gr-error">{usage.error?.message ?? "Usage could not be loaded."}</p></main>;
+  if (loading || (isAdmin && usage.isLoading)) return <AppShell area="Admin" crumb="Google API Usage" active="admin-google-api"><p role="status">Loading...</p></AppShell>;
+  if (!isAdmin) return <AppShell area="Admin" crumb="Google API Usage" active="admin-google-api"><h1>Not available</h1><p>This page is for heyitsme admins.</p><Link href="/app" className="gr-back">← Back to workspace</Link></AppShell>;
+  if (!usage.data || !form) return <AppShell area="Admin" crumb="Google API Usage" active="admin-google-api"><h1>Google API Usage</h1><p role="alert" className="gr-error">{usage.error?.message ?? "Usage could not be loaded."}</p></AppShell>;
 
   const data = usage.data;
   const field = (key: Exclude<keyof Settings, "capEnabled">, label: string) => <label className="gr-field">{label}<input type="number" min={1} value={form[key]} onChange={e => setForm({ ...form, [key]: Number(e.target.value) })} /></label>;
@@ -38,8 +39,7 @@ export default function AdminGoogleApi() {
   const months = data.months;
   const sum = (count: number, skip = 0) => months.slice(months.length - count, months.length - skip).reduce((total, month) => total + month.total, 0);
 
-  return <main className="gr-shell" id="main">
-    <Link href="/app" className="gr-back">← Back to workspace</Link>
+  return <AppShell area="Admin" crumb="Google API Usage" active="admin-google-api">
     <header className="gr-heading"><div><span className="section-kicker">Admin</span><h1>Google API Usage</h1><p>Google Places requests made by heyitsme during business setup and reconnect. Counted in UTC.</p></div></header>
     {warnings[data.level] && <section className="gr-panel" role="alert"><strong>{warnings[data.level]}</strong></section>}
     {data.capReached && <section className="gr-panel" role="alert"><strong>Monthly cap reached. New Google business setup is paused.</strong><p>Existing review pages, QR codes, NFC links, and review redirects keep working.</p></section>}
@@ -71,5 +71,5 @@ export default function AdminGoogleApi() {
       {save.error && <p role="alert" className="gr-error">{save.error.message}</p>}
       {save.isSuccess && <p role="status">Settings saved.</p>}
     </form>
-  </main>;
+  </AppShell>;
 }

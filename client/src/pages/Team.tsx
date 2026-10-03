@@ -1,7 +1,8 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
+import { AppShell } from "@/components/AppShell";
 import { startGoogleLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
+import { BarChart3, Building2, CalendarDays, Contact, CreditCard, History, IdCard, Images, LayoutGrid, LayoutTemplate, Palette, Settings as SettingsIcon, UsersRound, type LucideIcon } from "lucide-react";
 import { ROLE_LABELS, STATUS_LABELS, isAdminRole, type RemovalCardChoice, type RemovalContactChoice, type WorkspaceRole } from "@shared/teams";
 import { lazy, Suspense, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -32,12 +33,12 @@ async function copy(text: string, done = "Link copied.") {
 function useTeamGate(title: string): { blocked: ReactNode | null; signedIn: boolean } {
   const { loading, isAuthenticated } = useAuth();
   const status = trpc.teams.status.useQuery(undefined, { staleTime: 5 * 60_000, retry: false });
-  if (loading || status.isLoading) return { blocked: <main className="gr-shell" role="status">Loading...</main>, signedIn: false };
+  if (loading || status.isLoading) return { blocked: <AppShell area="Teams" crumb="Team"><p role="status">Loading...</p></AppShell>, signedIn: false };
   if (!status.data?.enabled) {
-    return { signedIn: isAuthenticated, blocked: <main className="gr-shell" id="main"><h1>{title}</h1><p>Teams is not available yet.</p><Link href="/app" className="gr-back">← Back to your cards</Link></main> };
+    return { signedIn: isAuthenticated, blocked: <AppShell area="Teams" crumb={title}><h1>{title}</h1><p>Teams is not available yet.</p><Link href="/app" className="gr-back">← Back to your cards</Link></AppShell> };
   }
   if (!isAuthenticated) {
-    return { signedIn: false, blocked: <main className="gr-shell" id="main"><h1>{title}</h1><p>Sign in to continue.</p><button className="gr-primary" onClick={() => startGoogleLogin(window.location.pathname)}>Sign in</button></main> };
+    return { signedIn: false, blocked: <AppShell area="Teams" crumb={title}><h1>{title}</h1><p>Sign in to continue.</p><div className="gr-actions"><button className="gr-primary" onClick={() => startGoogleLogin(window.location.pathname)}>Sign in</button></div></AppShell> };
   }
   return { blocked: null, signedIn: true };
 }
@@ -81,8 +82,7 @@ export function TeamHome() {
     } catch { /* The error shows under the button. */ }
   };
 
-  return <main className="gr-shell" id="main">
-    <Link href="/app" className="gr-back">← Back to your cards</Link>
+  return <AppShell area="Teams" crumb="Your teams">
     <header className="gr-heading"><div><span className="section-kicker">Teams</span><h1>Your teams</h1><p>One place for your company's cards and people. Your personal cards stay yours.</p></div></header>
     {teams.data?.length ? <section className="gr-panel">
       <h2>Open a team</h2>
@@ -96,7 +96,7 @@ export function TeamHome() {
         {create.error ? <p role="alert" className="gr-error">{create.error.message}</p> : null}
       </form>
     </section>
-  </main>;
+  </AppShell>;
 }
 
 const ACTIVITY: Record<string, string> = {
@@ -178,6 +178,10 @@ const ACTIVITY: Record<string, string> = {
 const TABS = ["Overview", "Members", "Cards", "Contacts", "Analytics", "Events", "Assets", "Departments", "Templates", "Brand", "Activity", "Billing", "Settings"] as const;
 const ADMIN_TABS: readonly string[] = ["Templates", "Brand", "Activity"];
 type Tab = (typeof TABS)[number];
+const TAB_ICONS: Record<Tab, LucideIcon> = {
+  Overview: LayoutGrid, Members: UsersRound, Cards: IdCard, Contacts: Contact, Analytics: BarChart3, Events: CalendarDays, Assets: Images,
+  Departments: Building2, Templates: LayoutTemplate, Brand: Palette, Activity: History, Billing: CreditCard, Settings: SettingsIcon,
+};
 
 /** /app/team/:id: one team. Buttons here follow the role, and the server checks every action again. */
 export function TeamWorkspace() {
@@ -189,21 +193,19 @@ export function TeamWorkspace() {
   const team = trpc.teams.get.useQuery({ workspaceId }, { enabled: ready, retry: false });
   const [tab, setTab] = useState<Tab>("Overview");
   if (blocked) return blocked;
-  if (team.isLoading) return <main className="gr-shell" role="status">Loading...</main>;
+  if (team.isLoading) return <AppShell area="Teams" crumb="Team"><p role="status">Loading...</p></AppShell>;
   if (!valid || !team.data) {
-    return <main className="gr-shell" id="main"><h1>Team not found</h1><p>This team does not exist, or you are not part of it.</p><Link href="/app/team" className="gr-back">← Your teams</Link></main>;
+    return <AppShell area="Teams" crumb="Team"><h1>Team not found</h1><p>This team does not exist, or you are not part of it.</p><Link href="/app/team" className="gr-back">← Your teams</Link></AppShell>;
   }
 
   const { workspace, me } = team.data;
   const admin = isAdminRole(me.role);
   const tabs = TABS.filter(name => (admin || !ADMIN_TABS.includes(name)) && (me.role === "owner" || name !== "Billing"));
 
-  return <main className="gr-shell" id="main">
-    <div className="team-topline"><WorkspaceSwitcher current={workspace.id} signedIn /><span className="team-chip">{ROLE_LABELS[me.role]}</span></div>
-    <header className="gr-heading"><div><span className="section-kicker">Team</span><h1>{workspace.name}</h1>{workspace.description ? <p>{workspace.description}</p> : null}</div></header>
-    <nav className="team-tabs" aria-label="Team sections">
-      {tabs.map(name => <button key={name} type="button" aria-current={tab === name ? "page" : undefined} onClick={() => setTab(name)}>{name}</button>)}
-    </nav>
+  const nav = tabs.map(name => ({ label: name, icon: TAB_ICONS[name], active: tab === name, onClick: () => setTab(name) }));
+
+  return <AppShell area={workspace.name} crumb={tab} current={workspace.id} navLabel="Team" nav={nav} profileNote={ROLE_LABELS[me.role]}>
+    <header className="gr-heading"><div><span className="section-kicker">Team · {ROLE_LABELS[me.role]}</span><h1>{workspace.name}</h1>{workspace.description ? <p>{workspace.description}</p> : null}</div></header>
     {team.data.planEnded ? <section className="team-notice" role="status"><p><strong>This team's plan has ended.</strong> Everything is still here to view and download, and company cards stay online. Changes are paused until the plan is renewed.</p></section> : null}
     {tab === "Overview" ? <Overview workspaceId={workspace.id} admin={admin} onOpen={setTab} /> : null}
     {tab === "Members" ? <Members workspaceId={workspace.id} /> : null}
@@ -218,7 +220,7 @@ export function TeamWorkspace() {
     {tab === "Activity" && admin ? <Activity workspaceId={workspace.id} /> : null}
     {tab === "Billing" && me.role === "owner" ? <Billing workspaceId={workspace.id} /> : null}
     {tab === "Settings" ? <Settings workspace={workspace} role={me.role} onGone={() => navigate("/app/team")} /> : null}
-  </main>;
+  </AppShell>;
 }
 
 function Overview({ workspaceId, admin, onOpen }: { workspaceId: number; admin: boolean; onOpen: (tab: Tab) => void }) {
@@ -461,9 +463,9 @@ export function TeamJoin() {
   const invitation = trpc.teams.invitation.useQuery({ token }, { enabled: wellFormed && !loading, retry: false });
   const accept = trpc.teams.acceptInvite.useMutation();
 
-  const shell = (title: string, body: ReactNode) => <main className="gr-shell team-join" id="main"><span className="section-kicker">Team invitation</span><h1>{title}</h1>{body}</main>;
+  const shell = (title: string, body: ReactNode) => <AppShell area="Teams" crumb="Invitation"><div className="team-join"><span className="section-kicker">Team invitation</span><h1>{title}</h1>{body}</div></AppShell>;
   const home = <Link href="/app" className="gr-back">Go to your cards</Link>;
-  if (loading || invitation.isLoading) return <main className="gr-shell" role="status">Loading...</main>;
+  if (loading || invitation.isLoading) return <AppShell area="Teams" crumb="Team"><p role="status">Loading...</p></AppShell>;
   const data = invitation.data;
   if (!wellFormed || !data || data.state === "invalid") {
     return shell("This link does not work", <><p>{invitation.error?.message ?? "The invitation may have been cancelled or replaced. Ask your team admin to send a new one."}</p>{home}</>);

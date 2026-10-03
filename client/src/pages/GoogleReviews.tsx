@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { AppShell } from "@/components/AppShell";
 import { startGoogleLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { copyToClipboard } from "@/lib/cardKit";
@@ -70,10 +71,9 @@ export default function GoogleReviews() {
     const blob = new Blob([new XMLSerializer().serializeToString(svg)], { type: "image/svg+xml" });
     const anchor = document.createElement("a"); anchor.href = URL.createObjectURL(blob); anchor.download = "google-review-qr.svg"; anchor.click(); URL.revokeObjectURL(anchor.href);
   };
-  if (loading || cards.isLoading) return <main className="gr-shell">Loading...</main>;
-  if (!isAuthenticated) return <main className="gr-shell"><h1>Google Reviews</h1><p>Sign in to connect your business.</p><button className="gr-primary" onClick={startGoogleLogin}>Sign in</button></main>;
-  return <main className="gr-shell" id="main">
-    <Link href="/app" className="gr-back">← Back to workspace</Link>
+  if (loading || cards.isLoading) return <AppShell area="Business features" crumb="Google Reviews" active="google-reviews"><p role="status">Loading...</p></AppShell>;
+  if (!isAuthenticated) return <AppShell area="Business features" crumb="Google Reviews" active="google-reviews"><h1>Google Reviews</h1><p>Sign in to connect your business.</p><button className="gr-primary" onClick={startGoogleLogin}>Sign in</button></AppShell>;
+  return <AppShell area="Business features" crumb="Google Reviews" active="google-reviews">
     <header className="gr-heading"><div><span className="section-kicker">Business features & services</span><h1>Google Reviews</h1><p>Make it easier for customers to find your business and leave a Google review.</p></div></header>
     {!cards.data?.length ? <section className="gr-panel"><h2>Create a card first</h2><p>Your review page will use its business name and logo.</p><Link href="/app/cards/new" className="gr-primary">Create a card</Link></section> : <>
       <label className="gr-field">Business card<select value={cardId} onChange={e => { setCardId(Number(e.target.value)); setSelected(null); setSuccess(false); }}>{cards.data.map(card => <option key={card.id} value={card.id}>{card.company || card.displayName}</option>)}</select></label>
@@ -87,5 +87,5 @@ export default function GoogleReviews() {
         <section className="gr-panel"><h2>Profile</h2><label><input type="checkbox" checked={page.data.showOnCard} onChange={async e => { await settings.mutateAsync({ cardId, showOnCard: e.target.checked }); await page.refetch(); }} /> Show Google Reviews on my profile</label></section>
       </>}
     </>}
-  </main>;
+  </AppShell>;
 }
