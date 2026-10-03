@@ -1,3 +1,4 @@
+import { isContactLink } from "@shared/contactLink";
 import { PAGE_LIMITS, pageConfigSchema, resolveSections, type PageConfig, type PageSection } from "@shared/pageConfig";
 import { designReadable } from "@shared/design";
 
@@ -5,7 +6,7 @@ import { designReadable } from "@shared/design";
 export function normalizeLink(raw: string): string {
   const link = toLink(raw.trim());
   // The prefix can push a long entry past the schema's 600; drop just that link rather than fail the whole page.
-  return link.length <= 600 ? link : "";
+  return link.length <= 600 && isContactLink(link) ? link : "";
 }
 
 function toLink(value: string): string {

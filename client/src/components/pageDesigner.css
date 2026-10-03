@@ -121,3 +121,9 @@
   .pd-frame { transition: none; }
   .pd-frame:active { transform: none; }
 }
+
+.optional-editor { min-width: 0; }
+.optional-editor > summary { cursor: pointer; padding: 16px 0; font-size: 14px; font-weight: 600; }
+.optional-editor[open] > summary { margin-bottom: 8px; }
+
+.optional-editor.is-core > summary { display: none; }

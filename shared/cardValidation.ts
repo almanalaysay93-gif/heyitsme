@@ -1,3 +1,4 @@
+import { phoneHref } from "./phone";
 import { pageConfigField } from "./pageConfig";
 import { z } from "zod";
 
@@ -147,6 +148,7 @@ export function validateCardData(data: {
   if (data.location && data.location.trim().length > 160) {
     errors.location = "Location cannot exceed 160 characters.";
   }
+  if (data.phone?.trim() && !phoneHref(data.phone)) errors.phone = "Enter a full phone number, optionally followed by ext. and the extension.";
   if (data.phone && data.phone.trim().length > 64) {
     errors.phone = "Phone cannot exceed 64 characters.";
   }
@@ -260,7 +262,7 @@ export const serverCardFields = {
     .refine((val) => !val || isValidEmail(val), "Please enter a valid email address")
     .optional()
     .nullable(),
-  phone: z.string().trim().max(64).optional().nullable(),
+  phone: z.string().trim().max(64).refine((value) => !value || Boolean(phoneHref(value)), "Enter a full phone number, optionally with an extension").optional().nullable(),
   location: z.string().trim().max(160).optional().nullable(),
   bio: z.string().trim().max(800).optional().nullable(),
   links: z

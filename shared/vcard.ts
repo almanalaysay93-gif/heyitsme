@@ -1,3 +1,5 @@
+import { parsePageConfig } from "./pageConfig";
+import { phoneHref } from "./phone";
 export type ChannelItem = {
   provider: string;
   url: string;
@@ -11,6 +13,7 @@ export type VCardFields = {
   email?: string | null;
   phone?: string | null;
   location?: string | null;
+  page?: string | null;
   bio?: string | null;
   avatarUrl?: string | null;
   links?: string | string[] | null;
@@ -182,6 +185,8 @@ export function buildVCard(card: VCardFields, pageUrl: string, origin: string): 
     : avatarUrl.startsWith("/") && !avatarUrl.startsWith("//") ? `${cleanOrigin}${avatarUrl}` : "";
 
   const name = structuredName(card.displayName);
+  const address = parsePageConfig(card.page).address;
+  const dialable = phoneHref(card.phone);
   const lines: (string | null)[] = [
     "BEGIN:VCARD",
     "VERSION:3.0",
@@ -190,8 +195,8 @@ export function buildVCard(card: VCardFields, pageUrl: string, origin: string): 
     card.title ? `TITLE:${esc(card.title)}` : null,
     card.company ? `ORG:${esc(card.company)}` : null,
     card.email ? `EMAIL;TYPE=INTERNET:${card.email}` : null,
-    card.phone ? `TEL;TYPE=CELL:${card.phone}` : null,
-    card.location ? `ADR;TYPE=WORK:;;;${esc(card.location)};;;` : null,
+    dialable ? `TEL;TYPE=CELL:${dialable.includes(";ext=") ? dialable.slice(4) : card.phone}` : null,
+    address ? `ADR;TYPE=WORK:;;${esc(address)};;;;` : card.location ? `ADR;TYPE=WORK:;;;${esc(card.location)};;;` : null,
     `URL:${cleanPageUrl}`,
   ];
 
@@ -248,6 +253,7 @@ export function buildVCard(card: VCardFields, pageUrl: string, origin: string): 
     noteLines.push(`• ${label}: ${href}`);
   }
 
+  if (card.phone && !dialable) noteLines.push(`Phone information: ${card.phone}`);
   const bio = card.bio ? card.bio.trim() : "";
   const noteParts: string[] = [];
   if (bio) {

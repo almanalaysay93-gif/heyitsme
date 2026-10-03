@@ -6,7 +6,7 @@ Free is PHP 0 forever: one card, 10 contact exchanges per calendar month in Asia
 
 ## Launch flags
 
-All new flags default off. The browser reads public flags through billing endpoints.
+Design, QR campaigns and advanced analytics default on for this release. Payments and plan limits default off until merchant checkout is verified. Explicit environment values override these defaults. The browser reads public flags through billing endpoints.
 
 | Variable | Effect |
 |---|---|

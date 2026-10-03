@@ -76,7 +76,7 @@ function TagEditor({ tags, onChange, suggestions,
             <button
               type="button"
               onClick={() => onChange(tags.filter(item => item !== tag))}
-              aria-label={emove tag ${tag}`}
+              aria-label={`Remove tag ${tag}`}
             >
               <X size={12} />
             </button>
@@ -130,6 +130,7 @@ function ContactSheet({
     followUpDay(contact.followUpOn)
   );
   const [saving, setSaving] = useState(false);
+  const [emailCopied, setEmailCopied] = useState(false);
   const [crmStatus, setCrmStatus] = useState(contact.status ?? "new");
   const titleId = useId();
   const notesId = useId();
@@ -174,7 +175,7 @@ function ContactSheet({
 
   const copyEmail = async () => {
     if (!contact.email) return;
-    if (await copyToClipboard(contact.email)) toast.success("Email copied.");
+    if (await copyToClipboard(contact.email)) { setEmailCopied(true); toast.success("Email copied."); }
     else toast.info(contact.email);
   };
 
@@ -273,7 +274,7 @@ function ContactSheet({
               className="outline-button"
               onClick={() => void copyEmail()}
             >
-              <Copy size={15} /> Copy email
+              <Copy size={15} /> {emailCopied ? "Email copied" : "Copy email"}
             </button>
           ) : null}
           <button

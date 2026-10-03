@@ -637,6 +637,7 @@
 .lx-officer-btn:hover { background: var(--pill-fill); border-color: var(--line-strong); color: var(--accent-ink); }
 .lx-officer-btn svg { flex: none; color: var(--accent-ink); }
 .lx-more-links { margin-bottom: 24px; }
+.lx-contact.lx-more-links strong { white-space: normal; overflow-wrap: anywhere; }
 .lx-contact { display: grid; max-width: 760px; }
 .lx-contact li { position: relative; display: flex; align-items: center; border-bottom: 1px solid var(--line); }
 .lx-contact li:last-child { border-bottom: 0; }
@@ -648,7 +649,7 @@
 }
 .lx-contact a:hover { background: var(--pill-fill); }
 .lx-contact a > svg:first-child { flex: none; color: var(--accent-ink); }
-.lx-contact a span { display: grid; min-width: 0; }
+.lx-contact a span { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .lx-contact small { color: var(--muted); font-size: 13px; }
 .lx-contact strong { overflow: hidden; font-size: 17px; font-weight: 650; letter-spacing: -.015em; text-overflow: ellipsis; white-space: nowrap; }
 .lx-row-arrow { flex: none; margin-left: auto; color: var(--muted); transition: transform var(--dur-slow) var(--ease-spring); }
@@ -888,3 +889,6 @@
 /* Nav: Copy link sits beside Share (native share does not copy). */
 .lx-nav-actions { display: inline-flex; gap: 6px; }
 .lx-nav-copy { width: 44px; padding: 0; justify-content: center; }
+
+.lx-website-placeholder { display: grid; gap: 6px; padding: 12px; text-align: center; overflow-wrap: anywhere; }
+.lx-website-placeholder small { font-size: 12px; font-weight: 400; }
