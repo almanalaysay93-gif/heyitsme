@@ -35,9 +35,11 @@ type Props = {
   /** Plan allows hiding the heyitsme name. The server checks this again on save. */
   canRemoveBranding?: boolean;
   onLockedBranding?: () => void;
+  /** Stores an image and returns its link, for the QR logo. */
+  onUploadImage?: (file: File) => Promise<string>;
 };
 
-export function PageDesigner({ children, value, onChange, themeAccent, onPendingChange, avatarUrl, initials = "", canRemoveBranding = false, onLockedBranding }: Props) {
+export function PageDesigner({ children, value, onChange, themeAccent, onPendingChange, avatarUrl, initials = "", canRemoveBranding = false, onLockedBranding, onUploadImage }: Props) {
   // Working copy keeps half-typed rows (a service with no name yet); only the valid subset is emitted.
   const [config, setConfig] = useState<PageConfig>(() => parsePageConfig(value));
   const lastEmitted = useRef<string | undefined>(value);
@@ -86,7 +88,7 @@ export function PageDesigner({ children, value, onChange, themeAccent, onPending
     address: config.address,
     setAddress: (address) => commit({ ...config, address }),
     layout: <div className="pd">
-      <DesignControls config={config} onChange={commit} />
+      <DesignControls config={config} onChange={commit} onUpload={onUploadImage} />
       <TemplatePicker value={config.template} onSelect={(id) => { if (id !== config.template) commit(switchTemplate(config, id)); }} />
 
       {config.template === "services" ? (

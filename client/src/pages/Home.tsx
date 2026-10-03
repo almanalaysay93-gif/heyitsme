@@ -1363,7 +1363,7 @@ function BuilderView({
       </div>
 
       <div className={`builder-layout mobile-view-${mobileTab}`}>
-        <PageDesigner value={draft.page} onChange={(value) => update("page", value)} themeAccent={themeAccent(draft.theme)} onPendingChange={onPagePending} avatarUrl={draft.avatarUrl} initials={getInitials(draft.displayName || "")} canRemoveBranding={canRemoveBranding} onLockedBranding={onLockedBranding}>
+        <PageDesigner value={draft.page} onChange={(value) => update("page", value)} themeAccent={themeAccent(draft.theme)} onPendingChange={onPagePending} avatarUrl={draft.avatarUrl} initials={getInitials(draft.displayName || "")} canRemoveBranding={canRemoveBranding} onLockedBranding={onLockedBranding} onUploadImage={onUpload}>
         {(panels) => (
         <div id="builder-form-panel" className="builder-form glass-panel" role="tabpanel" aria-labelledby="mobile-tab-edit">
           <div className="form-section">

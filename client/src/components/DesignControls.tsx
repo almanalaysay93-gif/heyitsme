@@ -14,7 +14,7 @@ import {
 } from "@shared/design";
 import type { PageConfig } from "@shared/pageConfig";
 import { useBilling, useUpgrade } from "@/lib/billing";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { QrPreview } from "./QrPreview";
 import "./proDesign.css";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -60,9 +60,12 @@ const FONT_PRESETS = [
 export function DesignControls({
   config,
   onChange,
+  onUpload,
 }: {
   config: PageConfig;
   onChange: (config: PageConfig) => void;
+  /** Stores an image and returns its link. Without it, the QR logo upload is not offered. */
+  onUpload?: (file: File) => Promise<string>;
 }) {
   const { isAuthenticated } = useAuth();
   const billing = useBilling(isAuthenticated);
@@ -101,6 +104,32 @@ export function DesignControls({
     }
     setWarning("");
     onChange({ ...config, qr: next.data });
+  };
+  // The upload finishes later, so it must apply to the settings as they are then, not as they were when it began.
+  const latestQrChange = useRef(qrChange);
+  latestQrChange.current = qrChange;
+  const logoInput = useRef<HTMLInputElement>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const pickLogo = () => {
+    if (!pro) {
+      openUpgrade("general");
+      return;
+    }
+    logoInput.current?.click();
+  };
+  const uploadLogo = async (file: File | undefined) => {
+    if (!file || !onUpload) return;
+    setUploadingLogo(true);
+    try {
+      const logo = await onUpload(file);
+      latestQrChange.current({ logo });
+    } catch (error) {
+      setWarning(
+        error instanceof Error ? error.message : "Logo upload failed. Try again."
+      );
+    } finally {
+      setUploadingLogo(false);
+    }
   };
   const options = (
     label: string,
@@ -367,67 +396,126 @@ export function DesignControls({
         <summary>
           Advanced QR <small className="plan-chip plan-chip-pro">PRO</small>
         </summary>
-        <QrPreview value="https://heyitsme.fyi/c/demo" design={qr} />
-        {(["foreground", "background"] as const).map(key => (
-          <label key={key}>
-            {key}
-            <input
-              aria-label={`QR ${key}`}
-              type="color"
-              value={qr[key]}
-              onChange={e => qrChange({ [key]: e.target.value })}
-            />
-          </label>
-        ))}
-        <label>
-          Rounded modules
-          <input
-            type="checkbox"
-            checked={qr.rounded}
-            onChange={e => qrChange({ rounded: e.target.checked })}
-          />
-        </label>
-        <button
-          type="button"
-          className="outline-button"
-          onClick={() => qrChange({ logo: "/favicon.svg" })}
-        >
-          Use heyitsme brand icon ? PRO
-        </button>
-        <label>
-          Logo URL
-          <input
-            value={qr.logo}
-            onChange={e => qrChange({ logo: e.target.value })}
-          />
-        </label>
-        <label>
-          Frame
-          <select
-            value={qr.frame}
-            onChange={e => qrChange({ frame: e.target.value as any })}
-          >
-            {["none", "simple", "rounded"].map(v => (
-              <option key={v}>{v}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          CTA text
-          <select
-            value={qr.cta}
-            onChange={e => qrChange({ cta: e.target.value as any })}
-          >
-            {[
-              "Scan my card",
-              "Connect with me",
-              "Save my contact",
-              "Visit my profile",
-            ].map(v => (
-              <option key={v}>{v}</option>
-            ))}
-          </select>
-        </label>
+        <div className="qr-editor">
+          <div className="qr-editor-preview">
+            <QrPreview value="https://heyitsme.fyi/c/demo" design={qr} />
+          </div>
+          <div className="qr-editor-fields">
+            <div className="qr-field">
+              <span className="qr-field-title">Colors</span>
+              <div className="qr-field-row">
+                {(
+                  [
+                    ["foreground", "Dots"],
+                    ["background", "Background"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <label key={key}>
+                    <input
+                      aria-label={`QR ${key}`}
+                      type="color"
+                      value={qr[key]}
+                      onChange={e => qrChange({ [key]: e.target.value })}
+                    />
+                    {label}
+                  </label>
+                ))}
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={qr.rounded}
+                    onChange={e => qrChange({ rounded: e.target.checked })}
+                  />
+                  Rounded dots
+                </label>
+              </div>
+            </div>
+            <div className="qr-field">
+              <span className="qr-field-title">Center logo</span>
+              <div className="qr-field-row">
+                {qr.logo ? (
+                  <img className="qr-logo-thumb" src={qr.logo} alt="" />
+                ) : null}
+                {onUpload ? (
+                  <button
+                    type="button"
+                    className="outline-button"
+                    disabled={uploadingLogo}
+                    onClick={pickLogo}
+                  >
+                    {uploadingLogo
+                      ? "Uploading…"
+                      : qr.logo
+                        ? "Replace logo"
+                        : "Upload your logo"}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="outline-button"
+                  onClick={() => qrChange({ logo: "/favicon.svg" })}
+                >
+                  Use heyitsme icon
+                </button>
+                {qr.logo ? (
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() => qrChange({ logo: "" })}
+                  >
+                    Remove
+                  </button>
+                ) : null}
+              </div>
+              <small>
+                A square PNG, JPG or WebP works best. Test the code with your
+                phone after you add a logo.
+              </small>
+              <input
+                ref={logoInput}
+                type="file"
+                hidden
+                accept="image/png,image/jpeg,image/webp"
+                aria-label="QR logo file"
+                onChange={e => {
+                  void uploadLogo(e.target.files?.[0]);
+                  e.target.value = "";
+                }}
+              />
+            </div>
+            <div className="qr-field-row">
+              <label className="qr-select">
+                <span className="qr-field-title">Frame</span>
+                <select
+                  value={qr.frame}
+                  onChange={e => qrChange({ frame: e.target.value as any })}
+                >
+                  {["none", "simple", "rounded"].map(v => (
+                    <option key={v} value={v}>
+                      {v[0].toUpperCase() + v.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="qr-select">
+                <span className="qr-field-title">Caption</span>
+                <select
+                  value={qr.cta}
+                  onChange={e => qrChange({ cta: e.target.value as any })}
+                >
+                  {[
+                    "Scan my card",
+                    "Connect with me",
+                    "Save my contact",
+                    "Visit my profile",
+                  ].map(v => (
+                    <option key={v}>{v}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
+        </div>
       </details>
       {warning ? <p role="alert">{warning}</p> : null}
     </div>

@@ -1,13 +1,13 @@
 // Uploaded files a card links to, so deleting a card can also remove the files only it used.
 
-export type CardMedia ={ avatarUrl?: string | null; coverUrl?: string | null; backgroundUrl?: string | null; logoUrl?: string | null; portfolio?: string | null };
+export type CardMedia ={ avatarUrl?: string | null; coverUrl?: string | null; backgroundUrl?: string | null; logoUrl?: string | null; portfolio?: string | null; page?: string | null };
 
 const STORAGE_PATH = /\/storage\/([A-Za-z0-9._\/-]+)/g;
 
 /** Keys this owner uploaded (`<ownerId>-portfolio/...`) that the card links to. Anyone else's files are never included. */
 export function ownedUploadKeys(card: CardMedia, ownerUserId: number): Set<string> {
   const prefix = `${ownerUserId}-portfolio/`;
-  const text = [card.avatarUrl, card.coverUrl, card.backgroundUrl, card.logoUrl, card.portfolio].filter(Boolean).join("\n");
+  const text = [card.avatarUrl, card.coverUrl, card.backgroundUrl, card.logoUrl, card.portfolio, card.page].filter(Boolean).join("\n");
   const keys = new Set<string>();
   for (const match of Array.from(text.matchAll(STORAGE_PATH))) {
     const key = match[1];

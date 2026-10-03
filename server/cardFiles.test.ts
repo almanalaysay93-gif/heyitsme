@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import { orphanedUploadKeys, ownedUploadKeys, unreferencedUploadKeys } from "./cardFiles";
 
 describe("ownedUploadKeys", () => {
+  it("counts a QR logo saved in the page settings as in use", () => {
+    const page = JSON.stringify({ qr: { logo: "/storage/7-portfolio/q1-logo_0a1b2c3d.png" } });
+    expect(Array.from(ownedUploadKeys({ page }, 7))).toEqual(["7-portfolio/q1-logo_0a1b2c3d.png"]);
+    expect(unreferencedUploadKeys(["7-portfolio/q1-logo_0a1b2c3d.png"], [{ page }], 7)).toEqual([]);
+  });
+
   it("collects this owner's uploads from photos and portfolio items only", () => {
     const keys = ownedUploadKeys(
       {

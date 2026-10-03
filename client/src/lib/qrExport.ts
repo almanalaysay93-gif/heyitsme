@@ -1,4 +1,42 @@
 import { downloadBlob } from "./cardKit";
+
+const LOGO_ERROR = "Logo could not be exported. Upload it to heyitsme or use a URL that allows downloads.";
+
+/** The logo as a data link, so the exported file carries it. */
+async function inlineImage(href: string): Promise<string> {
+  try {
+    const response = await fetch(href);
+    if (response.ok) {
+      const blob = await response.blob();
+      return await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    }
+  } catch {
+    // An uploaded logo redirects to a signed storage link the page may not fetch. Loading it as an image can still work.
+  }
+  const image = new Image();
+  image.crossOrigin = "anonymous";
+  await new Promise<void>((resolve, reject) => {
+    image.onload = () => resolve();
+    image.onerror = () => reject(new Error(LOGO_ERROR));
+    image.src = href;
+  });
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth || 256;
+  canvas.height = image.naturalHeight || 256;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error(LOGO_ERROR);
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  try {
+    return canvas.toDataURL("image/png");
+  } catch {
+    throw new Error(LOGO_ERROR);
+  }
+}
 export async function downloadQr(
   element: HTMLElement | null,
   name: string,
@@ -13,19 +51,7 @@ export async function downloadQr(
   for (const image of Array.from(svg.querySelectorAll("image"))) {
     const href = image.getAttribute("href") ?? image.getAttribute("xlink:href");
     if (!href) continue;
-    const response = await fetch(href);
-    if (!response.ok)
-      throw new Error(
-        "Logo could not be exported. Upload it to heyitsme or use a URL that allows downloads."
-      );
-    const blob = await response.blob();
-    const data = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-    image.setAttribute("href", data);
+    image.setAttribute("href", await inlineImage(href));
     image.removeAttribute("xlink:href");
   }
   const figure = source.closest("figure");
