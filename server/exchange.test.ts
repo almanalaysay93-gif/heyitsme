@@ -11,19 +11,29 @@ const db = vi.hoisted(() => ({
 }));
 const mail = vi.hoisted(() => ({ sendMail: vi.fn() }));
 
-vi.mock("./db", async (importOriginal) => ({ ...(await importOriginal<typeof import("./db")>()), ...db }));
-vi.mock("./_core/mail", async (importOriginal) => ({ ...(await importOriginal<typeof import("./_core/mail")>()), ...mail }));
-vi.mock("./_core/rateLimit", async (importOriginal) => ({
+vi.mock("./db", async importOriginal => ({ ...(await importOriginal<typeof import("./db")>()), ...db,
+}));
+vi.mock("./_core/mail", async importOriginal => ({ ...(await importOriginal<typeof import("./_core/mail")>()), ...mail,
+}));
+vi.mock("./_core/rateLimit", async importOriginal => ({
   ...(await importOriginal<typeof import("./_core/rateLimit")>()),
   rateLimit: vi.fn(async () => ({ allowed: true, count: 1, resetMs: 0 })),
 }));
 
+vi.mock("./billing/gate", async original => ({
+  ...(await original<typeof import("./billing/gate")>()),
+  assertPro: vi.fn(async () => undefined),
+}));
+
 const { appRouter } = await import("./routers");
 
-const card = { id: 7, ownerUserId: 3, displayName: "Ada Lane", published: true, deletedAt: null };
-const req = { protocol: "https", headers: {}, ip: "203.0.113.9", get: () => "heyitsme.test" } as unknown as TrpcContext["req"];
+const card = { id: 7, ownerUserId: 3, displayName: "Ada Lane", published: true, deletedAt: null,
+};
+const req = { protocol: "https", headers: {}, ip: "203.0.113.9", get: () => "heyitsme.test",
+} as unknown as TrpcContext["req"];
 const publicCaller = () => appRouter.createCaller({ user: null, req, res: {} as TrpcContext["res"] });
-const visitor = { cardId: 7, name: "Bo Visitor", email: "bo@example.com", phone: "+1 555 0100" };
+const visitor = { cardId: 7, name: "Bo Visitor", email: "bo@example.com", phone: "+1 555 0100",
+};
 
 describe("publicCard.bySlug", () => {
   beforeEach(() => {
@@ -40,7 +50,7 @@ describe("publicCard.exchange", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     db.getCardById.mockResolvedValue(card);
-    db.createContact.mockImplementation(async (input) => ({ id: 42, ...input }));
+    db.createContact.mockImplementation(async input => ({ id: 42, ...input }));
     db.getUserById.mockResolvedValue({ id: 3, email: "ada@example.com" });
     mail.sendMail.mockResolvedValue(true);
     vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -73,7 +83,8 @@ describe("publicCard.exchange", () => {
   });
 
   it("sends nothing for the honeypot", async () => {
-    const result = await publicCaller().publicCard.exchange({ ...visitor, website: "http://spam.example" });
+    const result = await publicCaller().publicCard.exchange({ ...visitor, website: "http://spam.example",
+    });
     expect(result.id).toBe(0);
     expect(db.createContact).not.toHaveBeenCalled();
     expect(mail.sendMail).not.toHaveBeenCalled();
@@ -87,24 +98,29 @@ describe("publicCard.exchange", () => {
 });
 
 describe("contacts.update follow-up date", () => {
-  const owner = { id: 3, openId: "o", email: "ada@example.com", name: "Ada", loginMethod: "google", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() } as NonNullable<TrpcContext["user"]>;
+  const owner = { id: 3, openId: "o", email: "ada@example.com", name: "Ada", loginMethod: "google", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date(),
+  } as NonNullable<TrpcContext["user"]>;
   const ownerCaller = () => appRouter.createCaller({ user: owner, req, res: {} as TrpcContext["res"] });
 
   beforeEach(() => {
     vi.clearAllMocks();
-    db.updateContact.mockImplementation(async (id, _owner, patch) => ({ id, ...patch }));
+    db.updateContact.mockImplementation(async (id, _owner, patch) => ({ id, ...patch,
+    }));
   });
 
   it("stores the day as midnight UTC", async () => {
     await ownerCaller().contacts.update({ id: 5, followUpOn: "2026-10-02" });
-    expect(db.updateContact).toHaveBeenCalledWith(5, 3, { followUpOn: new Date("2026-10-02T00:00:00Z") });
+    expect(db.updateContact).toHaveBeenCalledWith(5, 3, { followUpOn: new Date("2026-10-02T00:00:00Z"),
+    });
   });
 
   it("clears it with null and leaves it alone when omitted", async () => {
     await ownerCaller().contacts.update({ id: 5, followUpOn: null });
-    expect(db.updateContact).toHaveBeenLastCalledWith(5, 3, { followUpOn: null });
+    expect(db.updateContact).toHaveBeenLastCalledWith(5, 3, { followUpOn: null,
+    });
     await ownerCaller().contacts.update({ id: 5, followedUp: true });
-    expect(db.updateContact).toHaveBeenLastCalledWith(5, 3, { followedUp: true });
+    expect(db.updateContact).toHaveBeenLastCalledWith(5, 3, { followedUp: true,
+    });
   });
 
   it("rejects a malformed day", async () => {

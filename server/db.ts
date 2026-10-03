@@ -12,7 +12,8 @@ import {
   users,
   references,
 } from "../drizzle/schema";
-import { DEMO_CARD, DEMO_CARD_ID, DEMO_REFERENCES, DEMO_SLUG } from "@shared/demoCard";
+import { DEMO_CARD, DEMO_CARD_ID, DEMO_REFERENCES, DEMO_SLUG,
+} from "@shared/demoCard";
 import { ENV } from "./_core/env";
 import { BILLING_SCHEMA_STATEMENTS } from "./billing/schemaSql";
 
@@ -30,14 +31,30 @@ export function setTestDb(db: any) {
 // privilege to run ALTER TABLE ... ENABLE ROW LEVEL SECURITY. Apply drizzle/0003_enable_rls.sql by hand as an
 // owner/superuser role (e.g. Supabase's SQL Editor, which runs as `postgres`) after each deploy that adds a table.
 const SCHEMA_INDEXES = [
-  ["cards_owner_updated_idx", 'create index if not exists "cards_owner_updated_idx" on "cards" ("ownerUserId", "updatedAt")'],
-  ["cards_owner_creation_key_idx", 'create unique index if not exists "cards_owner_creation_key_idx" on "cards" ("ownerUserId", "creationKey") where "creationKey" is not null'],
-  ["contacts_owner_id_idx", 'create index if not exists "contacts_owner_id_idx" on "contacts" ("ownerUserId", "id")'],
-  ["analytics_card_created_idx", 'create index if not exists "analytics_card_created_idx" on "analyticsEvents" ("cardId", "createdAt")'],
-  ["references_card_created_idx", 'create index if not exists "references_card_created_idx" on "references" ("cardId", "createdAt")'],
+  ["cards_owner_updated_idx", 'create index if not exists "cards_owner_updated_idx" on "cards" ("ownerUserId", "updatedAt")',
+  ],
+  ["cards_owner_creation_key_idx", 'create unique index if not exists "cards_owner_creation_key_idx" on "cards" ("ownerUserId", "creationKey") where "creationKey" is not null',
+  ],
+  ["contacts_owner_id_idx", 'create index if not exists "contacts_owner_id_idx" on "contacts" ("ownerUserId", "id")',
+  ],
+  ["analytics_card_created_idx", 'create index if not exists "analytics_card_created_idx" on "analyticsEvents" ("cardId", "createdAt")',
+  ],
+  ["references_card_created_idx", 'create index if not exists "references_card_created_idx" on "references" ("cardId", "createdAt")',
+  ],
 ] as const;
 
 async function ensureSchema(client: postgres.Sql) {
+  await client`alter table "contacts" add column if not exists "status" varchar(16) not null default 'new'`;
+  await client`alter table "contacts" add column if not exists "campaignId" varchar(32)`;
+  await client`create table if not exists "qrCampaigns" ("id" varchar(32) primary key, "ownerUserId" integer not null references "users"("id"), "cardId" integer not null references "cards"("id"), "name" varchar(80) not null, "createdAt" timestamp not null default now())`;
+  await client`create index if not exists "qr_campaign_owner_idx" on "qrCampaigns" ("ownerUserId", "cardId")`;
+  await client`alter table "qrCampaigns" enable row level security`.catch(
+    error =>
+      console.warn(
+        "[Database] Apply drizzle/0010_pro_tools.sql as table owner to enable QR campaign RLS:",
+        String(error)
+      )
+  );
   const existing = await client<{ table_name: string; column_name: string }[]>`
     select table_name, column_name from information_schema.columns
     where table_schema = current_schema()
@@ -60,7 +77,7 @@ async function ensureSchema(client: postgres.Sql) {
   const names = SCHEMA_INDEXES.map(([name]) => name);
   const indexes = await client<{ indexname: string }[]>`
     select indexname from pg_indexes where schemaname = current_schema() and indexname in ${client(names)}`;
-  const present = new Set(indexes.map((row) => row.indexname));
+  const present = new Set(indexes.map(row => row.indexname));
   for (const [name, statement] of SCHEMA_INDEXES) {
     if (!present.has(name)) await client.unsafe(statement);
   }
@@ -72,7 +89,14 @@ async function ensureSchema(client: postgres.Sql) {
     for (const statement of BILLING_SCHEMA_STATEMENTS) {
       if (statement.startsWith("alter table")) {
         // Only the table owner may enable RLS. The app role owns tables it just created; if not, apply by hand.
-        await client.unsafe(statement).catch((error) => console.warn("[Database] RLS not enabled, apply drizzle/0009 by hand:", String(error)));
+        await client
+          .unsafe(statement)
+          .catch(error =>
+            console.warn(
+              "[Database] RLS not enabled, apply drizzle/0009 by hand:",
+              String(error)
+            )
+          );
       } else {
         await client.unsafe(statement);
       }
@@ -94,7 +118,7 @@ export async function getDb() {
         connect_timeout: 15,
       });
       _db = drizzle(client);
-      _schemaReady = ensureSchema(client).catch((error) => {
+      _schemaReady = ensureSchema(client).catch(error => {
         console.warn("[Database] Could not bring schema up to date:", error);
       });
     } catch (error) {
@@ -129,19 +153,20 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     updateSet.role = "admin";
   }
 
-  await db
-    .insert(users)
-    .values(values)
-    .onConflictDoUpdate({
-      target: users.openId,
-      set: updateSet,
-    });
+  await db.insert(users).values(values).onConflictDoUpdate({
+    target: users.openId,
+    set: updateSet,
+  });
 }
 
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+  const result = await db
+    .select()
+    .from(users)
+    .where(eq(users.openId, openId))
+    .limit(1);
   return result[0];
 }
 
@@ -158,7 +183,12 @@ export const OWNER_CARD_LIMIT = 500;
 export async function getCardsByOwner(ownerUserId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  return db.select().from(cards).where(eq(cards.ownerUserId, ownerUserId)).orderBy(desc(cards.updatedAt)).limit(OWNER_CARD_LIMIT);
+  return db
+    .select()
+    .from(cards)
+    .where(eq(cards.ownerUserId, ownerUserId))
+    .orderBy(desc(cards.updatedAt))
+    .limit(OWNER_CARD_LIMIT);
 }
 
 export async function getCardById(id: number) {
@@ -187,7 +217,13 @@ export async function getPublicCardBySlug(slug: string) {
   const result = await db
     .select()
     .from(cards)
-    .where(and(eq(cards.slug, slug), eq(cards.published, true), isNull(cards.deletedAt)))
+    .where(
+      and(
+        eq(cards.slug, slug),
+        eq(cards.published, true),
+        isNull(cards.deletedAt)
+      )
+    )
     .limit(1);
   return result[0];
 }
@@ -199,7 +235,12 @@ export async function createCard(input: InsertCard) {
     const existing = await db
       .select()
       .from(cards)
-      .where(and(eq(cards.ownerUserId, input.ownerUserId), eq(cards.creationKey, input.creationKey)))
+      .where(
+        and(
+          eq(cards.ownerUserId, input.ownerUserId),
+          eq(cards.creationKey, input.creationKey)
+        )
+      )
       .limit(1);
     if (existing[0]) return existing[0];
   }
@@ -211,7 +252,12 @@ export async function createCard(input: InsertCard) {
       const existing = await db
         .select()
         .from(cards)
-        .where(and(eq(cards.ownerUserId, input.ownerUserId), eq(cards.creationKey, input.creationKey)))
+        .where(
+          and(
+            eq(cards.ownerUserId, input.ownerUserId),
+            eq(cards.creationKey, input.creationKey)
+          )
+        )
         .limit(1);
       if (existing[0]) return existing[0];
     }
@@ -219,10 +265,17 @@ export async function createCard(input: InsertCard) {
   }
 }
 
-export async function updateCard(id: number, ownerUserId: number, input: Partial<InsertCard>) {
+export async function updateCard(
+  id: number,
+  ownerUserId: number,
+  input: Partial<InsertCard>
+) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  await db.update(cards).set({ ...input, updatedAt: new Date() }).where(and(eq(cards.id, id), eq(cards.ownerUserId, ownerUserId)));
+  await db
+    .update(cards)
+    .set({ ...input, updatedAt: new Date() })
+    .where(and(eq(cards.id, id), eq(cards.ownerUserId, ownerUserId)));
   return getCardByIdForOwner(id, ownerUserId);
 }
 
@@ -230,8 +283,11 @@ export async function updateCard(id: number, ownerUserId: number, input: Partial
 export async function deleteCard(id: number, ownerUserId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  return db.transaction(async (tx) => {
-    const [card] = await tx.delete(cards).where(and(eq(cards.id, id), eq(cards.ownerUserId, ownerUserId))).returning();
+  return db.transaction(async tx => {
+    const [card] = await tx
+      .delete(cards)
+      .where(and(eq(cards.id, id), eq(cards.ownerUserId, ownerUserId)))
+      .returning();
     if (!card) return undefined;
     await tx.delete(references).where(eq(references.cardId, id));
     await tx.delete(analyticsEvents).where(eq(analyticsEvents.cardId, id));
@@ -239,22 +295,41 @@ export async function deleteCard(id: number, ownerUserId: number) {
   });
 }
 
-export async function getReferencesByCard(cardId: number, approvedOnly = false) {
+export async function getReferencesByCard(
+  cardId: number,
+  approvedOnly = false
+) {
   if (cardId === DEMO_CARD_ID) return DEMO_REFERENCES as any;
   const db = await getDb();
   if (!db) return [];
   const filters = approvedOnly
     ? and(eq(references.cardId, cardId), eq(references.approved, true))
     : eq(references.cardId, cardId);
-  return db.select().from(references).where(filters).orderBy(desc(references.createdAt)).limit(50);
+  return db
+    .select()
+    .from(references)
+    .where(filters)
+    .orderBy(desc(references.createdAt))
+    .limit(50);
 }
 
-export async function getReferencesByOwner(cardId: number, ownerUserId: number) {
+export async function getReferencesByOwner(
+  cardId: number,
+  ownerUserId: number
+) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(references)
-    .where(and(eq(references.cardId, cardId), eq(references.ownerUserId, ownerUserId)))
-    .orderBy(desc(references.createdAt)).limit(50);
+  return db
+    .select()
+    .from(references)
+    .where(
+      and(
+        eq(references.cardId, cardId),
+        eq(references.ownerUserId, ownerUserId)
+      )
+    )
+    .orderBy(desc(references.createdAt))
+    .limit(50);
 }
 
 export async function createReference(input: InsertReference) {
@@ -265,16 +340,30 @@ export async function createReference(input: InsertReference) {
 }
 
 /** Newest first, keyset-paginated on id so pages stay stable while new contacts arrive. */
-export async function getContactsByOwner(ownerUserId: number, options: { cursor?: number | null; limit?: number } = {}) {
+export async function getContactsByOwner(
+  ownerUserId: number,
+  options: { cursor?: number | null; limit?: number } = {}
+) {
   const limit = Math.min(Math.max(options.limit ?? 200, 1), 500);
   const db = await getDb();
   if (!db) return { items: [], nextCursor: null };
   const where = options.cursor
-    ? and(eq(contacts.ownerUserId, ownerUserId), lt(contacts.id, options.cursor))
+    ? and(
+        eq(contacts.ownerUserId, ownerUserId),
+        lt(contacts.id, options.cursor)
+      )
     : eq(contacts.ownerUserId, ownerUserId);
-  const rows = await db.select().from(contacts).where(where).orderBy(desc(contacts.id)).limit(limit + 1);
+  const rows = await db
+    .select()
+    .from(contacts)
+    .where(where)
+    .orderBy(desc(contacts.id))
+    .limit(limit + 1);
   const items = rows.slice(0, limit);
-  return { items, nextCursor: rows.length > limit ? items[items.length - 1].id : null };
+  return {
+    items,
+    nextCursor: rows.length > limit ? items[items.length - 1].id : null,
+  };
 }
 
 export async function createContact(input: InsertContact) {
@@ -287,21 +376,30 @@ export async function createContact(input: InsertContact) {
 export async function deleteReference(id: number, ownerUserId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  await db.delete(references).where(and(eq(references.id, id), eq(references.ownerUserId, ownerUserId)));
+  await db
+    .delete(references)
+    .where(and(eq(references.id, id), eq(references.ownerUserId, ownerUserId)));
   return true;
 }
 
 export async function deleteContact(id: number, ownerUserId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  await db.delete(contacts).where(and(eq(contacts.id, id), eq(contacts.ownerUserId, ownerUserId)));
+  await db
+    .delete(contacts)
+    .where(and(eq(contacts.id, id), eq(contacts.ownerUserId, ownerUserId)));
   return true;
 }
 
 export async function updateContact(
   id: number,
   ownerUserId: number,
-  input: Partial<Pick<InsertContact, "tags" | "notes" | "followedUp" | "followUpOn">>,
+  input: Partial<
+    Pick<
+      InsertContact,
+      "tags" | "notes" | "followedUp" | "followUpOn" | "status"
+    >
+  >
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
@@ -324,9 +422,13 @@ export async function markContactsSeen(ownerUserId: number) {
   return result.length;
 }
 
-export type AnalyticsType = "view" | "save" | "vcard" | "link" | "share";
+export type AnalyticsType = "view" | "save" | "vcard" | "link" | "share" | "qr";
 
-export async function recordAnalytics(cardId: number, type: AnalyticsType, meta?: string) {
+export async function recordAnalytics(
+  cardId: number,
+  type: AnalyticsType,
+  meta?: string
+) {
   const db = await getDb();
   if (!db) return;
   await db.insert(analyticsEvents).values({ cardId, type, meta });
@@ -347,7 +449,17 @@ export async function getInsightsRows(ownerUserId: number, since: Date) {
     })
     .from(analyticsEvents)
     .innerJoin(cards, eq(cards.id, analyticsEvents.cardId))
-    .where(and(eq(cards.ownerUserId, ownerUserId), gte(analyticsEvents.createdAt, since)))
-    .groupBy(analyticsEvents.cardId, analyticsEvents.type, analyticsEvents.meta, day);
-  return rows.map((row) => ({ ...row, count: Number(row.count) }));
+    .where(
+      and(
+        eq(cards.ownerUserId, ownerUserId),
+        gte(analyticsEvents.createdAt, since)
+      )
+    )
+    .groupBy(
+      analyticsEvents.cardId,
+      analyticsEvents.type,
+      analyticsEvents.meta,
+      day
+    );
+  return rows.map(row => ({ ...row, count: Number(row.count) }));
 }

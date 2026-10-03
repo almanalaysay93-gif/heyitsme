@@ -44,11 +44,14 @@ export const ENV = {
   googlePayEnv: process.env.GOOGLE_PAY_ENV === "PRODUCTION" ? "PRODUCTION" : "TEST",
   nfcStoreEnabled: flag("NFC_STORE_ENABLED", false),
   teamsEnabled: flag("TEAMS_ENABLED", false),
-  foundingOfferEnabled: flag("FOUNDING_MEMBER_OFFER_ENABLED", true),
+  foundingOfferEnabled: false,
+  proDesignEnabled: flag("PRO_DESIGN_ENABLED", false),
+  qrCampaignsEnabled: flag("QR_CAMPAIGNS_ENABLED", false),
+  proAnalyticsEnabled: flag("PRO_ANALYTICS_ENABLED", false),
   // Comma-separated Google account emails that keep every feature with no plan. Compared lowercase.
   complimentaryEmails: (process.env.COMPLIMENTARY_EMAILS ?? "")
     .split(",")
-    .map((email) => email.trim().toLowerCase())
+    .map(email => email.trim().toLowerCase())
     .filter(Boolean),
 };
 

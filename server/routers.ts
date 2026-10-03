@@ -36,13 +36,25 @@ import {
 } from "./db";
 import { buildInsights, INSIGHTS_RANGES, insightsSince } from "./insights";
 import { billingRouter } from "./billing/router";
-import { assertBrandingAllowed, assertInsightRange, createCardForOwner, leadCaptureOpen, withLeadQuota } from "./billing/gate";
+import {
+  advancedInsights,
+  campaignForCard,
+  CONTACT_STATUSES,
+  exportContactsForOwner,
+  qrCampaignRouter,
+} from "./proTools";
+import { assertPro } from "./billing/gate";
+import { ENV } from "./_core/env";
+import {
+  assertBrandingAllowed, assertInsightRange, createCardForOwner, leadCaptureOpen, withLeadQuota,
+} from "./billing/gate";
 
 // Rendered as <img src>, so only http(s) or same-origin storage paths — never data:/javascript:.
 const imageUrl = z
   .string()
   .max(600)
-  .refine((value) => /^(https?:\/\/|\/(?!\/))/i.test(value), "Image must be an https link or an uploaded file")
+  .refine(
+    value => /^(https?:\/\/|\/(?!\/))/i.test(value), "Image must be an https link or an uploaded file")
   .optional()
   .nullable();
 
@@ -51,38 +63,45 @@ export const MAX_PORTFOLIO_LENGTH = 12000;
 
 const portfolioSchema = z
   .string()
-  .max(MAX_PORTFOLIO_LENGTH, `Portfolio cannot exceed ${MAX_PORTFOLIO_LENGTH} characters`)
-  .refine(
-    (value) => {
-      if (!value || !value.trim()) return true;
-      try {
-        const parsed = JSON.parse(value);
-        return !Array.isArray(parsed) || parsed.length <= MAX_PORTFOLIO_ITEMS;
-      } catch {
-        return true;
-      }
-    },
-    `Portfolio can have at most ${MAX_PORTFOLIO_ITEMS} items`
+  .max(MAX_PORTFOLIO_LENGTH, `Portfolio cannot exceed ${MAX_PORTFOLIO_LENGTH} characters`
   )
+  .refine(value => {
+    if (!value || !value.trim()) return true;
+    try {
+      const parsed = JSON.parse(value);
+      return !Array.isArray(parsed) || parsed.length <= MAX_PORTFOLIO_ITEMS;
+    } catch {
+      return true;
+    }
+  }, `Portfolio can have at most ${MAX_PORTFOLIO_ITEMS} items`)
   .optional()
   .nullable();
 
-
-type ContactNotice = { name: string; email: string | null; phone: string | null };
+type ContactNotice = {
+  name: string;
+  email: string | null;
+  phone: string | null;
+};
 
 /** Emails the card owner about a new contact. The contact is already saved, so nothing here may throw. */
-async function notifyOwnerOfContact(card: { ownerUserId: number; displayName: string }, contact: ContactNotice, origin: string) {
+async function notifyOwnerOfContact(
+  card: { ownerUserId: number; displayName: string },
+  contact: ContactNotice,
+  origin: string
+) {
   try {
     const owner = await getUserById(card.ownerUserId);
     if (!owner?.email) return;
-    await sendMail(newContactMail({
-      to: owner.email,
-      cardName: card.displayName,
-      name: contact.name,
-      email: contact.email,
-      phone: contact.phone,
-      contactsUrl: `${origin}/app/contacts`,
-    }));
+    await sendMail(
+      newContactMail({
+        to: owner.email,
+        cardName: card.displayName,
+        name: contact.name,
+        email: contact.email,
+        phone: contact.phone,
+        contactsUrl: `${origin}/app/contacts`,
+      })
+    );
   } catch (error) {
     console.error("[Mail] could not notify card owner:", error);
   }
@@ -107,66 +126,133 @@ const UPLOAD_TYPES: Record<string, string> = {
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   zip: "application/zip",
 };
-const ALLOWED_UPLOAD_TYPES = new Set(Object.values(UPLOAD_TYPES).concat("application/x-zip-compressed"));
+const ALLOWED_UPLOAD_TYPES = new Set(
+  Object.values(UPLOAD_TYPES).concat("application/x-zip-compressed")
+);
 // Base64 of the 3 MB client cap; Vercel rejects bodies over ~4.5 MB anyway.
 const MAX_UPLOAD_BASE64 = 4_200_000;
 
-export function resolveUploadType(fileName: string, contentType: string): string | null {
+export function resolveUploadType(
+  fileName: string,
+  contentType: string
+): string | null {
   const declared = contentType.toLowerCase().split(";")[0].trim();
   if (ALLOWED_UPLOAD_TYPES.has(declared)) return declared;
   // Some systems send an empty or generic type for documents; fall back to the extension.
   const extension = fileName.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1];
-  return extension ? UPLOAD_TYPES[extension] ?? null : null;
+  return extension ? (UPLOAD_TYPES[extension] ?? null) : null;
 }
 
-const startsWith = (bytes: Buffer, signature: number[] | string, offset = 0) => {
-  const expected = typeof signature === "string" ? Buffer.from(signature, "latin1") : Buffer.from(signature);
+const startsWith = (
+  bytes: Buffer,
+  signature: number[] | string,
+  offset = 0
+) => {
+  const expected =
+    typeof signature === "string"
+      ? Buffer.from(signature, "latin1")
+      : Buffer.from(signature);
   return bytes.subarray(offset, offset + expected.length).equals(expected);
 };
 
 // The first bytes of each format an upload may be. Containers cover several types: a .docx is a zip, and MP4, MOV
 // and AVIF are all ISO media files. Checked in order, so the loose PDF check goes last.
-const FILE_FORMATS: { types: string[]; matches: (bytes: Buffer) => boolean }[] = [
-  { types: ["image/jpeg"], matches: (b) => startsWith(b, [0xff, 0xd8, 0xff]) },
-  { types: ["image/png"], matches: (b) => startsWith(b, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]) },
-  { types: ["image/gif"], matches: (b) => startsWith(b, "GIF8") },
-  { types: ["image/webp"], matches: (b) => startsWith(b, "RIFF") && startsWith(b, "WEBP", 8) },
-  { types: ["image/avif", "video/mp4", "video/quicktime"], matches: (b) => startsWith(b, "ftyp", 4) },
-  // QuickTime files from older cameras can open with another atom instead of `ftyp`.
-  { types: ["video/quicktime"], matches: (b) => ["moov", "mdat", "wide", "free", "skip", "pnot"].some((atom) => startsWith(b, atom, 4)) },
-  { types: ["video/webm"], matches: (b) => startsWith(b, [0x1a, 0x45, 0xdf, 0xa3]) },
-  { types: ["application/msword"], matches: (b) => startsWith(b, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]) },
-  {
-    types: [UPLOAD_TYPES.docx, "application/zip", "application/x-zip-compressed"],
-    matches: (b) => startsWith(b, [0x50, 0x4b, 0x03, 0x04]) || startsWith(b, [0x50, 0x4b, 0x05, 0x06]),
-  },
-  { types: ["application/pdf"], matches: (b) => b.subarray(0, 1024).includes("%PDF-") },
-];
-const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
+const FILE_FORMATS: { types: string[]; matches: (bytes: Buffer) => boolean }[] =
+  [
+    { types: ["image/jpeg"], matches: b => startsWith(b, [0xff, 0xd8, 0xff]) },
+    {
+      types: ["image/png"],
+      matches: b =>
+        startsWith(b, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    },
+    { types: ["image/gif"], matches: b => startsWith(b, "GIF8") },
+    {
+      types: ["image/webp"],
+      matches: b => startsWith(b, "RIFF") && startsWith(b, "WEBP", 8),
+    },
+    {
+      types: ["image/avif", "video/mp4", "video/quicktime"],
+      matches: b => startsWith(b, "ftyp", 4),
+    },
+    // QuickTime files from older cameras can open with another atom instead of `ftyp`.
+    {
+      types: ["video/quicktime"],
+      matches: b =>
+        ["moov", "mdat", "wide", "free", "skip", "pnot"].some(atom =>
+          startsWith(b, atom, 4)
+        ),
+    },
+    {
+      types: ["video/webm"],
+      matches: b => startsWith(b, [0x1a, 0x45, 0xdf, 0xa3]),
+    },
+    {
+      types: ["application/msword"],
+      matches: b =>
+        startsWith(b, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]),
+    },
+    {
+      types: [
+        UPLOAD_TYPES.docx,
+        "application/zip",
+        "application/x-zip-compressed",
+      ],
+      matches: b =>
+        startsWith(b, [0x50, 0x4b, 0x03, 0x04]) ||
+        startsWith(b, [0x50, 0x4b, 0x05, 0x06]),
+    },
+    {
+      types: ["application/pdf"],
+      matches: b => b.subarray(0, 1024).includes("%PDF-"),
+    },
+  ];
+const PHOTO_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+]);
 
 // The declared type and extension are the uploader's say-so; the bytes are what visitors get. Returns the type to store
 // the file under, or null when the bytes aren't that kind of file.
-export function confirmUploadType(bytes: Buffer, contentType: string): string | null {
+export function confirmUploadType(
+  bytes: Buffer,
+  contentType: string
+): string | null {
   const format = FILE_FORMATS.find(({ matches }) => matches(bytes));
   if (!format) return null;
   if (format.types.includes(contentType)) return contentType;
   // A photo saved under the wrong image extension is still a photo: store it under its real type.
-  if (PHOTO_TYPES.has(contentType) && PHOTO_TYPES.has(format.types[0])) return format.types[0];
+  if (PHOTO_TYPES.has(contentType) && PHOTO_TYPES.has(format.types[0]))
+    return format.types[0];
   return null;
 }
 
-async function enforceRateLimit(scope: string, identity: string, limit: number, windowMs: number) {
-  const result = await rateLimit(`${scope}:${hashIdentifier(identity)}`, limit, windowMs);
+async function enforceRateLimit(
+  scope: string,
+  identity: string,
+  limit: number,
+  windowMs: number
+) {
+  const result = await rateLimit(
+    `${scope}:${hashIdentifier(identity)}`,
+    limit,
+    windowMs
+  );
   if (!result.allowed) {
-    throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Too many requests. Please wait a moment and try again." });
+    throw new TRPCError({
+      code: "TOO_MANY_REQUESTS",
+      message: "Too many requests. Please wait a moment and try again.",
+    });
   }
 }
 
 export const appRouter = router({
   billing: billingRouter,
+  qrCampaigns: qrCampaignRouter,
   system: systemRouter,
   auth: router({
-    me: publicProcedure.query((opts) => opts.ctx.user),
+    me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
@@ -179,14 +265,21 @@ export const appRouter = router({
     export: protectedProcedure.query(async ({ ctx }) => {
       const owned = await getCardsByOwner(ctx.user.id);
       // ponytail: one reference query per card, fine up to the 500-card owner limit.
-      const refs = await Promise.all(owned.map(async (card) => [card.id, await getReferencesByOwner(card.id, ctx.user.id)] as const));
+      const refs = await Promise.all(
+        owned.map(
+          async card =>
+            [card.id, await getReferencesByOwner(card.id, ctx.user.id)] as const
+        )
+      );
       return buildCardExport(owned, new Map(refs));
     }),
-    get: protectedProcedure.input(z.object({ id: z.number().int().positive() })).query(({ ctx, input }) =>
-      getCardByIdForOwner(input.id, ctx.user.id),
-    ),
+    get: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .query(({ ctx, input }) => getCardByIdForOwner(input.id, ctx.user.id)),
     create: protectedProcedure
-      .input(z.object({ ...serverCardFields, published: z.boolean().optional() }))
+      .input(
+        z.object({ ...serverCardFields, published: z.boolean().optional() })
+      )
       .mutation(async ({ ctx, input }) => {
         const validation = validateCardData(input);
         if (!validation.isValid) {
@@ -211,7 +304,13 @@ export const appRouter = router({
         return created;
       }),
     update: protectedProcedure
-      .input(z.object({ id: z.number().int().positive(), ...serverCardFields, published: z.boolean().optional() }))
+      .input(
+        z.object({
+          id: z.number().int().positive(),
+          ...serverCardFields,
+          published: z.boolean().optional(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
         const { id, ...rest } = input;
         const validation = validateCardData(rest);
@@ -221,9 +320,13 @@ export const appRouter = router({
         }
         const before = await getCardByIdForOwner(id, ctx.user.id);
         if (!before) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Card not found." });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Card not found.",
+          });
         }
-        if (rest.page !== undefined) await assertBrandingAllowed(ctx.user, rest.page, before.page);
+        if (rest.page !== undefined)
+          await assertBrandingAllowed(ctx.user, rest.page, before.page);
         const updated = await updateCard(id, ctx.user.id, {
           ...rest,
           title: rest.title ?? "",
@@ -233,22 +336,35 @@ export const appRouter = router({
         return updated;
       }),
     publish: protectedProcedure
-      .input(z.object({ id: z.number().int().positive(), published: z.boolean() }))
+      .input(
+        z.object({ id: z.number().int().positive(), published: z.boolean() })
+      )
       .mutation(async ({ ctx, input }) => {
         const card = await getCardByIdForOwner(input.id, ctx.user.id);
         if (!card) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Card not found." });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Card not found.",
+          });
         }
         if (input.published) {
           const validation = validateCardData(card);
           if (!validation.isValid) {
             const firstError = Object.values(validation.errors)[0];
-            throw new TRPCError({ code: "BAD_REQUEST", message: `Cannot publish: ${firstError}` });
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `Cannot publish: ${firstError}`,
+            });
           }
         }
-        const updated = await updateCard(input.id, ctx.user.id, { published: input.published });
+        const updated = await updateCard(input.id, ctx.user.id, {
+          published: input.published,
+        });
         if (!updated) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Card not found." });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Card not found.",
+          });
         }
         return updated;
       }),
@@ -257,7 +373,10 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const card = await deleteCard(input.id, ctx.user.id);
         if (!card) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Card not found." });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Card not found.",
+          });
         }
         // The card is already gone, so a storage hiccup only leaves unused files behind.
         await tidyOwnerUploads(ctx.user.id, card);
@@ -265,39 +384,86 @@ export const appRouter = router({
       }),
   }),
   contacts: router({
+    export: protectedProcedure.query(({ ctx }) =>
+      exportContactsForOwner(ctx.user)
+    ),
     list: protectedProcedure
-      .input(z.object({
-        cursor: z.number().int().positive().nullish(),
-        limit: z.number().int().min(1).max(500).optional(),
-      }).optional())
-      .query(({ ctx, input }) => getContactsByOwner(ctx.user.id, { cursor: input?.cursor, limit: input?.limit })),
+      .input(
+        z
+          .object({
+            cursor: z.number().int().positive().nullish(),
+            limit: z.number().int().min(1).max(500).optional(),
+          })
+          .optional()
+      )
+      .query(({ ctx, input }) =>
+        getContactsByOwner(ctx.user.id, {
+          cursor: input?.cursor,
+          limit: input?.limit,
+        })
+      ),
     update: protectedProcedure
-      .input(z.object({
-        id: z.number().int().positive(),
-        tags: z.array(z.string().trim().min(1).max(40)).max(12).optional(),
-        notes: z.string().max(1000).optional().nullable(),
-        followedUp: z.boolean().optional(),
-        // A calendar day from <input type="date">, stored as midnight UTC. Null clears it.
-        followUpOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((day) => !Number.isNaN(Date.parse(`${day}T00:00:00Z`)), "Invalid date").nullable().optional(),
-      }))
+      .input(
+        z.object({
+          id: z.number().int().positive(),
+          status: z.enum(CONTACT_STATUSES).optional(),
+          tags: z.array(z.string().trim().min(1).max(40)).max(12).optional(),
+          notes: z.string().max(1000).optional().nullable(),
+          followedUp: z.boolean().optional(),
+          // A calendar day from <input type="date">, stored as midnight UTC. Null clears it.
+          followUpOn: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}$/)
+            .refine(
+              day => !Number.isNaN(Date.parse(`${day}T00:00:00Z`)),
+              "Invalid date"
+            )
+            .nullable()
+            .optional(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
+        if (ENV.planLimitsEnabled) await assertPro(ctx.user);
         const updated = await updateContact(input.id, ctx.user.id, {
-          ...(input.tags ? { tags: JSON.stringify(Array.from(new Set(input.tags))) } : {}),
+          ...(input.status !== undefined ? { status: input.status } : {}),
+          ...(input.tags
+            ? { tags: JSON.stringify(Array.from(new Set(input.tags))) }
+            : {}),
           ...(input.notes !== undefined ? { notes: input.notes || null } : {}),
-          ...(input.followedUp !== undefined ? { followedUp: input.followedUp } : {}),
-          ...(input.followUpOn !== undefined ? { followUpOn: input.followUpOn ? new Date(`${input.followUpOn}T00:00:00Z`) : null } : {}),
+          ...(input.followedUp !== undefined
+            ? { followedUp: input.followedUp }
+            : {}),
+          ...(input.followUpOn !== undefined
+            ? {
+                followUpOn: input.followUpOn
+                  ? new Date(`${input.followUpOn}T00:00:00Z`)
+                  : null,
+              }
+            : {}),
         });
-        if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });
+        if (!updated)
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Contact not found",
+          });
         return updated;
       }),
-    markSeen: protectedProcedure.mutation(({ ctx }) => markContactsSeen(ctx.user.id)),
+    markSeen: protectedProcedure.mutation(({ ctx }) =>
+      markContactsSeen(ctx.user.id)
+    ),
     delete: protectedProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .mutation(({ ctx, input }) => deleteContact(input.id, ctx.user.id)),
   }),
   insights: router({
     summary: protectedProcedure
-      .input(z.object({ days: z.union([z.literal(7), z.literal(30), z.literal(90), z.literal(365)]).default(INSIGHTS_RANGES[0]) }))
+      .input(
+        z.object({
+          days: z
+            .union([z.literal(7), z.literal(30), z.literal(90), z.literal(365)])
+            .default(INSIGHTS_RANGES[0]),
+        })
+      )
       .query(async ({ ctx, input }) => {
         await assertInsightRange(ctx.user, input.days);
         const now = new Date();
@@ -305,83 +471,146 @@ export const appRouter = router({
           getInsightsRows(ctx.user.id, insightsSince(input.days, now)),
           getCardsByOwner(ctx.user.id),
         ]);
-        return buildInsights(rows, cards, input.days, now);
+        const summary = buildInsights(rows, cards, input.days, now);
+        return {
+          ...summary,
+          advanced: await advancedInsights(ctx.user, rows, summary.daily),
+        };
       }),
   }),
   references: router({
-    list: protectedProcedure.input(z.object({ cardId: z.number().int().positive() })).query(({ ctx, input }) => getReferencesByOwner(input.cardId, ctx.user.id)),
-    create: protectedProcedure.input(z.object({
-      cardId: z.number().int().positive(),
-      clientName: z.string().min(1).max(160),
-      clientRole: z.string().max(160).optional().nullable(),
-      company: z.string().max(160).optional().nullable(),
-      quote: z.string().min(8).max(1200),
-    })).mutation(async ({ ctx, input }) => {
-      const card = await getCardByIdForOwner(input.cardId, ctx.user.id);
-      if (!card) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
-      return createReference({ ...input, ownerUserId: ctx.user.id, approved: true });
-    }),
+    list: protectedProcedure
+      .input(z.object({ cardId: z.number().int().positive() }))
+      .query(({ ctx, input }) =>
+        getReferencesByOwner(input.cardId, ctx.user.id)
+      ),
+    create: protectedProcedure
+      .input(
+        z.object({
+          cardId: z.number().int().positive(),
+          clientName: z.string().min(1).max(160),
+          clientRole: z.string().max(160).optional().nullable(),
+          company: z.string().max(160).optional().nullable(),
+          quote: z.string().min(8).max(1200),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const card = await getCardByIdForOwner(input.cardId, ctx.user.id);
+        if (!card)
+          throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
+        return createReference({
+          ...input,
+          ownerUserId: ctx.user.id,
+          approved: true,
+        });
+      }),
     delete: protectedProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .mutation(({ ctx, input }) => deleteReference(input.id, ctx.user.id)),
   }),
   media: router({
-    upload: protectedProcedure.input(z.object({
-      fileName: z.string().min(1).max(180),
-      contentType: z.string().min(1).max(120),
-      dataBase64: z.string().min(1).max(MAX_UPLOAD_BASE64, "File is larger than 3MB. Upload a smaller file or add it as a link."),
-    })).mutation(async ({ ctx, input }) => {
-      await enforceRateLimit("upload", `user:${ctx.user.id}`, 30, 10 * MINUTE);
-      const resolvedType = resolveUploadType(input.fileName, input.contentType);
-      if (!resolvedType) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "That file type isn't supported. Use JPG, PNG, WebP, GIF, MP4, WebM, MOV, PDF, Word, or ZIP." });
-      }
-      const bytes = Buffer.from(input.dataBase64, "base64");
-      const contentType = confirmUploadType(bytes, resolvedType);
-      if (!contentType) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "That file looks damaged, or isn't the type its name says. Try saving or exporting it again." });
-      }
-      const safeName = input.fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
-      // Unique prefix so re-uploading "photo.jpg" never overwrites a file another card still uses.
-      try {
-        return await storagePut(`${ctx.user.id}-portfolio/${nanoid(8)}-${safeName}`, bytes, contentType);
-      } catch (error) {
-        // Storage errors ("fetch failed", bucket names) mean nothing to the person uploading.
-        console.error("[Upload] storage failed:", error);
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Could not save that file right now. Please try again in a moment." });
-      }
-    }),
+    upload: protectedProcedure
+      .input(
+        z.object({
+          fileName: z.string().min(1).max(180),
+          contentType: z.string().min(1).max(120),
+          dataBase64: z
+            .string()
+            .min(1)
+            .max(
+              MAX_UPLOAD_BASE64,
+              "File is larger than 3MB. Upload a smaller file or add it as a link."
+            ),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        await enforceRateLimit(
+          "upload",
+          `user:${ctx.user.id}`,
+          30,
+          10 * MINUTE
+        );
+        const resolvedType = resolveUploadType(
+          input.fileName,
+          input.contentType
+        );
+        if (!resolvedType) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "That file type isn't supported. Use JPG, PNG, WebP, GIF, MP4, WebM, MOV, PDF, Word, or ZIP.",
+          });
+        }
+        const bytes = Buffer.from(input.dataBase64, "base64");
+        const contentType = confirmUploadType(bytes, resolvedType);
+        if (!contentType) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "That file looks damaged, or isn't the type its name says. Try saving or exporting it again.",
+          });
+        }
+        const safeName = input.fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
+        // Unique prefix so re-uploading "photo.jpg" never overwrites a file another card still uses.
+        try {
+          return await storagePut(
+            `${ctx.user.id}-portfolio/${nanoid(8)}-${safeName}`,
+            bytes,
+            contentType
+          );
+        } catch (error) {
+          // Storage errors ("fetch failed", bucket names) mean nothing to the person uploading.
+          console.error("[Upload] storage failed:", error);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message:
+              "Could not save that file right now. Please try again in a moment.",
+          });
+        }
+      }),
   }),
   publicCard: router({
-    bySlug: publicProcedure.input(z.object({ slug: z.string().min(1).max(120) })).query(async ({ ctx, input }) => {
-      const ip = clientIp(ctx.req);
-      await enforceRateLimit("card-read", ip, 120, MINUTE);
-      const card = await getPublicCardBySlug(input.slug);
-      if (card && card.id !== DEMO_CARD_ID) {
-        // Count a visitor once per half hour, so refreshes and retries do not inflate Insights.
-        const firstView = await rateLimit(`view:${card.id}:${hashIdentifier(ip)}`, 1, 30 * MINUTE);
-        if (firstView.allowed) await recordAnalytics(card.id, "view", "public_card");
-      }
-      // null, not undefined: a missing slug is an empty result. undefined makes the client treat it as a failed query.
-      if (!card) return null;
-      const [refs, acceptsDetails] = await Promise.all([
-        getReferencesByCard(card.id, true),
-        card.id === DEMO_CARD_ID ? true : leadCaptureOpen(card.ownerUserId).catch(() => true),
-      ]);
-      // acceptsDetails false: the owner's free lead quota is used up, so the page offers direct contact instead of the form.
-      return { ...card, references: refs, acceptsDetails };
-    }),
+    bySlug: publicProcedure
+      .input(z.object({ slug: z.string().min(1).max(120) }))
+      .query(async ({ ctx, input }) => {
+        const ip = clientIp(ctx.req);
+        await enforceRateLimit("card-read", ip, 120, MINUTE);
+        const card = await getPublicCardBySlug(input.slug);
+        if (card && card.id !== DEMO_CARD_ID) {
+          // Count a visitor once per half hour, so refreshes and retries do not inflate Insights.
+          const firstView = await rateLimit(
+            `view:${card.id}:${hashIdentifier(ip)}`,
+            1,
+            30 * MINUTE
+          );
+          if (firstView.allowed)
+            await recordAnalytics(card.id, "view", "public_card");
+        }
+        // null, not undefined: a missing slug is an empty result. undefined makes the client treat it as a failed query.
+        if (!card) return null;
+        const [refs, acceptsDetails] = await Promise.all([
+          getReferencesByCard(card.id, true),
+          card.id === DEMO_CARD_ID
+            ? true
+            : leadCaptureOpen(card.ownerUserId).catch(() => true),
+        ]);
+        // acceptsDetails false: the owner's free lead quota is used up, so the page offers direct contact instead of the form.
+        return { ...card, references: refs, acceptsDetails };
+      }),
     exchange: publicProcedure
-      .input(z.object({
-        cardId: z.number().int(),
-        name: z.string().min(1).max(160),
-        email: z.string().email().optional().nullable(),
-        phone: z.string().max(64).optional().nullable(),
-        company: z.string().max(160).optional().nullable(),
-        title: z.string().max(160).optional().nullable(),
-        notes: z.string().max(1000).optional().nullable(),
-        website: z.string().max(200).optional().nullable(), // Honeypot field
-      }))
+      .input(
+        z.object({
+          cardId: z.number().int(),
+          campaignId: z.string().max(32).optional(),
+          name: z.string().min(1).max(160),
+          email: z.string().email().optional().nullable(),
+          phone: z.string().max(64).optional().nullable(),
+          company: z.string().max(160).optional().nullable(),
+          title: z.string().max(160).optional().nullable(),
+          notes: z.string().max(1000).optional().nullable(),
+          website: z.string().max(200).optional().nullable(), // Honeypot field
+        })
+      )
       .mutation(async ({ ctx, input }) => {
         await enforceRateLimit("exchange", clientIp(ctx.req), 10, 10 * MINUTE);
         // If honeypot is filled by bot, drop silently
@@ -409,33 +638,44 @@ export const appRouter = router({
           };
         }
         const card = await getCardById(input.cardId);
-        if (!card || !card.published || card.deletedAt) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
-        const contact = await withLeadQuota(card.ownerUserId, () => createContact({
-          ownerUserId: card.ownerUserId,
-          cardId: input.cardId,
-          name: input.name,
-          email: input.email ?? null,
-          phone: input.phone ?? null,
-          company: input.company ?? null,
-          title: input.title ?? null,
-          notes: input.notes ?? null,
-          tags: "[]",
-          source: "exchange_form",
-        }));
+        if (!card || !card.published || card.deletedAt)
+          throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
+        const campaign = await campaignForCard(input.campaignId, card.id);
+        const contact = await withLeadQuota(card.ownerUserId, () =>
+          createContact({
+            campaignId: campaign?.id ?? null,
+            ownerUserId: card.ownerUserId,
+            cardId: input.cardId,
+            name: input.name,
+            email: input.email ?? null,
+            phone: input.phone ?? null,
+            company: input.company ?? null,
+            title: input.title ?? null,
+            notes: input.notes ?? null,
+            tags: "[]",
+            source: "exchange_form",
+          })
+        );
         await recordAnalytics(input.cardId, "save", "exchange_form");
         await notifyOwnerOfContact(card, contact, siteOrigin(ctx.req));
         return contact;
       }),
     // Fire-and-forget visitor actions for the owner's Insights. Public, like views, so counts are best-effort.
     track: publicProcedure
-      .input(z.object({
-        cardId: z.number().int(),
-        type: z.enum(["vcard", "link", "share"]),
-        target: z.string().trim().max(80).optional().nullable(),
-      }))
+      .input(
+        z.object({
+          cardId: z.number().int(),
+          type: z.enum(["vcard", "link", "share"]),
+          target: z.string().trim().max(80).optional().nullable(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
         if (input.cardId === DEMO_CARD_ID) return { ok: true };
-        const limit = await rateLimit(`track:${hashIdentifier(clientIp(ctx.req))}`, 60, MINUTE);
+        const limit = await rateLimit(
+          `track:${hashIdentifier(clientIp(ctx.req))}`,
+          60,
+          MINUTE
+        );
         if (!limit.allowed) return { ok: false };
         const card = await getCardById(input.cardId);
         if (!card || !card.published || card.deletedAt) return { ok: false };

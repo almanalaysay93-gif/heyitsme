@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   addCycle,
   allowedInsightRanges,
-  annualSavingsMinor,
   formatPeso,
   leadUsageState,
   planPriceMinor,
@@ -23,79 +22,94 @@ const sub = (overrides: Partial<SubscriptionSnapshot> = {}): SubscriptionSnapsho
 
 describe("plan resolution", () => {
   it("gives Free its limits when plan limits are on", () => {
-    const ent = resolveEntitlements({ limitsEnabled: true, complimentary: false, subscriptions: [], now: NOW });
+    const ent = resolveEntitlements({ limitsEnabled: true, complimentary: false, subscriptions: [], now: NOW,
+    });
     expect(ent.plan).toBe("free");
-    expect(ent.limits).toEqual({ cards: 1, monthlyLeads: 10, analyticsDays: 7 });
+    expect(ent.limits).toEqual({ cards: 1, monthlyLeads: 10, analyticsDays: 7,
+    });
     expect(ent.canRemoveBranding).toBe(false);
   });
 
   it("keeps everyone at pre-launch limits while plan limits are off, paying or not", () => {
-    const free = resolveEntitlements({ limitsEnabled: false, complimentary: false, subscriptions: [], now: NOW });
-    const pro = resolveEntitlements({ limitsEnabled: false, complimentary: false, subscriptions: [sub()], now: NOW });
-    expect(free.limits).toEqual({ cards: 500, monthlyLeads: null, analyticsDays: 90 });
+    const free = resolveEntitlements({ limitsEnabled: false, complimentary: false, subscriptions: [], now: NOW,
+    });
+    const pro = resolveEntitlements({ limitsEnabled: false, complimentary: false, subscriptions: [sub()], now: NOW,
+    });
+    expect(free.limits).toEqual({ cards: 500, monthlyLeads: null, analyticsDays: 90,
+    });
     expect(pro.limits.cards).toBe(500);
     expect(pro.limits.analyticsDays).toBe(365);
   });
 
   it("gives Pro unlimited leads and a year of insights", () => {
-    const ent = resolveEntitlements({ limitsEnabled: true, complimentary: false, subscriptions: [sub()], now: NOW });
+    const ent = resolveEntitlements({ limitsEnabled: true, complimentary: false, subscriptions: [sub()], now: NOW,
+    });
     expect(ent.plan).toBe("pro");
-    expect(ent.limits).toEqual({ cards: 3, monthlyLeads: null, analyticsDays: 365 });
+    expect(ent.limits).toEqual({ cards: 5, monthlyLeads: null, analyticsDays: 365,
+    });
     expect(ent.canRemoveBranding).toBe(true);
   });
 
   it("returns an expired Pro to Free", () => {
-    const ent = resolveEntitlements({ limitsEnabled: true, complimentary: false, subscriptions: [sub({ currentPeriodEnd: new Date("2026-10-01T00:00:00Z") })], now: NOW });
+    const ent = resolveEntitlements({ limitsEnabled: true, complimentary: false, subscriptions: [sub({ currentPeriodEnd: new Date("2026-10-01T00:00:00Z") }),
+      ], now: NOW,
+    });
     expect(ent.plan).toBe("free");
   });
 
   it("keeps a canceled plan until the period ends", () => {
     const canceled = sub({ status: "canceled", cancelAtPeriodEnd: true });
-    expect(resolveEntitlements({ limitsEnabled: true, complimentary: false, subscriptions: [canceled], now: NOW }).plan).toBe("pro");
-    expect(resolveEntitlements({ limitsEnabled: true, complimentary: false, subscriptions: [canceled], now: new Date("2027-10-06T00:00:00Z") }).plan).toBe("free");
+    expect(resolveEntitlements({ limitsEnabled: true, complimentary: false, subscriptions: [canceled], now: NOW,
+      }).plan).toBe("pro");
+    expect(resolveEntitlements({ limitsEnabled: true, complimentary: false, subscriptions: [canceled], now: new Date("2027-10-06T00:00:00Z"),
+      }).plan).toBe("free");
   });
 
   it("gives past-due plans a three-day grace period", () => {
-    const pastDue = sub({ status: "past_due", currentPeriodEnd: new Date("2026-10-03T00:00:00Z") });
-    expect(resolveEntitlements({ limitsEnabled: true, complimentary: false, subscriptions: [pastDue], now: NOW }).plan).toBe("pro");
-    expect(resolveEntitlements({ limitsEnabled: true, complimentary: false, subscriptions: [pastDue], now: new Date("2026-10-06T01:00:00Z") }).plan).toBe("free");
+    const pastDue = sub({ status: "past_due", currentPeriodEnd: new Date("2026-10-03T00:00:00Z"),
+    });
+    expect(resolveEntitlements({ limitsEnabled: true, complimentary: false, subscriptions: [pastDue], now: NOW,
+      }).plan).toBe("pro");
+    expect(resolveEntitlements({ limitsEnabled: true, complimentary: false, subscriptions: [pastDue], now: new Date("2026-10-06T01:00:00Z"),
+      }).plan).toBe("free");
   });
 
   it("ignores pending subscriptions", () => {
-    expect(resolveEntitlements({ limitsEnabled: true, complimentary: false, subscriptions: [sub({ status: "pending" })], now: NOW }).plan).toBe("free");
+    expect(resolveEntitlements({ limitsEnabled: true, complimentary: false, subscriptions: [sub({ status: "pending" })], now: NOW,
+      }).plan).toBe("free");
   });
 
   it("applies an unexpired admin override", () => {
-    const ent = resolveEntitlements({ limitsEnabled: true, complimentary: false, override: { plan: "pro", expiresAt: null }, subscriptions: [], now: NOW });
+    const ent = resolveEntitlements({ limitsEnabled: true, complimentary: false, override: { plan: "pro", expiresAt: null }, subscriptions: [], now: NOW,
+    });
     expect(ent).toMatchObject({ plan: "pro", source: "override" });
-    const expired = resolveEntitlements({ limitsEnabled: true, complimentary: false, override: { plan: "pro", expiresAt: new Date("2026-01-01") }, subscriptions: [], now: NOW });
+    const expired = resolveEntitlements({ limitsEnabled: true, complimentary: false, override: { plan: "pro", expiresAt: new Date("2026-01-01") }, subscriptions: [], now: NOW,
+    });
     expect(expired.plan).toBe("free");
   });
 
   it("gives complimentary accounts Pro and Teams with no end", () => {
-    const ent = resolveEntitlements({ limitsEnabled: true, complimentary: true, subscriptions: [], now: NOW });
-    expect(ent).toMatchObject({ plan: "teams", teamsAccess: true, canRemoveBranding: true, accessEndsAt: null });
+    const ent = resolveEntitlements({ limitsEnabled: true, complimentary: true, subscriptions: [], now: NOW,
+    });
+    expect(ent).toMatchObject({ plan: "pro", teamsAccess: false, canRemoveBranding: true, accessEndsAt: null,
+    });
     expect(ent.limits.monthlyLeads).toBeNull();
     expect(allowedInsightRanges(ent)).toEqual([7, 30, 90, 365]);
   });
 
   it("offers Free only the 7-day insights range", () => {
-    const ent = resolveEntitlements({ limitsEnabled: true, complimentary: false, subscriptions: [], now: NOW });
+    const ent = resolveEntitlements({ limitsEnabled: true, complimentary: false, subscriptions: [], now: NOW,
+    });
     expect(allowedInsightRanges(ent)).toEqual([7]);
   });
 });
 
 describe("prices", () => {
-  it("resolves prices in centavos from plan codes", () => {
-    expect(planPriceMinor("pro", "monthly", false)).toBe(14900);
-    expect(planPriceMinor("pro", "annual", false)).toBe(129000);
-    expect(planPriceMinor("pro", "monthly", true)).toBe(9900);
-    expect(planPriceMinor("pro", "annual", true)).toBe(99900);
-    expect(planPriceMinor("teams", "annual", false)).toBe(499000);
-  });
-
-  it("computes the yearly savings", () => {
-    expect(annualSavingsMinor("pro", false)).toBe(49800);
+  it("sells only Pro monthly at 29900 centavos", () => {
+    expect(planPriceMinor("pro", "monthly", false)).toBe(29900);
+    expect(planPriceMinor("pro", "monthly", true)).toBe(29900);
+    expect(() => planPriceMinor("pro", "annual", false)).toThrow();
+    expect(() => planPriceMinor("teams" as never, "monthly", false)).toThrow();
   });
 
   it("formats pesos", () => {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { designSchema, qrSchema } from "./design";
 
 /**
  * Owner-editable landing-page settings for a public card, stored as JSON in cards.page.
@@ -14,8 +15,10 @@ export type FrameId = (typeof FRAME_IDS)[number];
 
 export const FRAMES: Record<FrameId, { label: string; blurb: string }> = {
   circle: { label: "Circle", blurb: "A classic round photo." },
-  squircle: { label: "Rounded square", blurb: "Soft corners, like an app icon." },
-  portrait: { label: "Portrait", blurb: "A tall photo card for studio or full-length shots." },
+  squircle: { label: "Rounded square", blurb: "Soft corners, like an app icon.",
+  },
+  portrait: { label: "Portrait", blurb: "A tall photo card for studio or full-length shots.",
+  },
   blob: { label: "Organic", blurb: "A soft shape that slowly changes." },
 };
 
@@ -26,24 +29,28 @@ export const DEFAULT_FRAME: Record<"professional" | "business" | "services", Fra
   services: "circle",
 };
 
-export const SECTION_IDS = ["stats", "services", "visit", "portfolio", "references", "contact"] as const;
+export const SECTION_IDS = ["stats", "services", "visit", "portfolio", "references", "contact",
+] as const;
 export type SectionId = (typeof SECTION_IDS)[number];
 
 export const TEMPLATES: Record<TemplateId, { label: string; blurb: string; sections: SectionId[] }> = {
   professional: {
     label: "Professional",
     blurb: "Your name up front, your work and references close behind.",
-    sections: ["stats", "portfolio", "references", "services", "contact", "visit"],
+    sections: ["stats", "portfolio", "references", "services", "contact", "visit",
+    ],
   },
   business: {
     label: "Business",
     blurb: "Company first, with hours, address and what you offer.",
-    sections: ["stats", "services", "visit", "portfolio", "references", "contact"],
+    sections: ["stats", "services", "visit", "portfolio", "references", "contact",
+    ],
   },
   services: {
     label: "Services",
     blurb: "A priced menu of what you do and one clear way to book.",
-    sections: ["services", "stats", "references", "portfolio", "visit", "contact"],
+    sections: ["services", "stats", "references", "portfolio", "visit", "contact",
+    ],
   },
 };
 
@@ -56,7 +63,8 @@ export const SECTION_LABELS: Record<SectionId, string> = {
   contact: "Contact & links",
 };
 
-export const PAGE_LIMITS = { services: 12, stats: 4, hours: 7, links: 12, contactPersons: 8, pageJson: 12000 } as const;
+export const PAGE_LIMITS = { services: 12, stats: 4, hours: 7, links: 12, contactPersons: 8, pageJson: 12000,
+} as const;
 
 const text = (max: number) => z.string().trim().max(max);
 const optionalText = (max: number) => text(max).optional().default("");
@@ -64,7 +72,8 @@ const safeUrl = z
   .string()
   .trim()
   .max(600)
-  .refine((value) => !value || /^(https?:\/\/|mailto:|tel:)/i.test(value), "Links must start with https://, mailto: or tel:")
+  .refine(
+    value => !value || /^(https?:\/\/|mailto:|tel:)/i.test(value), "Links must start with https://, mailto: or tel:")
   .optional()
   .default("");
 
@@ -84,6 +93,8 @@ export const contactPersonSchema = z.object({
 export type ContactPerson = z.infer<typeof contactPersonSchema>;
 
 export const pageConfigSchema = z.object({
+  design: designSchema.optional(),
+  qr: qrSchema.optional(),
   template: z.enum(TEMPLATE_IDS).default("professional"),
   /** Owner accent as #rrggbb; empty means the theme's own accent. */
   accent: z
@@ -94,7 +105,8 @@ export const pageConfigSchema = z.object({
     .default(""),
   /** Display order. Hidden sections stay in the list so their position survives being turned back on. */
   sections: z
-    .array(z.object({ id: z.enum(SECTION_IDS), hidden: z.boolean().optional().default(false) }))
+    .array(z.object({ id: z.enum(SECTION_IDS), hidden: z.boolean().optional().default(false),
+      }))
     .max(SECTION_IDS.length)
     .optional(),
   /** Profile photo frame; empty means the template's default (see DEFAULT_FRAME). */
@@ -110,7 +122,7 @@ export const pageConfigSchema = z.object({
         description: optionalText(240),
         price: optionalText(32),
         url: safeUrl,
-      }),
+      })
     )
     .max(PAGE_LIMITS.services)
     .optional()
@@ -129,7 +141,8 @@ export type PageConfig = z.infer<typeof pageConfigSchema>;
 export type PageSection = { id: SectionId; hidden: boolean };
 
 export function defaultPageConfig(template: TemplateId = "professional"): PageConfig {
-  return pageConfigSchema.parse({ template, sections: TEMPLATES[template].sections.map((id) => ({ id })) });
+  return pageConfigSchema.parse({ template, sections: TEMPLATES[template].sections.map(id => ({ id })),
+  });
 }
 
 /** Reads cards.page. Anything missing, corrupt or out of range becomes the Professional default, never an error. */
@@ -163,15 +176,17 @@ export function resolveSections(config: PageConfig): PageSection[] {
 
 /** Switching templates adopts the new template's order but keeps every piece of content and hidden choice. */
 export function switchTemplate(config: PageConfig, template: TemplateId): PageConfig {
-  const hidden = new Set(resolveSections(config).filter((s) => s.hidden).map((s) => s.id));
-  return { ...config, template, sections: TEMPLATES[template].sections.map((id) => ({ id, hidden: hidden.has(id) })) };
+  const hidden = new Set(resolveSections(config).filter(s => s.hidden).map(s => s.id));
+  return { ...config, template, sections: TEMPLATES[template].sections.map(id => ({ id, hidden: hidden.has(id),
+    })),
+  };
 }
 
 /** Server-side validator for the stored string: valid JSON matching the schema, within the size cap. */
 export const pageConfigField = z
   .string()
   .max(PAGE_LIMITS.pageJson, "Page settings are too large")
-  .refine((value) => {
+  .refine(value => {
     if (!value.trim()) return true;
     try {
       return pageConfigSchema.safeParse(JSON.parse(value)).success;
@@ -192,7 +207,9 @@ export function mapLink(address: string): string {
 }
 
 function luminance(hex: string): number {
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  const [r, g, b] = [1, 3, 5]
+    .map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
@@ -204,5 +221,7 @@ export function contrastRatio(a: string, b: string): number {
 
 /** Black or white text, whichever reads better on the given #rrggbb background. */
 export function readableOn(hex: string): "#111111" | "#ffffff" {
-  return contrastRatio(hex, "#ffffff") >= contrastRatio(hex, "#111111") ? "#ffffff" : "#111111";
+  return contrastRatio(hex, "#ffffff") >= contrastRatio(hex, "#111111")
+    ? "#ffffff"
+    : "#111111";
 }

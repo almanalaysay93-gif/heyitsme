@@ -142,3 +142,14 @@ describe("gate regressions", () => {
     expect(hasPendingEdits({ ...out, contactPersons: [{ name: "", role: "Manager", phone: "", email: "" }] })).toBe(true);
   });
 });
+
+
+describe("Pro settings persistence",()=>{
+ it("preserves design, QR and branding settings through editor normalization",async()=>{
+  const {designSchema,qrSchema}=await import("@shared/design");
+  const {parsePageConfig}=await import("@shared/pageConfig");
+  const {toEmittable}=await import("./pageDesigner");
+  const page=parsePageConfig(JSON.stringify({hideBranding:true,design:designSchema.parse({font:"Inter",animation:{preset:"aurora",intensity:"subtle"}}),qr:qrSchema.parse({rounded:true})}));
+  expect(toEmittable(page)).toMatchObject({hideBranding:true,design:page.design,qr:page.qr});
+ });
+});

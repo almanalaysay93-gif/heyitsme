@@ -1,15 +1,18 @@
 import { trpc } from "@/lib/trpc";
-import { createContext, lazy, Suspense, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, lazy, Suspense, useCallback, useContext, useMemo, useState, type ReactNode,
+} from "react";
 import type { PlanCode } from "@shared/plans";
 
 // Plan state for the workspace. Everything shown here comes from billing.me; the server enforces the same rules.
 
-export type UpgradeReason = "lead_warning" | "lead_limit" | "analytics" | "card_limit" | "branding" | "general";
+export type UpgradeReason =
+  | "lead_warning" | "lead_limit" | "analytics" | "card_limit" | "branding" | "general";
 
 const UpgradeDialog = lazy(() => import("@/components/billing/UpgradeDialog"));
 
 type UpgradeContextValue = { openUpgrade: (reason: UpgradeReason) => void };
-const UpgradeContext = createContext<UpgradeContextValue>({ openUpgrade: () => undefined });
+const UpgradeContext = createContext<UpgradeContextValue>({ openUpgrade: () => undefined,
+});
 
 export function useUpgrade() {
   return useContext(UpgradeContext);
@@ -29,7 +32,7 @@ export function UpgradeProvider({ children }: { children: ReactNode }) {
       {children}
       {loaded ? (
         <Suspense fallback={null}>
-          <UpgradeDialog reason={reason ?? "general"} open={reason !== null} onOpenChange={(open) => !open && setReason(null)} />
+          <UpgradeDialog reason={reason ?? "general"} open={reason !== null} onOpenChange={open => !open && setReason(null)} />
         </Suspense>
       ) : null}
     </UpgradeContext.Provider>
@@ -37,10 +40,12 @@ export function UpgradeProvider({ children }: { children: ReactNode }) {
 }
 
 export function useBilling(enabled: boolean) {
-  return trpc.billing.me.useQuery(undefined, { enabled, retry: false, staleTime: 30_000 });
+  return trpc.billing.me.useQuery(undefined, { enabled, retry: false, staleTime: 30_000,
+  });
 }
 
-export const PLAN_LABELS: Record<PlanCode, string> = { free: "Free", pro: "Pro", teams: "Teams" };
+export const PLAN_LABELS: Record<PlanCode, string> = { free: "Free", pro: "Pro",
+};
 
 /** True when a tRPC error is a plan limit (FORBIDDEN from server/billing/gate.ts). */
 export function isPlanLimitError(error: unknown): boolean {

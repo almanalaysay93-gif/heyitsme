@@ -1,4 +1,5 @@
 import { PAGE_LIMITS, pageConfigSchema, resolveSections, type PageConfig, type PageSection } from "@shared/pageConfig";
+import { designReadable } from "@shared/design";
 
 /** Turns what people naturally type into a link the schema accepts; anything unrecognisable becomes "". */
 export function normalizeLink(raw: string): string {
@@ -27,6 +28,9 @@ export function isUnusableLink(raw: string): boolean {
  */
 export function toEmittable(config: PageConfig): PageConfig | null {
   const candidate = {
+    design: config.design,
+    qr: config.qr,
+    hideBranding: config.hideBranding,
     template: config.template,
     accent: /^#[0-9a-fA-F]{6}$/.test(config.accent.trim()) ? config.accent.trim() : "",
     sections: resolveSections(config),
@@ -74,6 +78,7 @@ export function toEmittable(config: PageConfig): PageConfig | null {
 export function hasPendingEdits(config: PageConfig): boolean {
   const half = (a: string, b: string) => Boolean(a.trim()) !== Boolean(b.trim());
   return (
+    Boolean(config.design && !designReadable(config.design)) ||
     config.stats.some((s) => half(s.value, s.label)) ||
     config.hours.some((h) => half(h.days, h.time)) ||
     config.services.some((s) => !s.name.trim() && Boolean(s.price.trim() || s.description.trim() || s.url.trim())) ||

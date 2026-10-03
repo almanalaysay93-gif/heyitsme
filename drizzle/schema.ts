@@ -51,13 +51,16 @@ export const cards = pgTable("cards", {
   deletedAt: timestamp("deletedAt", { mode: "date" }),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
-}, (table) => [
+},
+  table => [
   index("cards_owner_updated_idx").on(table.ownerUserId, table.updatedAt),
   uniqueIndex("cards_owner_creation_key_idx").on(table.ownerUserId, table.creationKey),
 ]).enableRLS();
 
 export const contacts = pgTable("contacts", {
-  id: serial("id").primaryKey(),
+    status: varchar("status", { length: 16 }).default("new").notNull(),
+    campaignId: varchar("campaignId", { length: 32 }),
+    id: serial("id").primaryKey(),
   ownerUserId: integer("ownerUserId").notNull(),
   cardId: integer("cardId"),
   name: varchar("name", { length: 160 }).notNull(),
@@ -73,7 +76,24 @@ export const contacts = pgTable("contacts", {
   // When the owner means to reach out. No reminders are sent; it only orders the list.
   followUpOn: timestamp("followUpOn", { mode: "date" }),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
-}, (table) => [index("contacts_owner_id_idx").on(table.ownerUserId, table.id)]).enableRLS();
+},
+  table => [index("contacts_owner_id_idx").on(table.ownerUserId, table.id)]
+).enableRLS();
+
+export const qrCampaigns = pgTable(
+  "qrCampaigns",
+  {
+    id: varchar("id", { length: 32 }).primaryKey(),
+    ownerUserId: integer("ownerUserId")
+      .notNull()
+      .references(() => users.id),
+    cardId: integer("cardId")
+      .notNull()
+      .references(() => cards.id),
+    name: varchar("name", { length: 80 }).notNull(),
+    createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+  },
+  table => [index("qr_campaign_owner_idx").on(table.ownerUserId, table.cardId)]).enableRLS();
 
 export const analyticsEvents = pgTable("analyticsEvents", {
   id: serial("id").primaryKey(),
@@ -81,7 +101,9 @@ export const analyticsEvents = pgTable("analyticsEvents", {
   type: varchar("type", { length: 32 }).notNull(),
   meta: text("meta"),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
-}, (table) => [index("analytics_card_created_idx").on(table.cardId, table.createdAt)]).enableRLS();
+},
+  table => [index("analytics_card_created_idx").on(table.cardId, table.createdAt),
+  ]).enableRLS();
 
 export const references = pgTable("references", {
   id: serial("id").primaryKey(),
@@ -94,7 +116,9 @@ export const references = pgTable("references", {
   avatarUrl: text("avatarUrl"),
   approved: boolean("approved").default(true).notNull(),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
-}, (table) => [index("references_card_created_idx").on(table.cardId, table.createdAt)]).enableRLS();
+},
+  table => [index("references_card_created_idx").on(table.cardId, table.createdAt),
+  ]).enableRLS();
 
 // Billing (drizzle/0009_billing.sql). Card data never lives here: payment details stay with the gateway.
 
@@ -107,7 +131,9 @@ export const billingAccounts = pgTable("billingAccounts", {
   providerCustomerRef: varchar("providerCustomerRef", { length: 128 }),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
-}, (table) => [uniqueIndex("billing_accounts_owner_user_idx").on(table.ownerUserId)]).enableRLS();
+},
+  table => [uniqueIndex("billing_accounts_owner_user_idx").on(table.ownerUserId),
+  ]).enableRLS();
 
 export const subscriptions = pgTable("subscriptions", {
   id: serial("id").primaryKey(),
@@ -117,17 +143,20 @@ export const subscriptions = pgTable("subscriptions", {
   status: varchar("status", { length: 16 }).notNull(),
   currency: varchar("currency", { length: 3 }).default("PHP").notNull(),
   priceMinor: integer("priceMinor").notNull(),
-  providerSubscriptionRef: varchar("providerSubscriptionRef", { length: 128 }),
+  providerSubscriptionRef: varchar("providerSubscriptionRef", { length: 128,
+    }),
   providerRecurringRef: varchar("providerRecurringRef", { length: 128 }),
   foundingMember: boolean("foundingMember").default(false).notNull(),
   foundingMemberNumber: integer("foundingMemberNumber"),
-  currentPeriodStart: timestamp("currentPeriodStart", { mode: "date" }).notNull(),
+  currentPeriodStart: timestamp("currentPeriodStart", { mode: "date",
+    }).notNull(),
   currentPeriodEnd: timestamp("currentPeriodEnd", { mode: "date" }).notNull(),
   cancelAtPeriodEnd: boolean("cancelAtPeriodEnd").default(false).notNull(),
   canceledAt: timestamp("canceledAt", { mode: "date" }),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
-}, (table) => [
+},
+  table => [
   index("subscriptions_account_idx").on(table.billingAccountId),
   uniqueIndex("subscriptions_founding_number_idx").on(table.foundingMemberNumber),
 ]).enableRLS();
@@ -157,7 +186,9 @@ export const payments = pgTable("payments", {
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
   succeededAt: timestamp("succeededAt", { mode: "date" }),
-}, (table) => [index("payments_user_created_idx").on(table.userId, table.createdAt)]).enableRLS();
+},
+  table => [index("payments_user_created_idx").on(table.userId, table.createdAt),
+  ]).enableRLS();
 
 export const usageCounters = pgTable("usageCounters", {
   id: serial("id").primaryKey(),
@@ -166,7 +197,9 @@ export const usageCounters = pgTable("usageCounters", {
   periodKey: varchar("periodKey", { length: 16 }).notNull(),
   count: integer("count").default(0).notNull(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
-}, (table) => [uniqueIndex("usage_counters_owner_metric_period_idx").on(table.ownerUserId, table.metric, table.periodKey)]).enableRLS();
+},
+  table => [uniqueIndex("usage_counters_owner_metric_period_idx").on(table.ownerUserId, table.metric, table.periodKey),
+  ]).enableRLS();
 
 export const entitlementOverrides = pgTable("entitlementOverrides", {
   id: serial("id").primaryKey(),
@@ -176,7 +209,8 @@ export const entitlementOverrides = pgTable("entitlementOverrides", {
   reason: varchar("reason", { length: 200 }).notNull(),
   expiresAt: timestamp("expiresAt", { mode: "date" }),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
-}, (table) => [index("entitlement_overrides_user_idx").on(table.userId)]).enableRLS();
+},
+  table => [index("entitlement_overrides_user_idx").on(table.userId)]).enableRLS();
 
 /** One row per campaign. `used` only grows inside the verified-payment transaction. */
 export const offerCounters = pgTable("offerCounters", {

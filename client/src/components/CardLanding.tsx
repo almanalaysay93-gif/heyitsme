@@ -19,8 +19,10 @@ import {
   type ReferenceRow,
 } from "@/lib/card";
 import { copyToClipboard, getInitials } from "@/lib/cardKit";
-import { contrastRatio, mapLink, parsePageConfig, readableOn, resolveFrame, resolveSections, type PageConfig, type SectionId } from "@shared/pageConfig";
-import { CountUp, GlassPanel, useHeroEntrance, useHeroParallax, useMotionOn, usePressProps } from "./cardMotion";
+import { contrastRatio, mapLink, parsePageConfig, readableOn, resolveFrame, resolveSections, type PageConfig, type SectionId,
+} from "@shared/pageConfig";
+import { CountUp, GlassPanel, useHeroEntrance, useHeroParallax, useMotionOn, usePressProps,
+} from "./cardMotion";
 import { motion, useScroll, useTransform } from "framer-motion";
 import {
   ArrowUpRight,
@@ -46,6 +48,10 @@ import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import "./cardLanding.css";
+import { renderedBackground } from "@shared/design";
+import { QrPreview } from "./QrPreview";
+import "./proDesign.css";
+import "./proFonts.css";
 
 // Paper, ink and a default accent per palette. Accents here pass 4.5:1 on their paper.
 const PALETTES: Record<string, { paper: string; accent: string }> = {
@@ -53,7 +59,8 @@ const PALETTES: Record<string, { paper: string; accent: string }> = {
   tide: { paper: "#eef5f3", accent: "#0e7469" },
   sunset: { paper: "#f9f1ee", accent: "#a8432f" },
 };
-const INK: Record<string, string> = { midnight: "#f2f1fb", tide: "#0b2a2d", sunset: "#2b1b22" };
+const INK: Record<string, string> = { midnight: "#f2f1fb", tide: "#0b2a2d", sunset: "#2b1b22",
+};
 
 /** The accent a palette uses when the owner has not picked one. */
 export function themeAccent(theme: string): string {
@@ -97,17 +104,22 @@ const PROVIDER_NAMES: Record<string, string> = {
   linkedin: "LinkedIn", instagram: "Instagram", facebook: "Facebook", x: "X", whatsapp: "WhatsApp",
   telegram: "Telegram", viber: "Viber", signal: "Signal", calendly: "Calendly", tiktok: "TikTok", youtube: "YouTube",
 };
-const MESSAGING = new Set(["whatsapp", "telegram", "viber", "signal", "calendly"]);
+const MESSAGING = new Set(["whatsapp", "telegram", "viber", "signal", "calendly",
+]);
 
 function providerName(provider: string) {
-  return PROVIDER_NAMES[provider] ?? provider.charAt(0).toUpperCase() + provider.slice(1);
+  return (
+    PROVIDER_NAMES[provider] ?? provider.charAt(0).toUpperCase() + provider.slice(1)
+  );
 }
 
 /** What goes under the provider name: the owner's label, else the number or link without its scheme. */
 function channelValue(channel: ChannelItem) {
   const label = channel.label?.trim();
   if (label && label.toLowerCase() !== providerName(channel.provider).toLowerCase()) return label;
-  return (channel.url || "").replace(/^[a-z][a-z0-9+.-]*:(\/\/)?/i, "").replace(/^www\./, "").replace(/\/$/, "") || providerName(channel.provider);
+  return (
+    (channel.url || "").replace(/^[a-z][a-z0-9+.-]*:(\/\/)?/i, "").replace(/^www\./, "").replace(/\/$/, "") || providerName(channel.provider)
+  );
 }
 
 function external(href: string) {
@@ -121,47 +133,111 @@ function WebsiteShot({ request, title }: { request: string; title: string }) {
   useEffect(() => {
     let active = true;
     fetch(request)
-      .then((response) => response.json())
-      .then((answer) => { if (active) setSrc(websiteShotFrom(answer)); })
+      .then(response => response.json())
+      .then(answer => { if (active) setSrc(websiteShotFrom(answer)); })
       .catch(() => undefined);
     return () => { active = false; };
   }, [request]);
   return (
     <div className="lx-work-media lx-work-file">
       <Globe2 size={22} aria-hidden="true" />
-      {src ? <img src={src} alt={`Screenshot of ${title}`} className={ready ? "is-ready" : undefined} onLoad={() => setReady(true)} onError={() => setSrc(null)} /> : null}
+      {src ? (
+        <img src={src} alt={`Screenshot of ${title}`}
+          className={ready ? "is-ready" : undefined}
+          onLoad={() => setReady(true)}
+          onError={() => setSrc(null)}
+        />
+      ) : null}
     </div>
   );
 }
 
 export function CardLanding(props: CardLandingProps) {
-  const { card, config, references, interactive, canExchange, pageUrl, onSaveContact, onExchange, onShare, onCopyLink, track, onDemoAction } = props;
+  const {
+    card,
+    config,
+    references,
+    interactive,
+    canExchange,
+    pageUrl,
+    onSaveContact,
+    onExchange,
+    onShare,
+    onCopyLink,
+    track,
+    onDemoAction,
+  } = props;
   // Only the form depends on the quota. Save contact, QR and links always work.
   const showExchange = canExchange && props.acceptsDetails !== false;
   const branded = !config.hideBranding;
   // On the demo, placeholder booking links and the fictional phone number open an explanation, not a blank tab or a call.
   const demoClick = (kind: "booking" | "phone") =>
-    onDemoAction ? (event: { preventDefault: () => void }) => { event.preventDefault(); onDemoAction(kind); } : undefined;
-  const motionOn = useMotionOn(interactive);
-  const enter = useHeroEntrance(interactive) as (step: "eyebrow" | "name" | "lead" | "actions" | "photo") => any;
+    onDemoAction
+      ? (event: { preventDefault: () => void }) => {
+          event.preventDefault();
+          onDemoAction(kind);
+        }
+      : undefined;
+  const design = config.design;
+  const motionEnabled =
+    !design ||
+    (design.animation.preset !== "none" &&
+      design.animation.intensity !== "off");
+  const motionOn = useMotionOn(interactive && motionEnabled);
+  const enter = useHeroEntrance(interactive && motionEnabled && !design) as (
+    step: "eyebrow" | "name" | "lead" | "actions" | "photo"
+  ) => any;
   const press = usePressProps(interactive) as any;
   const rootRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLElement>(null);
-  const parallax = useHeroParallax(heroRef, interactive);
+  const parallax = useHeroParallax(
+    heroRef,
+    interactive && motionEnabled && !design
+  );
+  const [replay, setReplay] = useState(0);
+  useEffect(() => {
+    const play = () => setReplay(n => n + 1);
+    window.addEventListener("replay-card-animation", play);
+    return () => window.removeEventListener("replay-card-animation", play);
+  }, []);
+  useEffect(
+    () => setReplay(n => n + 1),
+    [design?.animation.preset, design?.animation.intensity]
+  );
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const links = parseLinks(card.links);
   const channels = parseChannels(card.channels);
   const portfolio = parsePortfolio(card.portfolio);
-  const photos = portfolio.filter((item) => item.kind === "image");
-  const works = portfolio.filter((item) => item.kind !== "image");
+  const photos = portfolio.filter(item => item.kind === "image");
+  const works = portfolio.filter(item => item.kind !== "image");
 
   const palette = PALETTES[card.theme] ?? PALETTES.midnight;
-  const ink = INK[card.theme] ?? INK.midnight;
-  const accent = config.accent || palette.accent;
+  const ink = design?.text ?? INK[card.theme] ?? INK.midnight;
+  const accent = design?.accent ?? (config.accent || palette.accent);
   // A pale owner accent still works on buttons (text flips to dark); accent-colored text needs 4.5:1 or falls back to ink.
-  const accentText = contrastRatio(accent, palette.paper) >= 4.5 ? accent : ink;
-  const style = {
+  const accentText =
+    contrastRatio(accent, design?.colors[0] ?? palette.paper) >= 4.5
+      ? accent
+      : ink;
+  const style: React.CSSProperties & Record<string, string> = {
+    ...(design
+      ? {
+          "--design-background": renderedBackground(design),
+          "--design-base": design.colors[0],
+          "--design-ink": design.text,
+          "--design-button": design.button,
+          "--design-button-text": design.buttonText,
+          "--design-heading": `"${design.headingFont ?? design.font}", Georgia, serif`,
+          "--design-font": `"${design.font}", ${design.font.includes("Serif") || design.font === "Georgia" ? "Georgia, serif" : "Arial, sans-serif"}`,
+          "--design-radius":
+            design.radius === "small"
+              ? "8px"
+              : design.radius === "medium"
+                ? "16px"
+                : "24px",
+        }
+      : {}),
     ["--accent" as string]: accent,
     ["--on-accent" as string]: readableOn(accent),
     ["--accent-text" as string]: accentText,
@@ -178,28 +254,76 @@ export function CardLanding(props: CardLandingProps) {
   const coverY = useTransform(scrollY, [0, 500], [0, 160]);
   const coverScale = useTransform(scrollY, [0, 500], [1, 1.12]);
   const coverFade = useTransform(scrollY, [0, 420], [1, 0.35]);
-  const fitName = (text: string) => ({ ["--longest" as string]: Math.max(4, ...text.split(/\s+/).map((word) => word.length)) });
+  const fitName = (text: string) => ({
+    ["--longest" as string]: Math.max(
+      4,
+      ...text.split(/\s+/).map(word => word.length)
+    ),
+  });
 
   // The aurora drifts only while the tab is visible; nothing moves in the builder preview or for reduced motion.
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    if (!motionOn) { root.style.setProperty("--aurora-play", "paused"); return; }
-    const sync = () => root.style.setProperty("--aurora-play", document.hidden ? "paused" : "running");
+    if (!motionOn) {
+      root.style.setProperty("--aurora-play", "paused");
+      return;
+    }
+    const sync = () =>
+      root.style.setProperty(
+        "--aurora-play",
+        document.hidden ? "paused" : "running"
+      );
     sync();
     document.addEventListener("visibilitychange", sync);
     return () => document.removeEventListener("visibilitychange", sync);
   }, [motionOn]);
 
   const contactRows = [
-    card.email ? { key: "email", icon: Mail, label: "Email", value: card.email, href: `mailto:${encodeURIComponent(card.email)}`, copy: card.email, target: "Email" } : null,
-    card.phone ? { key: "phone", icon: Phone, label: "Call or text", value: card.phone, href: `tel:${encodeURIComponent(card.phone.replace(/\s+/g, ""))}`, copy: card.phone, target: "Phone" } : null,
-    ...links.map((link) => {
+    card.email
+      ? {
+          key: "email",
+          icon: Mail,
+          label: "Email",
+          value: card.email,
+          href: `mailto:${encodeURIComponent(card.email)}`,
+          copy: card.email,
+          target: "Email",
+        }
+      : null,
+    card.phone
+      ? {
+          key: "phone",
+          icon: Phone,
+          label: "Call or text",
+          value: card.phone,
+          href: `tel:${encodeURIComponent(card.phone.replace(/\s+/g, ""))}`,
+          copy: card.phone,
+          target: "Phone",
+        }
+      : null,
+    ...links.map(link => {
       const value = link.replace(/^https?:\/\//, "").replace(/\/$/, "");
       // Insights groups website clicks by domain, so that stays the tracked target.
-      return { key: `link-${link}`, icon: Globe2, label: "Website", value, href: toHref(link), copy: "", target: value.replace(/^www\./, "") };
+      return {
+        key: `link-${link}`,
+        icon: Globe2,
+        label: "Website",
+        value,
+        href: toHref(link),
+        copy: "",
+        target: value.replace(/^www\./, ""),
+      };
     }),
-  ].filter(Boolean) as { key: string; icon: any; label: string; value: string; href: string; copy: string; target: string }[];
+  ].filter(Boolean) as {
+    key: string;
+    icon: any;
+    label: string;
+    value: string;
+    href: string;
+    copy: string;
+    target: string;
+  }[];
 
   const hasContent: Record<SectionId, boolean> = {
     stats: config.stats.length > 0,
@@ -207,16 +331,30 @@ export function CardLanding(props: CardLandingProps) {
     visit: config.hours.length > 0 || Boolean(config.address),
     portfolio: portfolio.length > 0,
     references: references.length > 0,
-    contact: contactRows.length > 0 || channels.length > 0 || (config.links?.length ?? 0) > 0 || (config.contactPersons?.length ?? 0) > 0,
+    contact:
+      contactRows.length > 0 ||
+      channels.length > 0 ||
+      (config.links?.length ?? 0) > 0 ||
+      (config.contactPersons?.length ?? 0) > 0,
   };
-  const sections = resolveSections(config).filter((section) => !section.hidden && hasContent[section.id]);
+  const sections = resolveSections(config).filter(
+    section => !section.hidden && hasContent[section.id]
+  );
 
   // Plain headings by default; a heading the owner wrote keeps the italic last word they saw in the builder.
   const heading = (fallback: string, custom?: string | null) => {
     const own = custom?.trim() ? splitHeading(custom, "", "") : null;
     return (
       <header className="lx-section-head">
-        <h2>{own ? <>{own.title} {own.emphasis ? <em>{own.emphasis}</em> : null}</> : fallback}</h2>
+        <h2>
+          {own ? (
+            <>
+              {own.title} {own.emphasis ? <em>{own.emphasis}</em> : null}
+            </>
+          ) : (
+            fallback
+          )}
+        </h2>
       </header>
     );
   };
@@ -224,15 +362,33 @@ export function CardLanding(props: CardLandingProps) {
   const actions = (
     <div className="lx-actions">
       {cta ? (
-        <motion.a className="lx-btn lx-btn-primary" href={cta.url} {...external(cta.url)} onClick={demoClick("booking") ?? (() => track("link", `CTA: ${cta.label}`))} {...press}>
+        <motion.a
+          className="lx-btn lx-btn-primary"
+          href={cta.url}
+          {...external(cta.url)}
+          onClick={
+            demoClick("booking") ?? (() => track("link", `CTA: ${cta.label}`))
+          }
+          {...press}
+        >
           {cta.label} <ArrowUpRight size={16} aria-hidden="true" />
         </motion.a>
       ) : null}
-      <motion.button type="button" className={`lx-btn ${cta ? "lx-btn-ghost" : "lx-btn-primary"}`} onClick={onSaveContact} {...press}>
+      <motion.button
+        type="button"
+        className={`lx-btn ${cta ? "lx-btn-ghost" : "lx-btn-primary"}`}
+        onClick={onSaveContact}
+        {...press}
+      >
         <Download size={16} aria-hidden="true" /> Save contact
       </motion.button>
       {showExchange ? (
-        <motion.button type="button" className="lx-btn lx-btn-ghost" onClick={onExchange} {...press}>
+        <motion.button
+          type="button"
+          className="lx-btn lx-btn-ghost"
+          onClick={onExchange}
+          {...press}
+        >
           <UserRoundPlus size={16} aria-hidden="true" /> Exchange details
         </motion.button>
       ) : null}
@@ -242,7 +398,14 @@ export function CardLanding(props: CardLandingProps) {
   const socials = channels.length ? (
     <div className="lx-socials">
       {channels.map((channel: ChannelItem, index: number) => (
-        <a key={`${channel.provider}-${index}`} href={channelHref(channel)} target="_blank" rel="noreferrer" aria-label={`${providerName(channel.provider)}: ${channelValue(channel)}`} onClick={() => track("link", channelLabel(channel))}>
+        <a
+          key={`${channel.provider}-${index}`}
+          href={channelHref(channel)}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={`${providerName(channel.provider)}: ${channelValue(channel)}`}
+          onClick={() => track("link", channelLabel(channel))}
+        >
           <ChannelIcon provider={channel.provider} />
           <span>{providerName(channel.provider)}</span>
         </a>
@@ -253,19 +416,37 @@ export function CardLanding(props: CardLandingProps) {
   // Parallax and entrance sit on separate elements so their transforms never fight.
   const portrait = () => (
     <motion.div className="lx-photo-wrap" style={parallax}>
-      <motion.figure className={`lx-photo lx-frame-${frame}`} {...enter("photo")}>
-        {card.avatarUrl ? <img src={card.avatarUrl} alt={card.displayName} /> : <span aria-hidden="true">{getInitials(card.displayName)}</span>}
+      <motion.figure
+        className={`lx-photo lx-frame-${frame}`}
+        {...enter("photo")}
+      >
+        {card.avatarUrl ? (
+          <img src={card.avatarUrl} alt={card.displayName} />
+        ) : (
+          <span aria-hidden="true">{getInitials(card.displayName)}</span>
+        )}
       </motion.figure>
     </motion.div>
   );
 
   // Name and eyebrow float on the aurora; the bio and actions sit on one glass panel.
   const heroPanel = (children: ReactNode) => (
-    <motion.div className="lx-glass lx-hero-panel" {...enter("lead")}>{children}</motion.div>
+    <motion.div className="lx-glass lx-hero-panel" {...enter("lead")}>
+      {children}
+    </motion.div>
   );
 
   const cover = card.coverUrl ? (
-    isVideoUrl(card.coverUrl) ? <LoopVideo className="lx-cover-media" src={card.coverUrl} lazy={false} fallback={null} /> : <img className="lx-cover-media" src={card.coverUrl} alt="" />
+    isVideoUrl(card.coverUrl) ? (
+      <LoopVideo
+        className="lx-cover-media"
+        src={card.coverUrl}
+        lazy={false}
+        fallback={null}
+      />
+    ) : (
+      <img className="lx-cover-media" src={card.coverUrl} alt="" />
+    )
   ) : null;
 
   let hero: ReactNode;
@@ -275,25 +456,42 @@ export function CardLanding(props: CardLandingProps) {
       <>
         <section className="lx-hero lx-hero-business" ref={heroRef}>
           <motion.p className="lx-eyebrow" {...enter("eyebrow")}>
-            {card.avatarUrl ? <img className="lx-logo" src={card.avatarUrl} alt="" /> : null}
+            {card.avatarUrl ? (
+              <img className="lx-logo" src={card.avatarUrl} alt="" />
+            ) : null}
             {card.location || card.title}
           </motion.p>
-          <motion.h1 className="lx-masthead" style={fitName(brand)} {...enter("name")}>{brand}</motion.h1>
+          <motion.h1
+            className="lx-masthead"
+            style={fitName(brand)}
+            {...enter("name")}
+          >
+            {brand}
+          </motion.h1>
           {heroPanel(
             <>
               {card.bio ? <p className="lx-lead">{card.bio}</p> : null}
               {actions}
               {config.contactPersons?.length ? (
                 <div className="lx-byline lx-byline-roster">
-                  <span className="lx-byline-label">Office in-charge & contacts:</span>
+                  <span className="lx-byline-label">
+                    Office in-charge & contacts:
+                  </span>
                   <ul className="lx-byline-people">
                     {config.contactPersons.map((p, idx) => (
                       <li key={idx}>
                         <strong>{p.name}</strong>
-                        {p.role ? <span className="lx-byline-role"> ({p.role})</span> : null}
+                        {p.role ? (
+                          <span className="lx-byline-role"> ({p.role})</span>
+                        ) : null}
                         {p.phone ? (
-                          <a href={`tel:${encodeURIComponent(p.phone.replace(/\s+/g, ""))}`} className="lx-byline-link" onClick={() => track("link", `Call: ${p.name}`)}>
-                            {" "}· {p.phone}
+                          <a
+                            href={`tel:${encodeURIComponent(p.phone.replace(/\s+/g, ""))}`}
+                            className="lx-byline-link"
+                            onClick={() => track("link", `Call: ${p.name}`)}
+                          >
+                            {" "}
+                            · {p.phone}
                           </a>
                         ) : null}
                       </li>
@@ -302,11 +500,12 @@ export function CardLanding(props: CardLandingProps) {
                 </div>
               ) : card.company ? (
                 <p className="lx-byline">
-                  Ask for <strong>{card.displayName}</strong>{card.title ? `, ${card.title}` : ""}
+                  Ask for <strong>{card.displayName}</strong>
+                  {card.title ? `, ${card.title}` : ""}
                 </p>
               ) : null}
               {socials}
-            </>,
+            </>
           )}
         </section>
       </>
@@ -316,16 +515,31 @@ export function CardLanding(props: CardLandingProps) {
       <section className="lx-hero lx-hero-services" ref={heroRef}>
         <div className="lx-hero-copy">
           <motion.p className="lx-eyebrow" {...enter("eyebrow")}>
-            {card.displayName}{config.headline && card.title ? ` · ${card.title}` : card.company ? ` · ${card.company}` : ""}
+            {card.displayName}
+            {config.headline && card.title
+              ? ` · ${card.title}`
+              : card.company
+                ? ` · ${card.company}`
+                : ""}
           </motion.p>
-          <motion.h1 className="lx-masthead" style={fitName(config.headline || card.title || card.displayName)} {...enter("name")}>{config.headline || card.title || card.displayName}</motion.h1>
+          <motion.h1
+            className="lx-masthead"
+            style={fitName(config.headline || card.title || card.displayName)}
+            {...enter("name")}
+          >
+            {config.headline || card.title || card.displayName}
+          </motion.h1>
           {heroPanel(
             <>
               {card.bio ? <p className="lx-lead">{card.bio}</p> : null}
-              {card.location ? <p className="lx-place"><MapPin size={14} aria-hidden="true" /> {card.location}</p> : null}
+              {card.location ? (
+                <p className="lx-place">
+                  <MapPin size={14} aria-hidden="true" /> {card.location}
+                </p>
+              ) : null}
               {actions}
               {socials}
-            </>,
+            </>
           )}
         </div>
         {portrait()}
@@ -337,16 +551,32 @@ export function CardLanding(props: CardLandingProps) {
         <section className="lx-hero lx-hero-professional" ref={heroRef}>
           <div className="lx-hero-copy">
             <motion.p className="lx-eyebrow" {...enter("eyebrow")}>
-              {card.title}{card.company ? <> <span>at</span> {card.company}</> : null}
+              {card.title}
+              {card.company ? (
+                <>
+                  {" "}
+                  <span>at</span> {card.company}
+                </>
+              ) : null}
             </motion.p>
-            <motion.h1 className="lx-masthead" style={fitName(card.displayName)} {...enter("name")}>{card.displayName}</motion.h1>
+            <motion.h1
+              className="lx-masthead"
+              style={fitName(card.displayName)}
+              {...enter("name")}
+            >
+              {card.displayName}
+            </motion.h1>
             {heroPanel(
               <>
                 {card.bio ? <p className="lx-lead">{card.bio}</p> : null}
-                {card.location ? <p className="lx-place"><MapPin size={14} aria-hidden="true" /> {card.location}</p> : null}
+                {card.location ? (
+                  <p className="lx-place">
+                    <MapPin size={14} aria-hidden="true" /> {card.location}
+                  </p>
+                ) : null}
                 {actions}
                 {socials}
-              </>,
+              </>
             )}
           </div>
           {portrait()}
@@ -363,7 +593,9 @@ export function CardLanding(props: CardLandingProps) {
             {config.stats.map((stat, index) => (
               <div key={index}>
                 <dt>{stat.label}</dt>
-                <dd><CountUp value={stat.value} enabled={interactive} /></dd>
+                <dd>
+                  <CountUp value={stat.value} enabled={interactive} />
+                </dd>
               </div>
             ))}
           </dl>
@@ -371,19 +603,32 @@ export function CardLanding(props: CardLandingProps) {
       case "services":
         return (
           <>
-            {heading(template === "services" ? "Services & prices" : "Services")}
+            {heading(
+              template === "services" ? "Services & prices" : "Services"
+            )}
             <ul className="lx-menu">
               {config.services.map((service, index) => (
                 <li key={index}>
                   <div className="lx-menu-row">
                     <h3>{service.name}</h3>
                     <span className="lx-leader" aria-hidden="true" />
-                    {service.price ? <span className="lx-price">{service.price}</span> : null}
+                    {service.price ? (
+                      <span className="lx-price">{service.price}</span>
+                    ) : null}
                   </div>
                   {service.description ? <p>{service.description}</p> : null}
                   {service.url ? (
-                    <a className="lx-menu-link" href={service.url} {...external(service.url)} onClick={demoClick("booking") ?? (() => track("link", `Service: ${service.name}`))}>
-                      Book {service.name} <ArrowUpRight size={14} aria-hidden="true" />
+                    <a
+                      className="lx-menu-link"
+                      href={service.url}
+                      {...external(service.url)}
+                      onClick={
+                        demoClick("booking") ??
+                        (() => track("link", `Service: ${service.name}`))
+                      }
+                    >
+                      Book {service.name}{" "}
+                      <ArrowUpRight size={14} aria-hidden="true" />
                     </a>
                   ) : null}
                 </li>
@@ -399,14 +644,23 @@ export function CardLanding(props: CardLandingProps) {
               {config.hours.length ? (
                 <dl className="lx-hours">
                   {config.hours.map((row, index) => (
-                    <div key={index}><dt>{row.days}</dt><dd>{row.time}</dd></div>
+                    <div key={index}>
+                      <dt>{row.days}</dt>
+                      <dd>{row.time}</dd>
+                    </div>
                   ))}
                 </dl>
               ) : null}
               {config.address ? (
                 <div className="lx-address">
                   <p>{config.address}</p>
-                  <a className="lx-text-link" href={mapLink(config.address)} target="_blank" rel="noreferrer" onClick={() => track("link", "Directions")}>
+                  <a
+                    className="lx-text-link"
+                    href={mapLink(config.address)}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => track("link", "Directions")}
+                  >
                     Get directions <ArrowUpRight size={14} aria-hidden="true" />
                   </a>
                 </div>
@@ -420,7 +674,13 @@ export function CardLanding(props: CardLandingProps) {
             {photos.length ? (
               <div className="lx-gallery">
                 {heading("Gallery", card.galleryHeading)}
-                <PhotoCarousel items={photos} onSelectPhoto={(index) => { setLightboxIndex(index); track("link", `Work: ${photos[index].title}`); }} />
+                <PhotoCarousel
+                  items={photos}
+                  onSelectPhoto={index => {
+                    setLightboxIndex(index);
+                    track("link", `Work: ${photos[index].title}`);
+                  }}
+                />
               </div>
             ) : null}
             {works.length ? (
@@ -429,21 +689,59 @@ export function CardLanding(props: CardLandingProps) {
                 <div className="lx-work-grid">
                   {works.map((item: PortfolioItem) => {
                     const href = toHref(item.url);
-                    const shot = item.kind === "link" ? websiteShotRequest(item.url) : null;
+                    const shot =
+                      item.kind === "link"
+                        ? websiteShotRequest(item.url)
+                        : null;
                     return (
-                      <a className="lx-work" key={item.id} {...(href === "#" ? {} : { href, target: "_blank", rel: "noreferrer", onClick: () => track("link", `Work: ${item.title}`) })}>
+                      <a
+                        className="lx-work"
+                        key={item.id}
+                        {...(href === "#"
+                          ? {}
+                          : {
+                              href,
+                              target: "_blank",
+                              rel: "noreferrer",
+                              onClick: () =>
+                                track("link", `Work: ${item.title}`),
+                            })}
+                      >
                         {item.kind === "video" ? (
-                          <video className="lx-work-media" src={item.url} muted playsInline loop preload="metadata" onMouseEnter={(e) => void e.currentTarget.play().catch(() => undefined)} onMouseLeave={(e) => e.currentTarget.pause()} />
+                          <video
+                            className="lx-work-media"
+                            src={item.url}
+                            muted
+                            playsInline
+                            loop
+                            preload="metadata"
+                            onMouseEnter={e =>
+                              void e.currentTarget.play().catch(() => undefined)
+                            }
+                            onMouseLeave={e => e.currentTarget.pause()}
+                          />
                         ) : shot && interactive ? (
                           <WebsiteShot request={shot} title={item.title} />
                         ) : (
-                          <div className="lx-work-media lx-work-file">{item.kind === "file" ? <FileText size={22} aria-hidden="true" /> : <Globe2 size={22} aria-hidden="true" />}</div>
+                          <div className="lx-work-media lx-work-file">
+                            {item.kind === "file" ? (
+                              <FileText size={22} aria-hidden="true" />
+                            ) : (
+                              <Globe2 size={22} aria-hidden="true" />
+                            )}
+                          </div>
                         )}
                         <span className="lx-work-caption">
                           <strong>{item.title}</strong>
-                          {item.description ? <small>{item.description}</small> : null}
+                          {item.description ? (
+                            <small>{item.description}</small>
+                          ) : null}
                         </span>
-                        <ArrowUpRight className="lx-work-arrow" size={16} aria-hidden="true" />
+                        <ArrowUpRight
+                          className="lx-work-arrow"
+                          size={16}
+                          aria-hidden="true"
+                        />
                       </a>
                     );
                   })}
@@ -458,12 +756,15 @@ export function CardLanding(props: CardLandingProps) {
           <>
             {heading("Kind words")}
             <div className="lx-quotes">
-              {references.map((reference) => (
+              {references.map(reference => (
                 <figure className="lx-quote" key={reference.id}>
                   <blockquote>{reference.quote}</blockquote>
                   <figcaption>
                     <strong>{reference.clientName}</strong>
-                    <span>{reference.clientRole || "Client"}{reference.company ? ` · ${reference.company}` : ""}</span>
+                    <span>
+                      {reference.clientRole || "Client"}
+                      {reference.company ? ` · ${reference.company}` : ""}
+                    </span>
                   </figcaption>
                 </figure>
               ))}
@@ -473,28 +774,39 @@ export function CardLanding(props: CardLandingProps) {
       case "contact": {
         return (
           <>
-            {heading(template === "business" ? "Contact & directory" : "Contact", card.contactHeading)}
+            {heading(
+              template === "business" ? "Contact & directory" : "Contact",
+              card.contactHeading
+            )}
 
             {config.contactPersons?.length ? (
               <div className="lx-contact-section-group">
                 <h3 className="lx-contact-group">
-                  {template === "business" ? "Contact persons & office in-charge" : "Key contacts"}
+                  {template === "business"
+                    ? "Contact persons & office in-charge"
+                    : "Key contacts"}
                 </h3>
                 <ul className="lx-officers-list">
                   {config.contactPersons.map((person, idx) => (
                     <li key={`officer-${idx}`} className="lx-officer-card">
                       <div className="lx-officer-info">
                         <span className="lx-officer-name">{person.name}</span>
-                        {person.role ? <span className="lx-officer-badge">{person.role}</span> : null}
+                        {person.role ? (
+                          <span className="lx-officer-badge">
+                            {person.role}
+                          </span>
+                        ) : null}
                       </div>
-                      {(person.phone || person.email) ? (
+                      {person.phone || person.email ? (
                         <div className="lx-officer-actions">
                           {person.phone ? (
                             <a
                               href={`tel:${encodeURIComponent(person.phone.replace(/\s+/g, ""))}`}
                               className="lx-officer-btn"
                               title={`Call ${person.name}`}
-                              onClick={() => track("link", `Call: ${person.name}`)}
+                              onClick={() =>
+                                track("link", `Call: ${person.name}`)
+                              }
                             >
                               <Phone size={14} aria-hidden="true" />
                               <span>{person.phone}</span>
@@ -505,7 +817,9 @@ export function CardLanding(props: CardLandingProps) {
                               href={`mailto:${encodeURIComponent(person.email)}`}
                               className="lx-officer-btn"
                               title={`Email ${person.name}`}
-                              onClick={() => track("link", `Email: ${person.name}`)}
+                              onClick={() =>
+                                track("link", `Email: ${person.name}`)
+                              }
                             >
                               <Mail size={14} aria-hidden="true" />
                               <span>{person.email}</span>
@@ -520,22 +834,43 @@ export function CardLanding(props: CardLandingProps) {
             ) : null}
 
             {contactRows.length ? (
-              <h3 className="lx-contact-group">{template === "business" ? "General contact" : "Reach me directly"}</h3>
+              <h3 className="lx-contact-group">
+                {template === "business"
+                  ? "General contact"
+                  : "Reach me directly"}
+              </h3>
             ) : null}
             <ul className="lx-contact">
-              {contactRows.map((row) => (
+              {contactRows.map(row => (
                 <li key={row.key}>
-                  <a href={row.href} {...external(row.href)} onClick={(row.key === "phone" && demoClick("phone")) || (() => track("link", row.target))}>
+                  <a
+                    href={row.href}
+                    {...external(row.href)}
+                    onClick={
+                      (row.key === "phone" && demoClick("phone")) ||
+                      (() => track("link", row.target))
+                    }
+                  >
                     <row.icon size={17} aria-hidden="true" />
-                    <span><small>{row.label}</small><strong>{row.value}</strong></span>
-                    <ArrowUpRight className="lx-row-arrow" size={16} aria-hidden="true" />
+                    <span>
+                      <small>{row.label}</small>
+                      <strong>{row.value}</strong>
+                    </span>
+                    <ArrowUpRight
+                      className="lx-row-arrow"
+                      size={16}
+                      aria-hidden="true"
+                    />
                   </a>
                   {row.copy ? (
                     <button
                       type="button"
                       className="lx-copy"
                       aria-label={`Copy ${row.value}`}
-                      onClick={async () => { if (await copyToClipboard(row.copy)) toast.success(`${row.label} copied.`); }}
+                      onClick={async () => {
+                        if (await copyToClipboard(row.copy))
+                          toast.success(`${row.label} copied.`);
+                      }}
                     >
                       <Copy size={14} aria-hidden="true" />
                     </button>
@@ -546,19 +881,35 @@ export function CardLanding(props: CardLandingProps) {
 
             {config.links?.length ? (
               <div className="lx-contact-section-group">
-                <h3 className="lx-contact-group">{template === "business" ? "Quick links" : "More links"}</h3>
+                <h3 className="lx-contact-group">
+                  {template === "business" ? "Quick links" : "More links"}
+                </h3>
                 <ul className="lx-contact lx-more-links">
                   {config.links.map((item, idx) => {
-                    const clean = item.url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+                    const clean = item.url
+                      .replace(/^https?:\/\//, "")
+                      .replace(/\/$/, "");
                     return (
                       <li key={`custom-link-${idx}`}>
-                        <a href={item.url} {...external(item.url)} onClick={() => track("link", item.title)}>
+                        <a
+                          href={item.url}
+                          {...external(item.url)}
+                          onClick={() => track("link", item.title)}
+                        >
                           <Globe2 size={17} aria-hidden="true" />
                           <span>
                             <strong>{item.title}</strong>
-                            {item.description ? <small>{item.description}</small> : <small>{clean}</small>}
+                            {item.description ? (
+                              <small>{item.description}</small>
+                            ) : (
+                              <small>{clean}</small>
+                            )}
                           </span>
-                          <ArrowUpRight className="lx-row-arrow" size={16} aria-hidden="true" />
+                          <ArrowUpRight
+                            className="lx-row-arrow"
+                            size={16}
+                            aria-hidden="true"
+                          />
                         </a>
                       </li>
                     );
@@ -567,25 +918,47 @@ export function CardLanding(props: CardLandingProps) {
               </div>
             ) : null}
             {[
-              { title: "Message or book", items: channels.filter((channel) => MESSAGING.has(channel.provider)) },
-              { title: "Social profiles", items: channels.filter((channel) => !MESSAGING.has(channel.provider)) },
-            ].map((group) =>
+              {
+                title: "Message or book",
+                items: channels.filter(channel =>
+                  MESSAGING.has(channel.provider)
+                ),
+              },
+              {
+                title: "Social profiles",
+                items: channels.filter(
+                  channel => !MESSAGING.has(channel.provider)
+                ),
+              },
+            ].map(group =>
               group.items.length ? (
                 <div key={group.title}>
                   <h3 className="lx-contact-group">{group.title}</h3>
                   <ul className="lx-contact">
                     {group.items.map((channel: ChannelItem, index: number) => (
-                      <li key={`row-${channel.provider}-${index}`}>
-                        <a href={channelHref(channel)} target="_blank" rel="noreferrer" onClick={() => track("link", channelLabel(channel))}>
+                      <li key={ow-${channel.provider}-${index}`}>
+                        <a
+                          href={channelHref(channel)}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={() => track("link", channelLabel(channel))}
+                        >
                           <ChannelIcon provider={channel.provider} />
-                          <span><small>{providerName(channel.provider)}</small><strong>{channelValue(channel)}</strong></span>
-                          <ArrowUpRight className="lx-row-arrow" size={16} aria-hidden="true" />
+                          <span>
+                            <small>{providerName(channel.provider)}</small>
+                            <strong>{channelValue(channel)}</strong>
+                          </span>
+                          <ArrowUpRight
+                            className="lx-row-arrow"
+                            size={16}
+                            aria-hidden="true"
+                          />
                         </a>
                       </li>
                     ))}
                   </ul>
                 </div>
-              ) : null,
+              ) : null
             )}
           </>
         );
@@ -594,11 +967,59 @@ export function CardLanding(props: CardLandingProps) {
   };
 
   return (
-    <div className={`lx lx-${template}${cover ? " lx-has-cover" : ""} lx-theme-${PALETTES[card.theme] ? card.theme : "midnight"}`} style={style} ref={rootRef} inert={!interactive || undefined}>
-      {card.backgroundUrl ? <div className="lx-bg" aria-hidden="true"><img src={card.backgroundUrl} alt="" decoding="async" /></div> : null}
+    <div
+      key={replay}
+      data-animation={design?.animation.preset}
+      data-motion={design?.animation.intensity}
+      data-background={design?.backgroundType}
+      data-button={design?.buttonStyle}
+      data-shadow={design?.shadow}
+      onPointerMove={event => {
+        if (
+          !motionOn ||
+          !design ||
+          !["parallax", "spotlight"].includes(design.animation.preset) ||
+          event.pointerType !== "mouse"
+        )
+          return;
+        const r = event.currentTarget.getBoundingClientRect();
+        event.currentTarget.style.setProperty(
+          "--pointer-x",
+          `${event.clientX - r.left}px`
+        );
+        event.currentTarget.style.setProperty(
+          "--pointer-y",
+          `${event.clientY - r.top}px`
+        );
+        event.currentTarget.style.setProperty(
+          "--pointer-dx",
+          `${(event.clientX - r.left - r.width / 2) * 0.01}px`
+        );
+        event.currentTarget.style.setProperty(
+          "--pointer-dy",
+          `${(event.clientY - r.top - r.height / 2) * 0.01}px`
+        );
+      }}
+      className={`lx ${design ? "lx-designed" : ""} lx-${template}${cover ? " lx-has-cover" : ""} lx-theme-${PALETTES[card.theme] ? card.theme : "midnight"}`}
+      style={style}
+      ref={rootRef}
+      inert={!interactive || undefined}
+    >
+      {card.backgroundUrl ? (
+        <div className="lx-bg" aria-hidden="true">
+          <img src={card.backgroundUrl} alt="" decoding="async" />
+        </div>
+      ) : null}
       {cover ? (
         <div className="lx-cover-top" aria-hidden="true">
-          <motion.div className="lx-cover-top-inner" style={motionOn ? { y: coverY, scale: coverScale, opacity: coverFade } : undefined}>
+          <motion.div
+            className="lx-cover-top-inner"
+            style={
+              motionOn
+                ? { y: coverY, scale: coverScale, opacity: coverFade }
+                : undefined
+            }
+          >
             {cover}
           </motion.div>
         </div>
@@ -606,40 +1027,89 @@ export function CardLanding(props: CardLandingProps) {
       {/* An explicit page background takes precedence over blurred cover/aurora effects. */}
       {!card.backgroundUrl ? (
         <div className="lx-aurora" aria-hidden="true">
-          {card.coverUrl && !isVideoUrl(card.coverUrl) ? <div className="lx-aurora-photo"><img src={card.coverUrl} alt="" decoding="async" /></div> : null}
-          <i /><i /><i /><i />
+          {card.coverUrl && !isVideoUrl(card.coverUrl) ? (
+            <div className="lx-aurora-photo">
+              <img src={card.coverUrl} alt="" decoding="async" />
+            </div>
+          ) : null}
+          <i />
+          <i />
+          <i />
+          <i />
         </div>
       ) : null}
 
       {interactive ? (
         <header className="lx-nav">
-          {branded ? <a className="lx-brand" href="/"><BrandMark /><span>heyitsme</span></a> : <span />}
+          {branded ? (
+            <a className="lx-brand" href="/">
+              <BrandMark />
+              <span>heyitsme</span>
+            </a>
+          ) : (
+            <span />
+          )}
           <span className="lx-nav-actions">
-            <button type="button" className="lx-nav-share lx-nav-copy" onClick={onCopyLink} aria-label="Copy link to this page"><Copy size={15} aria-hidden="true" /></button>
-            <button type="button" className="lx-nav-share" onClick={onShare}><Share2 size={15} aria-hidden="true" /> Share</button>
+            <button
+              type="button"
+              className="lx-nav-share lx-nav-copy"
+              onClick={onCopyLink}
+              aria-label="Copy link to this page"
+            >
+              <Copy size={15} aria-hidden="true" />
+            </button>
+            <button type="button" className="lx-nav-share" onClick={onShare}>
+              <Share2 size={15} aria-hidden="true" /> Share
+            </button>
           </span>
         </header>
       ) : null}
 
-      <MainTag className="lx-main" {...(interactive ? { id: "main", tabIndex: -1 } : {})}>
+      <MainTag
+        className="lx-main"
+        {...(interactive ? { id: "main", tabIndex: -1 } : {})}
+      >
         {hero}
-        {sections.map((section) => (
-          <GlassPanel enabled={interactive} light={section.id !== "stats" && section.id !== "references"} key={section.id} className={`lx-section lx-section-${section.id}`}>
+        {sections.map(section => (
+          <GlassPanel
+            enabled={interactive && motionEnabled}
+            light={section.id !== "stats" && section.id !== "references"}
+            key={section.id}
+            className={`lx-section lx-section-${section.id}`}
+          >
             {renderSection(section.id)}
           </GlassPanel>
         ))}
 
         {interactive && canExchange ? (
-          <GlassPanel enabled={interactive} className="lx-section lx-take">
+          <GlassPanel
+            enabled={interactive && motionEnabled}
+            className="lx-section lx-take"
+          >
             <div>
-              <p>Scan to open this page on another phone, or save {firstName} straight to your contacts.</p>
+              <p>
+                Scan to open this page on another phone, or save {firstName}{" "}
+                straight to your contacts.
+              </p>
               <div className="lx-take-actions">
-                <button type="button" className="lx-btn lx-btn-primary" onClick={onSaveContact}><Download size={16} aria-hidden="true" /> Save contact</button>
-                <button type="button" className="lx-btn lx-btn-ghost" onClick={onCopyLink}><Copy size={16} aria-hidden="true" /> Copy link</button>
+                <button
+                  type="button"
+                  className="lx-btn lx-btn-primary"
+                  onClick={onSaveContact}
+                >
+                  <Download size={16} aria-hidden="true" /> Save contact
+                </button>
+                <button
+                  type="button"
+                  className="lx-btn lx-btn-ghost"
+                  onClick={onCopyLink}
+                >
+                  <Copy size={16} aria-hidden="true" /> Copy link
+                </button>
               </div>
             </div>
             {/* Dark on the white tile in every theme so any camera reads it. */}
-            <QRCodeSVG value={pageUrl} size={132} bgColor="transparent" fgColor="#10152a" aria-label="QR code for this page" role="img" />
+            <QrPreview value={pageUrl} design={config.qr} />
           </GlassPanel>
         ) : null}
       </MainTag>
@@ -649,19 +1119,69 @@ export function CardLanding(props: CardLandingProps) {
           <footer className="lx-footer">
             {branded ? <span>{firstName}’s page on heyitsme</span> : null}
             <LegalLinks />
-            {branded ? <a href="/">Make yours, free <ArrowUpRight size={13} aria-hidden="true" /></a> : null}
+            {branded ? (
+              <a href="/">
+                Make yours, free <ArrowUpRight size={13} aria-hidden="true" />
+              </a>
+            ) : null}
           </footer>
           <div className="lx-dock" role="toolbar" aria-label="Quick actions">
             {cta ? (
-              <a className="lx-btn lx-btn-primary" href={cta.url} {...external(cta.url)} onClick={demoClick("booking") ?? (() => track("link", `CTA: ${cta.label}`))}>{cta.label}</a>
+              <a
+                className="lx-btn lx-btn-primary"
+                href={cta.url}
+                {...external(cta.url)}
+                onClick={
+                  demoClick("booking") ??
+                  (() => track("link", `CTA: ${cta.label}`))
+                }
+              >
+                {cta.label}
+              </a>
             ) : (
-              <button type="button" className="lx-btn lx-btn-primary" onClick={onSaveContact}><Download size={16} aria-hidden="true" /> Save contact</button>
+              <button
+                type="button"
+                className="lx-btn lx-btn-primary"
+                onClick={onSaveContact}
+              >
+                <Download size={16} aria-hidden="true" /> Save contact
+              </button>
             )}
-            {cta ? <button type="button" className="lx-btn lx-btn-ghost" onClick={onSaveContact} aria-label="Save contact"><Download size={16} aria-hidden="true" /></button> : null}
-            {showExchange ? <button type="button" className="lx-btn lx-btn-ghost" onClick={onExchange} aria-label="Exchange details"><UserRoundPlus size={16} aria-hidden="true" /></button> : null}
-            <button type="button" className="lx-btn lx-btn-ghost" onClick={onShare} aria-label="Share this page"><Share2 size={16} aria-hidden="true" /></button>
+            {cta ? (
+              <button
+                type="button"
+                className="lx-btn lx-btn-ghost"
+                onClick={onSaveContact}
+                aria-label="Save contact"
+              >
+                <Download size={16} aria-hidden="true" />
+              </button>
+            ) : null}
+            {showExchange ? (
+              <button
+                type="button"
+                className="lx-btn lx-btn-ghost"
+                onClick={onExchange}
+                aria-label="Exchange details"
+              >
+                <UserRoundPlus size={16} aria-hidden="true" />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="lx-btn lx-btn-ghost"
+              onClick={onShare}
+              aria-label="Share this page"
+            >
+              <Share2 size={16} aria-hidden="true" />
+            </button>
           </div>
-          <GalleryLightbox items={photos} currentIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} onNavigate={setLightboxIndex} />
+          <GalleryLightbox
+            items={photos}
+            currentIndex={lightboxIndex}
+            onClose={() => setLightboxIndex(null)}
+            onNavigate={setLightboxIndex}
+          />
         </>
       ) : null}
     </div>
@@ -671,9 +1191,19 @@ export function CardLanding(props: CardLandingProps) {
 const noop = () => undefined;
 
 /** Scaled, non-interactive render of the public landing page for the builder preview. */
-export function LandingPreview({ card, references = [] }: { card: CardDraft; references?: ReferenceRow[] }) {
+export function LandingPreview({
+  card,
+  references = [],
+}: {
+  card: CardDraft;
+  references?: ReferenceRow[];
+}) {
   return (
-    <div className="lx-preview" role="region" aria-label={`Preview of ${card.displayName || "your page"}`}>
+    <div
+      className="lx-preview"
+      role="region"
+      aria-label={`Preview of ${card.displayName || "your page"}`}
+    >
       <CardLanding
         card={card}
         config={parsePageConfig(card.page)}

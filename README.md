@@ -23,6 +23,6 @@ The project uses the initialized fullstack runtime database for its working serv
 
 The currently connected Supabase project is inactive and did not provide a usable publishable key during this build. No fake Supabase connection is claimed in the product UI.
 
-## Free-access rule
+## Plans
 
-Every implemented heyitsme feature is free. There are no paid plans, billing screens, checkout, trials, or upgrade prompts.
+Free includes one card, 10 contact exchanges per calendar month and 7-day analytics. Pro costs PHP 299/month and includes five cards, unlimited exchanges, premium design, advanced QR, campaigns, CRM export and 365-day analytics. See `docs/billing.md` for launch flags and payment verification.
