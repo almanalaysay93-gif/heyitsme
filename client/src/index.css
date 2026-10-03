@@ -852,27 +852,23 @@ main[tabindex="-1"]:focus { outline: 0; }
   touch-action: pan-y pinch-zoom;
 }
 .photo-carousel-slide {
-  flex: 0 0 88%;
+  flex: 0 0 100%;
   min-width: 0;
   position: relative;
   outline: none;
   cursor: pointer;
 }
+/* One photo fills the row, so no sliver of the next one shows. Taller on phones, where the row is narrow. */
 @media (min-width: 640px) {
-  .photo-carousel-slide {
-    flex: 0 0 72%;
-  }
-}
-@media (min-width: 980px) {
-  .photo-carousel-slide {
-    flex: 0 0 58%;
+  .photo-carousel-card {
+    aspect-ratio: 16 / 10;
   }
 }
 .photo-carousel-card {
   position: relative;
   border-radius: 22px;
   overflow: hidden;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 4 / 3;
   background: rgba(255, 255, 255, 0.06);
   box-shadow: 0 16px 36px rgba(15, 20, 40, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -988,7 +984,7 @@ main[tabindex="-1"]:focus { outline: 0; }
   background: rgba(255, 255, 255, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.95);
   box-shadow: 0 4px 12px rgba(20, 24, 55, 0.08);
-  color: var(--ink, #11152b);
+  color: #11152b;
   cursor: pointer;
   transition: all 0.2s;
 }

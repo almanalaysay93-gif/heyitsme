@@ -665,11 +665,12 @@
 .lx-take { display: grid; gap: 28px; align-items: center; }
 .lx-take p { max-width: 38ch; font: 500 clamp(20px, 2.8cqi, 26px)/1.35 var(--sans); letter-spacing: -.02em; }
 .lx-take-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
-/* QR stays dark-on-white in every theme so any camera reads it. */
-.lx-take svg[role="img"] {
-  padding: 14px; background: #fff; border-radius: 22px; box-sizing: content-box;
+/* QR stays dark-on-white in every theme so any camera reads it. The code and its caption share one rounded tile. */
+.lx-take .branded-qr {
+  margin: 0; border-radius: 22px !important;
   box-shadow: 0 0 0 1px var(--glass-border), var(--glass-shadow);
 }
+.lx-take .branded-qr svg { display: block; }
 
 /* ============ Footer + mobile dock ============ */
 .lx-footer {
