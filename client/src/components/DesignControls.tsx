@@ -57,6 +57,10 @@ const FONT_PRESETS = [
   ["Elegant", "Playfair Display"],
 ] as const;
 
+/** Play once when the card opens. The rest loop or follow the mouse. */
+const ENTRANCES = ["fade-in", "fade-up", "soft-scale", "slide-up", "staggered-content"];
+const POINTER_DRIVEN = ["spotlight", "parallax"];
+
 export function DesignControls({
   config,
   onChange,
@@ -318,35 +322,48 @@ export function DesignControls({
         ANIMATIONS,
         d.animation.preset,
         (preset, i) => choose({ animation: { ...d.animation, preset } }, i > 1),
-        2
+        2,
+        false,
+        <div className="animation-extras">
+          <label>
+            Intensity
+            <select
+              value={d.animation.intensity}
+              disabled={d.animation.preset === "none"}
+              title={d.animation.preset === "none" ? "Pick an animation first" : undefined}
+              onChange={e =>
+                choose(
+                  {
+                    animation: { ...d.animation, intensity: e.target.value as any },
+                  },
+                  true
+                )
+              }
+            >
+              {["off", "subtle", "normal"].map(v => (
+                <option key={v}>{v}</option>
+              ))}
+            </select>
+          </label>
+          {/* Only an entrance plays once, so only an entrance has something to replay. */}
+          {ENTRANCES.includes(d.animation.preset) ? (
+            <button
+              type="button"
+              className="outline-button"
+              disabled={d.animation.intensity === "off"}
+              onClick={() => window.dispatchEvent(new Event("replay-card-animation"))}
+            >
+              Replay animation
+            </button>
+          ) : d.animation.preset !== "none" ? (
+            <small>
+              {POINTER_DRIVEN.includes(d.animation.preset)
+                ? "Move the mouse over the preview to see this one."
+                : "This one keeps moving by itself. Look at the preview."}
+            </small>
+          ) : null}
+        </div>
       )}
-      <label>
-        Intensity
-        <select
-          value={d.animation.intensity}
-          disabled={d.animation.preset === "none"}
-          title={d.animation.preset === "none" ? "Pick an animation first" : undefined}
-          onChange={e =>
-            choose(
-              {
-                animation: { ...d.animation, intensity: e.target.value as any },
-              },
-              true
-            )
-          }
-        >
-          {["off", "subtle", "normal"].map(v => (
-            <option key={v}>{v}</option>
-          ))}
-        </select>
-      </label>
-      <button
-        type="button"
-        className="outline-button"
-        onClick={() => window.dispatchEvent(new Event("replay-card-animation"))}
-      >
-        Replay animation
-      </button>
       <details className="design-section">
         <summary>
           Custom colors <small className="plan-chip plan-chip-pro">PRO</small>

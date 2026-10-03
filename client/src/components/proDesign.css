@@ -247,6 +247,7 @@
 }
 .lx-designed[data-motion="subtle"] {
   --motion-distance: 6px;
+  --glow-size: 20px;
 }
 .lx-designed[data-animation="fade-in"] .lx-main {
   animation: pro-rise 0.5s both;
@@ -271,14 +272,16 @@
 .lx-designed[data-animation="floating-profile"] .lx-photo-wrap {
   animation: pro-float 6s ease-in-out infinite;
 }
-.lx-designed[data-animation="glow-pulse"] .lx-photo-wrap::before {
-  content: "";
-  position: absolute;
-  inset: -8px;
-  border-radius: 50%;
-  box-shadow: 0 0 30px var(--accent);
-  animation: pro-pulse 5s infinite;
-  pointer-events: none;
+/* The glow sits on the photo's own frame, so it follows the frame's shape. */
+.lx-designed[data-animation="glow-pulse"] .lx-photo {
+  animation: pro-glow 2.8s ease-in-out infinite;
+}
+@keyframes pro-glow {
+  50% {
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--accent) 55%, transparent),
+      0 0 var(--glow-size, 44px) var(--accent);
+  }
 }
 .lx-designed[data-animation="shimmer"] .lx-btn-primary {
   animation: pro-shimmer 6s infinite;
@@ -385,4 +388,15 @@
 }
 .design-grid + .design-grid {
   margin-top: 12px;
+}
+.animation-extras {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 12px;
+}
+.animation-extras small {
+  font-size: 12px;
+  opacity: 0.75;
 }
