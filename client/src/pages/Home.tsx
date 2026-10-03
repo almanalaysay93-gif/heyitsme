@@ -1,3 +1,4 @@
+import { QrCampaigns } from "@/components/QrCampaigns";
 import { parsePageConfig } from "@shared/pageConfig";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startGoogleLogin, SUPPORT_EMAIL } from "@/const";
@@ -940,6 +941,8 @@ function Workspace() {
             )
           ) : mode === "contacts" ? (
             <Suspense fallback={<ViewLoading />}>
+              <>
+              <QrCampaigns cards={cards.filter(c => c.id > 0)} />
               <ContactsView
                 leadUsage={isAuthenticated && billing.data?.limitsEnforced ? billing.data.usage.leads : null}
                 onUpgrade={openUpgrade}
@@ -951,6 +954,7 @@ function Workspace() {
                 isAuthenticated={isAuthenticated}
                 onSignIn={startGoogleLogin}
               />
+              </>
             </Suspense>
           ) : mode === "insights" ? (
             <Suspense fallback={<ViewLoading />}>

@@ -214,3 +214,10 @@ Public card profile photo in `client/src/components/cardLanding.css`. Desktop `.
 - Added migration 0010_pro_tools.sql and default-off design, campaign, and analytics flags. Existing provider supports manual monthly renewal. Live merchant payment verification remains outstanding.
 - Verification: 330 tests passed, 3 skipped. TypeScript, production build, and git diff whitespace checks passed. Browser mobile widths, reduced-motion behavior, live Pro preview, and rounded QR decoding verified. Final logo/frame browser check interrupted by shared browser session.
 - Temporary in-memory QA harness removed. Production migration and feature activation remain deployment steps.
+
+## 2026-10-03: Production release authorized
+- [stated] User requested push and live deployment.
+- Integrated latest origin/main editor, contact validation and mobile fixes. Release checks: 336 tests passed, 3 skipped, TypeScript and production build clean.
+- Pro design, campaign and analytics flags now default on, with explicit environment kill switches retained. Live billing.offer confirms PHP29900 Pro monthly and these three flags enabled.
+- Payments and plan limits remain disabled until real merchant checkout is verified. No payment credentials changed.
+- Production release 1ee6572 reached Vercel READY and public smoke checks passed, including health. Campaign editor restored in the combined Contacts view for final follow-up release.
