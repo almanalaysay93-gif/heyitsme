@@ -1,7 +1,10 @@
 import {
   boolean,
+  doublePrecision,
   index,
   integer,
+  numeric,
+  jsonb,
   pgTable,
   serial,
   text,
@@ -217,6 +220,57 @@ export const offerCounters = pgTable("offerCounters", {
   code: varchar("code", { length: 32 }).primaryKey(),
   used: integer("used").default(0).notNull(),
   maximum: integer("maximum").notNull(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
+}).enableRLS();
+
+export const googleReviewPages = pgTable("googleReviewPages", {
+  id: serial("id").primaryKey(),
+  cardId: integer("cardId").notNull().unique().references(() => cards.id, { onDelete: "cascade" }),
+  ownerUserId: integer("ownerUserId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  slug: varchar("slug", { length: 24 }).notNull().unique(),
+  placeId: varchar("placeId", { length: 255 }),
+  businessName: varchar("businessName", { length: 200 }),
+  address: text("address"),
+  category: varchar("category", { length: 120 }),
+  latitude: doublePrecision("latitude"),
+  longitude: doublePrecision("longitude"),
+  rating: numeric("rating", { precision: 2, scale: 1 }),
+  reviewCount: integer("reviewCount"),
+  mapsUrl: text("mapsUrl"),
+  reviewUrl: text("reviewUrl"),
+  enabled: boolean("enabled").default(true).notNull(),
+  showOnCard: boolean("showOnCard").default(true).notNull(),
+  branding: jsonb("branding").$type<Record<string, unknown>>().default({}).notNull(),
+  lastSyncedAt: timestamp("lastSyncedAt", { mode: "date" }),
+  createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
+}, (table) => [index("google_review_owner_idx").on(table.ownerUserId)]).enableRLS();
+
+export const googleReviewEvents = pgTable("googleReviewEvents", {
+  id: serial("id").primaryKey(),
+  pageId: integer("pageId").notNull().references(() => googleReviewPages.id, { onDelete: "cascade" }),
+  type: varchar("type", { length: 40 }).notNull(),
+  source: varchar("source", { length: 32 }).notNull(),
+  campaign: varchar("campaign", { length: 64 }),
+  device: varchar("device", { length: 16 }),
+  createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+}, (table) => [index("google_review_events_page_date_idx").on(table.pageId, table.createdAt)]).enableRLS();
+
+// One row per request sent to Google Places. Never deleted, and not tied to the card by a foreign key, so the
+// history outlives a removed card.
+export const googlePlacesUsage = pgTable("googlePlacesUsage", {
+  id: serial("id").primaryKey(),
+  cardId: integer("cardId"),
+  ownerUserId: integer("ownerUserId"),
+  requestType: varchar("requestType", { length: 24 }).notNull(),
+  requestCount: integer("requestCount").default(1).notNull(),
+  sessionId: varchar("sessionId", { length: 64 }),
+  createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+}, (table) => [index("google_places_usage_created_idx").on(table.createdAt)]).enableRLS();
+
+export const appSettings = pgTable("appSettings", {
+  key: varchar("key", { length: 64 }).primaryKey(),
+  value: jsonb("value").$type<Record<string, unknown>>().notNull(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
 }).enableRLS();
 

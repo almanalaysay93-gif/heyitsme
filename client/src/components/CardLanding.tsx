@@ -72,6 +72,7 @@ export type CardLandingProps = {
   card: CardDraft;
   config: PageConfig;
   references: ReferenceRow[];
+  googleReview?: { slug: string; rating?: string | null; reviewCount?: number | null; showOnCard?: boolean } | null;
   /** false = builder preview: no nav, dock, QR or motion, and nothing inside can be focused or clicked. */
   interactive: boolean;
   canExchange: boolean;
@@ -150,7 +151,7 @@ function WebsiteShot({ request, title }: { request: string; title: string }) {
 }
 
 export function CardLanding(props: CardLandingProps) {
-  const { card, config, references, interactive, canExchange, pageUrl, onSaveContact, onExchange, onShare, onCopyLink, track, onDemoAction } = props;
+  const { card, config, references, googleReview, interactive, canExchange, pageUrl, onSaveContact, onExchange, onShare, onCopyLink, track, onDemoAction } = props;
   // Only the form depends on the quota. Save contact, QR and links always work.
   const showExchange = canExchange && props.acceptsDetails !== false;
   const branded = !config.hideBranding;
@@ -264,7 +265,7 @@ export function CardLanding(props: CardLandingProps) {
     services: config.services.length > 0,
     visit: config.hours.length > 0 || Boolean(address),
     portfolio: portfolio.length > 0,
-    references: references.length > 0,
+    references: references.length > 0 || Boolean(googleReview && googleReview.showOnCard !== false),
     contact: contactRows.length > 0 || channels.length > 0,
     contactPersons: config.contactPersons.length > 0,
     resourceLinks: config.links.length > 0,
@@ -500,17 +501,31 @@ export function CardLanding(props: CardLandingProps) {
         return (
           <>
             {heading("Kind words")}
-            <div className="lx-quotes">
-              {references.map((reference) => (
-                <figure className="lx-quote" key={reference.id}>
-                  <blockquote>{reference.quote}</blockquote>
-                  <figcaption>
-                    <strong>{reference.clientName}</strong>
-                    <span>{reference.clientRole || "Client"}{reference.company ? ` · ${reference.company}` : ""}</span>
-                  </figcaption>
-                </figure>
-              ))}
-            </div>
+            {references.length > 0 ? (
+              <div className="lx-quotes">
+                {references.map((reference) => (
+                  <figure className="lx-quote" key={reference.id}>
+                    <blockquote>{reference.quote}</blockquote>
+                    <figcaption>
+                      <strong>{reference.clientName}</strong>
+                      <span>{reference.clientRole || "Client"}{reference.company ? ` · ${reference.company}` : ""}</span>
+                    </figcaption>
+                  </figure>
+                ))}
+              </div>
+            ) : null}
+            {googleReview && googleReview.showOnCard !== false ? (
+              <div className="lx-google-review-box" style={{ marginTop: references.length > 0 ? "1.25rem" : 0, textAlign: "center", padding: "1.25rem", borderRadius: "1rem", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }}>
+                <strong style={{ display: "block", fontSize: "1rem", marginBottom: "0.25rem" }}>Review us on Google</strong>
+                <p style={{ margin: "0 0 0.75rem", fontSize: "0.85rem", opacity: 0.8 }}>
+                  {googleReview.rating ? `★ ${googleReview.rating} on Google` : ""}
+                  {googleReview.reviewCount != null ? ` · ${googleReview.reviewCount} reviews` : ""}
+                </p>
+                <a href={`/r/${googleReview.slug}?source=profile`} className="lx-btn lx-btn-outline" style={{ display: "inline-block", textDecoration: "none" }}>
+                  Leave a Google review
+                </a>
+              </div>
+            ) : null}
           </>
         );
       case "contactPersons":

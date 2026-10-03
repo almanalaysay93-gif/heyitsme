@@ -743,6 +743,10 @@ function Workspace() {
             <NavItem label="Billing" icon={CreditCard} active={mode === "billing"} onClick={() => { navigate("/app/billing"); setMobileNavOpen(false); }} />
           ) : null}
         </nav>
+        <div className="nav-section-label nav-section-spaced">Business Features &amp; Services</div>
+        <nav>
+          <NavItem label="Google Reviews" icon={QrCode} onClick={() => { navigate("/app/google-reviews"); setMobileNavOpen(false); }} />
+        </nav>
         <div className="sidebar-bottom">
           {isAuthenticated && plan === "free" ? (
             <button type="button" className="free-pod plan-pod" onClick={() => openUpgrade("general")}>

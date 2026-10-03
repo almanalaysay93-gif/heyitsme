@@ -48,6 +48,8 @@ import { ENV } from "./_core/env";
 import {
   assertBrandingAllowed, assertInsightRange, createCardForOwner, leadCaptureOpen, withLeadQuota,
 } from "./billing/gate";
+import { getPlaceDetails, searchBusinesses, signSelection, verifyConfirmedPlace, verifySelection } from "./googlePlaces";
+import { connectReviewPage, ownerReviewPage, publicReviewPage, reviewConnectionAllowance, ReviewPlanLimitError, reviewPageForCard, reviewSummary, trackReviewEvent, updateReviewSettings } from "./googleReviews";
 
 // Rendered as <img src>, so only http(s) or same-origin storage paths — never data:/javascript:.
 const imageUrl = z
@@ -251,6 +253,85 @@ export const appRouter = router({
   billing: billingRouter,
   qrCampaigns: qrCampaignRouter,
   system: systemRouter,
+  googleReviews: router({
+    search: protectedProcedure.input(z.object({ query: z.string().trim().min(3).max(120), sessionToken: z.string().uuid() })).query(async ({ ctx, input }) => {
+      await enforceRateLimit("places-search", `user:${ctx.user.id}`, 30, MINUTE);
+      try {
+        return (await searchBusinesses(input.query, input.sessionToken, { ownerId: ctx.user.id, cardId: 0, sessionId: input.sessionToken })).map(result => ({ ...result, token: signSelection(result.id, ctx.user.id) }));
+      } catch (error) {
+        console.error("[Google Places] search failed:", error);
+        throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Google business search is temporarily unavailable. Please try again." });
+      }
+    }),
+    select: protectedProcedure.input(z.object({ suggestionToken: z.string().max(1000), sessionToken: z.string().uuid() })).mutation(async ({ ctx, input }) => {
+      await enforceRateLimit("places-details", `user:${ctx.user.id}`, 20, MINUTE);
+      const placeId = verifySelection(input.suggestionToken, ctx.user.id);
+      if (!placeId) throw new TRPCError({ code: "BAD_REQUEST", message: "Search for your business again." });
+      try {
+        const place = await getPlaceDetails(placeId, input.sessionToken, { ownerId: ctx.user.id, cardId: 0, sessionId: input.sessionToken });
+        if (place.id !== placeId) throw new Error("Place mismatch");
+        return {
+          place: {
+            name: place.displayName?.text,
+            address: place.formattedAddress,
+            category: place.primaryTypeDisplayName?.text,
+            rating: place.rating,
+            reviewCount: place.userRatingCount,
+          },
+          selectionToken: signSelection(place.id, ctx.user.id, place),
+        };
+      } catch (error) {
+        console.error("[Google Places] details failed:", error);
+        throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Google business search is temporarily unavailable. Please try again." });
+      }
+    }),
+    connect: protectedProcedure.input(z.object({ cardId: z.number().int().positive(), selectionToken: z.string().max(1000) })).mutation(async ({ ctx, input }) => {
+      await enforceRateLimit("places-connect", `user:${ctx.user.id}`, 10, MINUTE);
+      const id = verifySelection(input.selectionToken, ctx.user.id);
+      if (!id) throw new TRPCError({ code: "BAD_REQUEST", message: "Search for your business again." });
+      const current = await ownerReviewPage(input.cardId, ctx.user.id);
+      if (current?.placeId === id && current.enabled) throw new TRPCError({ code: "CONFLICT", message: "This Google business is already connected to your account." });
+      try {
+        const cachedPlace = verifyConfirmedPlace(input.selectionToken, ctx.user.id);
+        const place = cachedPlace ?? await getPlaceDetails(id, undefined, { ownerId: ctx.user.id, cardId: input.cardId });
+        const page = await connectReviewPage(input.cardId, ctx.user.id, place);
+        if (!page) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found." });
+        return page;
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        if (error instanceof ReviewPlanLimitError) throw new TRPCError({ code: "FORBIDDEN", message: error.message });
+        console.error("[Google Reviews] connection failed:", error);
+        throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Could not connect your business. Please try again." });
+      }
+    }),
+    ownerPage: protectedProcedure.input(z.object({ cardId: z.number().int().positive() })).query(({ ctx, input }) => ownerReviewPage(input.cardId, ctx.user.id)),
+    allowance: protectedProcedure.input(z.object({ cardId: z.number().int().positive() })).query(({ ctx, input }) => reviewConnectionAllowance(input.cardId, ctx.user.id)),
+    refresh: protectedProcedure.input(z.object({ cardId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const current = await ownerReviewPage(input.cardId, ctx.user.id);
+      if (!current?.placeId || !current.enabled) throw new TRPCError({ code: "NOT_FOUND", message: "Google business not found." });
+      if (current.lastSyncedAt && Date.now() - current.lastSyncedAt.getTime() < 24 * 60 * MINUTE) return current;
+      await enforceRateLimit("places-refresh", `user:${ctx.user.id}`, 5, 24 * 60 * MINUTE);
+      try {
+        return await connectReviewPage(input.cardId, ctx.user.id, await getPlaceDetails(current.placeId, undefined, { ownerId: ctx.user.id, cardId: input.cardId }));
+      } catch (error) {
+        console.error("[Google Reviews] refresh failed:", error);
+        throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Could not refresh this business right now." });
+      }
+    }),
+    summary: protectedProcedure.input(z.object({ cardId: z.number().int().positive(), days: z.union([z.literal(1), z.literal(7), z.literal(30), z.literal(90)]).nullable() })).query(({ ctx, input }) => reviewSummary(input.cardId, ctx.user.id, input.days)),
+    settings: protectedProcedure.input(z.object({ cardId: z.number().int().positive(), enabled: z.boolean().optional(), showOnCard: z.boolean().optional() })).mutation(async ({ ctx, input }) => {
+      const { cardId, ...patch } = input;
+      const page = await updateReviewSettings(cardId, ctx.user.id, patch);
+      if (!page) throw new TRPCError({ code: "NOT_FOUND", message: "Review page not found." });
+      return page;
+    }),
+    publicPage: publicProcedure.input(z.object({ slug: z.string().min(1).max(24) })).query(({ input }) => publicReviewPage(input.slug)),
+    forCard: publicProcedure.input(z.object({ cardId: z.number().int().positive() })).query(({ input }) => reviewPageForCard(input.cardId)),
+    track: publicProcedure.input(z.object({ slug: z.string().min(1).max(24), type: z.enum(["page_view", "qr_scan", "nfc_tap", "google_review_click", "view_google_maps_click", "review_completion_acknowledged"]), source: z.string().regex(/^[a-z0-9_-]{1,32}$/), campaign: z.string().regex(/^[a-z0-9_-]{1,64}$/).optional(), device: z.enum(["mobile", "tablet", "desktop"]).optional() })).mutation(async ({ ctx, input }) => {
+      await enforceRateLimit("review-track", clientIp(ctx.req), 60, MINUTE);
+      return { ok: await trackReviewEvent(input.slug, input.type, input.source, input.campaign, input.device) };
+    }),
+  }),
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {

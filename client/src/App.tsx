@@ -17,6 +17,8 @@ const TermsPage = lazyRoute(() => import("./pages/Legal").then((m) => ({ default
 const AboutPage = lazyRoute(() => import("./pages/Info").then((m) => ({ default: m.AboutPage })));
 const FaqPage = lazyRoute(() => import("./pages/Info").then((m) => ({ default: m.FaqPage })));
 const PricingPage = lazyRoute(() => import("./pages/Pricing"));
+const GoogleReviewsPage = lazyRoute(() => import("./pages/GoogleReviews"));
+const PublicReviewPage = lazyRoute(() => import("./pages/PublicReview"));
 
 function RouteLoading() {
   return <div className="loading-screen" role="status" aria-label="Loading"><LogoLoader /></div>;
@@ -37,6 +39,8 @@ function Router() {
         <Route path="/app/contacts" component={Home} />
         <Route path="/app/insights" component={Home} />
         <Route path="/app/billing" component={Home} />
+        <Route path="/app/google-reviews" component={GoogleReviewsPage} />
+        <Route path="/r/:slug" component={PublicReviewPage} />
         <Route path="/c/:slug" component={PublicCardPage} />
         <Route path="/privacy" component={PrivacyPage} />
         <Route path="/terms" component={TermsPage} />

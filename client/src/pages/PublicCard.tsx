@@ -65,6 +65,10 @@ export default function PublicCardPage() {
     !rawCard && slug === "new-card" ? readPreviewCard() : null;
   const card = rawCard ? toDraft(rawCard) : previewCard;
   const references = rawCard?.references ?? [];
+  const googleReview = trpc.googleReviews.forCard.useQuery(
+    { cardId: card?.id ?? 0 },
+    { enabled: Boolean(card?.id && card.id > 0 && rawCard) }
+  );
 
   useEffect(() => {
     if (!showForm) return;
@@ -264,6 +268,7 @@ export default function PublicCardPage() {
         card={demoTheme ? { ...card, theme: demoTheme } : card}
         config={config}
         references={references}
+        googleReview={googleReview.data}
         interactive
         canExchange={canExchange}
         acceptsDetails={rawCard ? rawCard.acceptsDetails !== false : true}

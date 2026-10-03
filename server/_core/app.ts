@@ -7,6 +7,8 @@ import { registerSeoRoutes, logJson } from "./seo";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
+import { publicReviewDestination, trackReviewEvent } from "../googleReviews";
+import { clientIp, hashIdentifier, rateLimit } from "./rateLimit";
 
 // Keep in sync with the headers block in vercel.json, which covers static files Vercel serves directly.
 export const CONTENT_SECURITY_POLICY = [
@@ -60,6 +62,24 @@ export function createApp(): Express {
   registerOAuthRoutes(app);
   registerPaymentRoutes(app);
   registerSeoRoutes(app);
+  app.get("/api/google-reviews/:slug/write", async (req, res) => {
+    const slug = String(req.params.slug ?? "");
+    if (!/^[A-Za-z0-9_-]{1,24}$/.test(slug)) return res.status(404).send("Review page not found.");
+    const limited = await rateLimit(`review-out:${hashIdentifier(clientIp(req))}`, 30, 60_000);
+    if (!limited.allowed) return res.status(429).send("Please wait and try again.");
+    try {
+      // The destination comes from what setup stored. This route never calls Google Places.
+      const target = await publicReviewDestination(slug);
+      if (!target) return res.status(404).send("Review page not found.");
+      const source = /^[a-z0-9_-]{1,32}$/.test(String(req.query.source ?? "")) ? String(req.query.source) : "direct";
+      await trackReviewEvent(slug, "google_review_click", source);
+      res.setHeader("Cache-Control", "no-store");
+      return res.redirect(302, target);
+    } catch (error) {
+      logJson("error", "review link failed", { error: String(error) });
+      return res.status(503).send("Google Reviews is temporarily unavailable. Please try again.");
+    }
+  });
   app.use(
     "/api/trpc",
     createExpressMiddleware({

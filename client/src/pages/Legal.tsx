@@ -95,6 +95,14 @@ export function PrivacyPage() {
         and when. Owners see these as totals on their Insights page. These
         records do not include who the visitor was.
       </p>
+      <h3>Google Review pages</h3>
+      <p>
+        If you connect a business, we send your search and selected business to Google Maps to find its listing.
+        We store its place ID and use the name from your card on the review page.
+        We get the current Google review link when a visitor selects the review button.
+        We record page visits, QR and NFC use, Google button clicks, and customer completion confirmations as anonymous totals.
+        A completion confirmation does not prove that Google published a review.
+      </p>
       <h3>If you buy a paid plan</h3>
       <p>
         You pay on the 2C2P payment page. heyitsme never receives or stores your
@@ -149,7 +157,7 @@ export function PrivacyPage() {
       <p>These providers process data for us, only to run the service:</p>
       <ul>
         <li>
-          <strong>Google</strong> handles sign-in.
+          <strong>Google</strong> handles sign-in and Google Maps business search. See <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">Google's Privacy Policy</a>.
         </li>
         <li>
           <strong>Vercel</strong> hosts the site and API.
@@ -236,6 +244,11 @@ export function TermsPage() {
         nothing and has no end date. Pro add features for a fee shown on the{" "}
         <Link href="/pricing">pricing page</Link>. We may change, add, or remove
         features over time.
+      </p>
+      <p>
+        Google business search and review links use Google Maps services.
+        Your use of those services is also subject to the <a href="https://maps.google.com/help/terms_maps/" target="_blank" rel="noreferrer">Google Maps terms</a>.
+        heyitsme does not submit reviews or verify that a review was published.
       </p>
 
       <h2>Paid plans</h2>
