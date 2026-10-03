@@ -35,13 +35,15 @@ export const FOUNDING_OFFER_CODE = "founding_pro";
 export const LEAD_METRIC = "leads";
 
 export function isComplimentary(email: string | null | undefined): boolean {
-  return Boolean(email) && ENV.complimentaryEmails.includes(email!.trim().toLowerCase());
+  return (
+    Boolean(email) && ENV.complimentaryEmails.includes(email!.trim().toLowerCase()));
 }
 
 export async function getOrCreateBillingAccount(db: Db, userId: number) {
   const [existing] = await db.select().from(billingAccounts).where(eq(billingAccounts.ownerUserId, userId)).limit(1);
   if (existing) return existing;
-  await db.insert(billingAccounts).values({ ownerType: "user", ownerUserId: userId, provider: ENV.paymentProvider }).onConflictDoNothing();
+  await db.insert(billingAccounts).values({ ownerType: "user", ownerUserId: userId, provider: ENV.paymentProvider,
+    }).onConflictDoNothing();
   const [created] = await db.select().from(billingAccounts).where(eq(billingAccounts.ownerUserId, userId)).limit(1);
   return created;
 }
@@ -53,11 +55,11 @@ export async function getUserSubscriptions(db: Db, userId: number) {
     .innerJoin(billingAccounts, eq(billingAccounts.id, subscriptions.billingAccountId))
     .where(eq(billingAccounts.ownerUserId, userId))
     .orderBy(desc(subscriptions.currentPeriodEnd))
-    .then((rows) => rows.map((row) => row.sub));
+    .then(rows => rows.map(row => row.sub));
 }
 
 const toSnapshot = (sub: typeof subscriptions.$inferSelect): SubscriptionSnapshot => ({
-  planCode: sub.planCode as PaidPlanCode,
+  planCode: "pro",
   status: sub.status as SubscriptionSnapshot["status"],
   currentPeriodEnd: sub.currentPeriodEnd,
   cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
@@ -75,7 +77,7 @@ async function getPlanOverride(db: Db, userId: number, now: Date) {
     if (row.expiresAt && row.expiresAt <= now) continue;
     try {
       const plan = JSON.parse(row.valueJson);
-      if (plan === "pro" || plan === "teams") return { plan: plan as PaidPlanCode, expiresAt: row.expiresAt };
+      if (plan === "pro" || plan === "teams") return { plan: "pro" as PaidPlanCode, expiresAt: row.expiresAt };
     } catch {
       // A malformed override grants nothing.
     }
@@ -85,8 +87,10 @@ async function getPlanOverride(db: Db, userId: number, now: Date) {
 
 export async function getUserEntitlements(db: Db, user: { id: number; email: string | null }, now = new Date()): Promise<Entitlements> {
   const complimentary = isComplimentary(user.email);
-  if (complimentary) return resolveEntitlements({ limitsEnabled: ENV.planLimitsEnabled, complimentary, subscriptions: [], now });
-  const [subs, override] = await Promise.all([getUserSubscriptions(db, user.id), getPlanOverride(db, user.id, now)]);
+  if (complimentary) return resolveEntitlements({ limitsEnabled: ENV.planLimitsEnabled, complimentary, subscriptions: [], now,
+    });
+  const [subs, override] = await Promise.all([getUserSubscriptions(db, user.id), getPlanOverride(db, user.id, now),
+  ]);
   return resolveEntitlements({
     limitsEnabled: ENV.planLimitsEnabled,
     complimentary: false,
@@ -102,7 +106,8 @@ export async function countOwnedCards(db: Db, ownerUserId: number) {
 }
 
 export class PlanLimitError extends Error {
-  constructor(readonly reason: "card_limit" | "lead_limit" | "analytics_range" | "branding") {
+  constructor(readonly reason:
+      | "card_limit" | "lead_limit" | "analytics_range" | "branding") {
     super(reason);
   }
 }
@@ -112,7 +117,7 @@ export class PlanLimitError extends Error {
  * insert one step, so two tabs cannot both slip past the limit. Cards above the limit are never touched.
  */
 export async function createCardWithinLimit(db: Db, input: InsertCard, cardLimit: number) {
-  return db.transaction(async (tx) => {
+  return db.transaction(async tx => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`card-create:${input.ownerUserId}`}))`);
     if (input.creationKey) {
       const [existing] = await tx
@@ -132,9 +137,14 @@ export async function createCardWithinLimit(db: Db, input: InsertCard, cardLimit
 
 export async function getLeadUsage(db: Db, ownerUserId: number, limit: number | null, now = new Date()): Promise<LeadUsage> {
   const period = quotaPeriodKey(now);
-  const [row] = await db.execute<{ count: number }>(
-    sql`select "count" from "usageCounters" where "ownerUserId" = ${ownerUserId} and "metric" = ${LEAD_METRIC} and "periodKey" = ${period}`,
-  ).then((result) => (Array.isArray(result) ? result : (result as { rows: { count: number }[] }).rows));
+  const [row] = await db.execute<{ count: number;
+    }>(
+    sql`select "count" from "usageCounters" where "ownerUserId" = ${ownerUserId} and "metric" = ${LEAD_METRIC} and "periodKey" = ${period}`)
+    .then(result =>
+      Array.isArray(result)
+        ? result
+        : (result as { rows: { count: number }[] }).rows
+    );
   return { used: Number(row?.count ?? 0), limit, period };
 }
 
@@ -142,28 +152,44 @@ export async function getLeadUsage(db: Db, ownerUserId: number, limit: number | 
  * Takes one lead from this month's quota in a single statement. Returns false when the quota is used up.
  * Unlimited accounts still count, so usage shows correctly after a downgrade.
  */
-export async function reserveLead(db: Db, ownerUserId: number, limit: number | null, now = new Date()): Promise<boolean> {
+export async function reserveLead(
+  db: Db,
+  ownerUserId: number,
+  limit: number | null,
+  now = new Date()
+): Promise<boolean> {
   const period = quotaPeriodKey(now);
-  const guard = limit === null ? sql`` : sql` where "usageCounters"."count" < ${limit}`;
+  const guard =
+    limit === null ? sql`` : sql` where "usageCounters"."count" < ${limit}`;
   const result = await db.execute(sql`
     insert into "usageCounters" ("ownerUserId", "metric", "periodKey", "count", "updatedAt")
     values (${ownerUserId}, ${LEAD_METRIC}, ${period}, 1, now())
     on conflict ("ownerUserId", "metric", "periodKey")
     do update set "count" = "usageCounters"."count" + 1, "updatedAt" = now()${guard}
     returning "count"`);
-  const rows = Array.isArray(result) ? result : (result as { rows: unknown[] }).rows;
+  const rows = Array.isArray(result)
+    ? result
+    : (result as { rows: unknown[] }).rows;
   return rows.length > 0;
 }
 
 /** Gives a reserved lead back when saving the contact failed after the reservation. */
-export async function releaseLead(db: Db, ownerUserId: number, now = new Date()) {
+export async function releaseLead(
+  db: Db,
+  ownerUserId: number,
+  now = new Date()
+) {
   await db.execute(sql`
     update "usageCounters" set "count" = greatest("count" - 1, 0), "updatedAt" = now()
     where "ownerUserId" = ${ownerUserId} and "metric" = ${LEAD_METRIC} and "periodKey" = ${quotaPeriodKey(now)}`);
 }
 
 export async function foundingSlotsRemaining(db: Db) {
-  const [row] = await db.select().from(offerCounters).where(eq(offerCounters.code, FOUNDING_OFFER_CODE)).limit(1);
+  const [row] = await db
+    .select()
+    .from(offerCounters)
+    .where(eq(offerCounters.code, FOUNDING_OFFER_CODE))
+    .limit(1);
   if (!row) return FOUNDING_MEMBER_LIMIT;
   return Math.max(row.maximum - row.used, 0);
 }
@@ -172,12 +198,18 @@ export async function foundingSlotsRemaining(db: Db) {
  * Founding price applies to a first Pro subscription, or to renewing one that is still a founding membership.
  * A lapsed founding member pays the standard price again (admin can override).
  */
-export async function foundingPriceEligible(db: Db, userId: number, now = new Date()) {
+export async function foundingPriceEligible(
+  db: Db,
+  userId: number,
+  now = new Date()
+) {
   if (!ENV.foundingOfferEnabled) return false;
   const subs = await getUserSubscriptions(db, userId);
-  const pro = subs.filter((sub) => sub.planCode === "pro");
+  const pro = subs.filter(sub => sub.planCode === "pro");
   if (pro.length === 0) return (await foundingSlotsRemaining(db)) > 0;
-  return pro.some((sub) => sub.foundingMember && subscriptionGrantsAccess(toSnapshot(sub), now));
+  return pro.some(
+    sub => sub.foundingMember && subscriptionGrantsAccess(toSnapshot(sub), now)
+  );
 }
 
 export type SettleOutcome =
@@ -185,42 +217,94 @@ export type SettleOutcome =
   | { outcome: "already_settled"; userId: number }
   | { outcome: "not_paid"; userId: number; status: Payment["status"] }
   | { outcome: "rejected"; userId: number; reason: string }
-  | { outcome: "activated"; userId: number; subscriptionId: number; foundingMemberNumber: number | null; periodEnd: Date };
+  | {
+      outcome: "activated";
+      userId: number;
+      subscriptionId: number;
+      foundingMemberNumber: number | null;
+      periodEnd: Date;
+    };
 
 /**
  * Applies a gateway result that was already verified (signature, then a direct inquiry). One transaction:
  * the payment row is locked, so a repeated callback finds it settled and changes nothing.
  */
-export async function settlePayment(db: Db, result: PaymentResult, now = new Date()): Promise<SettleOutcome> {
-  return db.transaction(async (tx) => {
-    const [payment] = await tx.select().from(payments).where(eq(payments.providerTransactionId, result.invoiceNo)).for("update").limit(1);
+export async function settlePayment(
+  db: Db,
+  result: PaymentResult,
+  now = new Date()
+): Promise<SettleOutcome> {
+  return db.transaction(async tx => {
+    const [payment] = await tx
+      .select()
+      .from(payments)
+      .where(eq(payments.providerTransactionId, result.invoiceNo))
+      .for("update")
+      .limit(1);
     if (!payment) return { outcome: "unknown_invoice" } as const;
-    if (payment.status === "succeeded") return { outcome: "already_settled", userId: payment.userId } as const;
+    if (payment.status === "succeeded")
+      return { outcome: "already_settled", userId: payment.userId } as const;
 
     if (result.status !== "succeeded") {
       await tx
         .update(payments)
-        .set({ status: result.status === "pending" ? "pending" : "failed", failureCode: result.status === "failed" ? result.code : null, updatedAt: now })
+        .set({
+          status: result.status === "pending" ? "pending" : "failed",
+          failureCode: result.status === "failed" ? result.code : null,
+          updatedAt: now,
+        })
         .where(eq(payments.id, payment.id));
-      return { outcome: "not_paid", userId: payment.userId, status: result.status } as const;
+      return {
+        outcome: "not_paid",
+        userId: payment.userId,
+        status: result.status,
+      } as const;
     }
 
     // Never trust an amount we did not quote.
-    if (result.amountMinor !== payment.amountMinor || result.currency !== payment.currency) {
+    if (
+      result.amountMinor !== payment.amountMinor ||
+      result.currency !== payment.currency
+    ) {
       await tx
         .update(payments)
-        .set({ status: "failed", failureCode: "amount_mismatch", failureMessage: "Paid amount did not match the quote", updatedAt: now })
+        .set({
+          status: "failed",
+          failureCode: "amount_mismatch",
+          failureMessage: "Paid amount did not match the quote",
+          updatedAt: now,
+        })
         .where(eq(payments.id, payment.id));
-      return { outcome: "rejected", userId: payment.userId, reason: "amount_mismatch" } as const;
+      return {
+        outcome: "rejected",
+        userId: payment.userId,
+        reason: "amount_mismatch",
+      } as const;
     }
 
     await tx
       .update(payments)
-      .set({ status: "succeeded", succeededAt: now, updatedAt: now, providerInvoiceRef: result.providerRef, failureCode: null, failureMessage: null })
+      .set({
+        status: "succeeded",
+        succeededAt: now,
+        updatedAt: now,
+        providerInvoiceRef: result.providerRef,
+        failureCode: null,
+        failureMessage: null,
+      })
       .where(eq(payments.id, payment.id));
 
-    if ((payment.purpose !== "subscription" && payment.purpose !== "renewal") || !payment.billingAccountId || !payment.planCode || !payment.billingCycle) {
-      return { outcome: "rejected", userId: payment.userId, reason: "unsupported_purpose" } as const;
+    if (
+      (payment.purpose !== "subscription" && payment.purpose !== "renewal") ||
+      !payment.billingAccountId ||
+      !payment.planCode ||
+      !payment.billingCycle
+    ) {
+      return {
+        outcome: "rejected",
+        userId: payment.userId,
+        reason: "unsupported_purpose",
+      } as const;
     }
     const plan = payment.planCode as PaidPlanCode;
     const cycle = payment.billingCycle as BillingCycle;
@@ -228,18 +312,32 @@ export async function settlePayment(db: Db, result: PaymentResult, now = new Dat
     const accountSubs = await tx
       .select()
       .from(subscriptions)
-      .where(and(eq(subscriptions.billingAccountId, payment.billingAccountId), eq(subscriptions.planCode, plan)))
+      .where(
+        and(
+          eq(subscriptions.billingAccountId, payment.billingAccountId),
+          eq(subscriptions.planCode, plan)
+        )
+      )
       .orderBy(desc(subscriptions.currentPeriodEnd))
       .for("update");
-    const current = accountSubs.find((sub) => subscriptionGrantsAccess(toSnapshot(sub), now));
+    const current = accountSubs.find(sub =>
+      subscriptionGrantsAccess(toSnapshot(sub), now)
+    );
 
-    let foundingNumber = current?.foundingMember ? current.foundingMemberNumber : null;
+    let foundingNumber = current?.foundingMember
+      ? current.foundingMemberNumber
+      : null;
     if (payment.foundingPrice && plan === "pro" && foundingNumber === null) {
       // One conditional UPDATE: the row lock serializes concurrent payers and `used < maximum` caps the count.
       const [slot] = await tx
         .update(offerCounters)
         .set({ used: sql`${offerCounters.used} + 1`, updatedAt: now })
-        .where(and(eq(offerCounters.code, FOUNDING_OFFER_CODE), sql`${offerCounters.used} < ${offerCounters.maximum}`))
+        .where(
+          and(
+            eq(offerCounters.code, FOUNDING_OFFER_CODE),
+            sql`${offerCounters.used} < ${offerCounters.maximum}`
+          )
+        )
         .returning({ used: offerCounters.used });
       // The last slot went to someone else: the buyer keeps the paid term, without founding status.
       foundingNumber = slot ? slot.used : null;
@@ -247,7 +345,10 @@ export async function settlePayment(db: Db, result: PaymentResult, now = new Dat
     const founding = foundingNumber !== null;
 
     if (current) {
-      const periodEnd = addCycle(current.currentPeriodEnd > now ? current.currentPeriodEnd : now, cycle);
+      const periodEnd = addCycle(
+        current.currentPeriodEnd > now ? current.currentPeriodEnd : now,
+        cycle
+      );
       await tx
         .update(subscriptions)
         .set({
@@ -262,7 +363,13 @@ export async function settlePayment(db: Db, result: PaymentResult, now = new Dat
           updatedAt: now,
         })
         .where(eq(subscriptions.id, current.id));
-      return { outcome: "activated", userId: payment.userId, subscriptionId: current.id, foundingMemberNumber: foundingNumber, periodEnd } as const;
+      return {
+        outcome: "activated",
+        userId: payment.userId,
+        subscriptionId: current.id,
+        foundingMemberNumber: foundingNumber,
+        periodEnd,
+      } as const;
     }
 
     const periodEnd = addCycle(now, cycle);
@@ -281,31 +388,62 @@ export async function settlePayment(db: Db, result: PaymentResult, now = new Dat
         currentPeriodEnd: periodEnd,
       })
       .returning({ id: subscriptions.id });
-    return { outcome: "activated", userId: payment.userId, subscriptionId: created.id, foundingMemberNumber: foundingNumber, periodEnd } as const;
+    return {
+      outcome: "activated",
+      userId: payment.userId,
+      subscriptionId: created.id,
+      foundingMemberNumber: foundingNumber,
+      periodEnd,
+    } as const;
   });
 }
 
 /** Stops renewal reminders. Access continues until the period ends; nothing is deleted. */
-export async function cancelAtPeriodEnd(db: Db, userId: number, now = new Date()) {
+export async function cancelAtPeriodEnd(
+  db: Db,
+  userId: number,
+  now = new Date()
+) {
   const subs = await getUserSubscriptions(db, userId);
-  const current = subs.find((sub) => subscriptionGrantsAccess(toSnapshot(sub), now) && sub.status === "active");
+  const current = subs.find(
+    sub =>
+      subscriptionGrantsAccess(toSnapshot(sub), now) && sub.status === "active"
+  );
   if (!current) return null;
   const [updated] = await db
     .update(subscriptions)
-    .set({ status: "canceled", cancelAtPeriodEnd: true, canceledAt: now, updatedAt: now })
+    .set({
+      status: "canceled",
+      cancelAtPeriodEnd: true,
+      canceledAt: now,
+      updatedAt: now,
+    })
     .where(eq(subscriptions.id, current.id))
     .returning();
   return updated;
 }
 
 /** Undo a cancel before the period ends. */
-export async function resumeSubscription(db: Db, userId: number, now = new Date()) {
+export async function resumeSubscription(
+  db: Db,
+  userId: number,
+  now = new Date()
+) {
   const subs = await getUserSubscriptions(db, userId);
-  const current = subs.find((sub) => sub.status === "canceled" && subscriptionGrantsAccess(toSnapshot(sub), now));
+  const current = subs.find(
+    sub =>
+      sub.status === "canceled" &&
+      subscriptionGrantsAccess(toSnapshot(sub), now)
+  );
   if (!current) return null;
   const [updated] = await db
     .update(subscriptions)
-    .set({ status: "active", cancelAtPeriodEnd: false, canceledAt: null, updatedAt: now })
+    .set({
+      status: "active",
+      cancelAtPeriodEnd: false,
+      canceledAt: null,
+      updatedAt: now,
+    })
     .where(eq(subscriptions.id, current.id))
     .returning();
   return updated;
@@ -331,11 +469,20 @@ export async function getPaymentHistory(db: Db, userId: number) {
     .limit(50);
 }
 
-export async function getPaymentForUser(db: Db, userId: number, invoiceNo: string) {
+export async function getPaymentForUser(
+  db: Db,
+  userId: number,
+  invoiceNo: string
+) {
   const [row] = await db
     .select()
     .from(payments)
-    .where(and(eq(payments.userId, userId), eq(payments.providerTransactionId, invoiceNo)))
+    .where(
+      and(
+        eq(payments.userId, userId),
+        eq(payments.providerTransactionId, invoiceNo)
+      )
+    )
     .limit(1);
   return row;
 }

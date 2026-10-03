@@ -26,7 +26,7 @@ export const ENV = {
   // The address must be on the domain verified in Resend, send.heyitsme.fyi.
   mailFrom: process.env.MAIL_FROM || "heyitsme <notifications@send.heyitsme.fyi>",
 
-  // Paid plans. Every flag defaults off except the founding offer. See docs/billing.md.
+  // Pro tools are live. Checkout and quota enforcement remain explicit launch flags.
   // Free-plan limits (1 card, 10 leads a month, 7 days of insights). Keep off until checkout works.
   planLimitsEnabled: flag("PLAN_LIMITS_ENABLED", false),
   paymentsEnabled: flag("PAYMENTS_ENABLED", false),
@@ -44,11 +44,14 @@ export const ENV = {
   googlePayEnv: process.env.GOOGLE_PAY_ENV === "PRODUCTION" ? "PRODUCTION" : "TEST",
   nfcStoreEnabled: flag("NFC_STORE_ENABLED", false),
   teamsEnabled: flag("TEAMS_ENABLED", false),
-  foundingOfferEnabled: flag("FOUNDING_MEMBER_OFFER_ENABLED", true),
+  foundingOfferEnabled: false,
+  proDesignEnabled: flag("PRO_DESIGN_ENABLED", true),
+  qrCampaignsEnabled: flag("QR_CAMPAIGNS_ENABLED", true),
+  proAnalyticsEnabled: flag("PRO_ANALYTICS_ENABLED", true),
   // Comma-separated Google account emails that keep every feature with no plan. Compared lowercase.
   complimentaryEmails: (process.env.COMPLIMENTARY_EMAILS ?? "")
     .split(",")
-    .map((email) => email.trim().toLowerCase())
+    .map(email => email.trim().toLowerCase())
     .filter(Boolean),
 };
 

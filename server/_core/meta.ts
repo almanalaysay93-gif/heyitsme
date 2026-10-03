@@ -52,11 +52,17 @@ function publicLinks(raw: string | null | undefined): string[] {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
     return parsed
-      .map((item) => (typeof item === "string" ? item : typeof item?.url === "string" ? item.url : ""))
-      .map((item) => item.trim())
+      .map(item =>
+        typeof item === "string"
+          ? item
+          : typeof item?.url === "string"
+            ? item.url
+            : ""
+      )
+      .map(item => item.trim())
       .filter(Boolean)
-      .map((item) => (/^https?:\/\//i.test(item) ? item : `https://${item}`))
-      .filter((item) => {
+      .map(item => (/^https?:\/\//i.test(item) ? item : `https://${item}`))
+      .filter(item => {
         try {
           const url = new URL(item);
           return url.protocol === "https:" || url.protocol === "http:";
@@ -80,20 +86,30 @@ export function cardDescription(card: CardMeta): string {
 }
 
 function setTitle(template: string, title: string): string {
-  return template.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`);
+  return template.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`
+  );
 }
 
 function injectHead(template: string, tags: string[]): string {
   const block = `    ${tags.join("\n    ")}\n  </head>`;
-  return template.replace(HEAD_TAGS_TO_REPLACE, "").replace(/\s*<\/head>/i, `\n${block}`);
+  return template
+    .replace(HEAD_TAGS_TO_REPLACE, "")
+    .replace(/\s*<\/head>/i, `\n${block}`);
 }
 
-export function renderCardHtml(template: string, card: CardMeta, siteUrl: string): string {
+export function renderCardHtml(
+  template: string,
+  card: CardMeta,
+  siteUrl: string
+): string {
   const site = siteUrl.replace(/\/$/, "");
   const url = `${site}/c/${encodeURIComponent(card.slug)}`;
   const title = cardTitle(card);
   const description = cardDescription(card);
-  const image = absoluteUrl(card.coverUrl, site) ?? absoluteUrl(card.avatarUrl, site) ?? `${site}/og.png`;
+  const image =
+    absoluteUrl(card.coverUrl, site) ??
+    absoluteUrl(card.avatarUrl, site) ??
+    `${site}/og.png`;
   const avatar = absoluteUrl(card.avatarUrl, site);
 
   const person: Record<string, unknown> = {
@@ -103,10 +119,15 @@ export function renderCardHtml(template: string, card: CardMeta, siteUrl: string
     url,
   };
   if (card.title) person.jobTitle = card.title;
-  if (card.company) person.worksFor = { "@type": "Organization", name: card.company };
+  if (card.company)
+    person.worksFor = { "@type": "Organization", name: card.company };
   if (card.bio) person.description = card.bio.slice(0, 500);
   if (avatar) person.image = avatar;
-  if (card.location) person.address = { "@type": "PostalAddress", addressLocality: card.location };
+  if (card.location)
+    person.address = {
+      "@type": "PostalAddress",
+      addressLocality: card.location,
+    };
   const sameAs = publicLinks(card.links);
   if (sameAs.length) person.sameAs = sameAs;
 
@@ -137,7 +158,13 @@ export function renderCardNotFoundHtml(template: string): string {
   ]);
 }
 
-export type MarketingRoute = "/" | "/about" | "/faq" | "/pricing" | "/privacy" | "/terms";
+export type MarketingRoute =
+  | "/"
+  | "/about"
+  | "/faq"
+  | "/pricing"
+  | "/privacy"
+  | "/terms";
 
 export type MarketingRouteMeta = {
   title: string;
@@ -150,56 +177,68 @@ export type MarketingRouteMeta = {
 export const MARKETING_METADATA: Record<MarketingRoute, MarketingRouteMeta> = {
   "/": {
     title: "Free Digital Business Card with QR Code | heyitsme",
-    description: "A free digital business card. Share one link or QR code, collect contacts, and see what gets tapped.",
+    description:
+      "A free digital business card. Share one link or QR code, collect contacts, and see what gets tapped.",
     canonicalPath: "/",
     ogType: "website",
-    jsonLd: (siteUrl) => ({
+    jsonLd: siteUrl => ({
       "@context": "https://schema.org",
       "@type": "WebSite",
       name: "heyitsme",
       url: siteUrl,
-      description: "Digital business cards for professional introductions that feel like you. Start free.",
+      description:
+        "Digital business cards for professional introductions that feel like you. Start free.",
     }),
   },
   "/about": {
     title: "About — heyitsme",
-    description: "Learn about heyitsme: a fast, privacy-first digital business card that makes introductions simple. Start free, no app needed.",
+    description:
+      "Learn about heyitsme: a fast, privacy-first digital business card that makes introductions simple. Start free, no app needed.",
     canonicalPath: "/about",
     ogType: "website",
   },
   "/faq": {
     title: "Frequently Asked Questions — heyitsme",
-    description: "Answers about heyitsme: compatibility, contact exchange, privacy, plans, billing, lead limits and cancellation.",
+    description:
+      "Answers about heyitsme: compatibility, contact exchange, privacy, plans, billing, lead limits and cancellation.",
     canonicalPath: "/faq",
     ogType: "website",
   },
   "/pricing": {
-    title: "Pricing — Free, Pro and Teams — heyitsme",
-    description: "Start free with one digital card. Pro is ₱149/month or ₱1,290/year for unlimited leads and a year of insights. Teams starts at ₱499/month.",
+    title: "Pricing \u2014 Free and Pro \u2014 heyitsme",
+    description:
+      "Pro \u2014 \u20b1299/month. Premium design, unlimited contact exchanges and 365-day analytics.",
     canonicalPath: "/pricing",
     ogType: "website",
   },
   "/privacy": {
     title: "Privacy — heyitsme",
-    description: "What heyitsme collects, why, who processes it, and how to get it removed. No ad trackers, no third-party scripts.",
+    description:
+      "What heyitsme collects, why, who processes it, and how to get it removed. No ad trackers, no third-party scripts.",
     canonicalPath: "/privacy",
     ogType: "website",
   },
   "/terms": {
     title: "Terms — heyitsme",
-    description: "Terms for using heyitsme digital business cards, including the Free plan and paid plans.",
+    description:
+      "Terms for using heyitsme digital business cards, including the Free plan and paid plans.",
     canonicalPath: "/terms",
     ogType: "website",
   },
 };
 
-export function renderMarketingHtml(template: string, route: string, siteUrl: string): string {
+export function renderMarketingHtml(
+  template: string,
+  route: string,
+  siteUrl: string
+): string {
   const site = siteUrl.replace(/\/$/, "");
   const normalized = (route.replace(/\/$/, "") || "/") as MarketingRoute;
   const meta = MARKETING_METADATA[normalized];
   if (!meta) return template;
 
-  const url = meta.canonicalPath === "/" ? `${site}/` : `${site}${meta.canonicalPath}`;
+  const url =
+    meta.canonicalPath === "/" ? `${site}/` : `${site}${meta.canonicalPath}`;
   const title = meta.title;
   const description = meta.description;
   const image = `${site}/og.png`;
@@ -221,9 +260,10 @@ export function renderMarketingHtml(template: string, route: string, siteUrl: st
   ];
 
   if (meta.jsonLd) {
-    tags.push(`<script type="application/ld+json">${safeJsonForScript(meta.jsonLd(site))}</script>`);
+    tags.push(
+      `<script type="application/ld+json">${safeJsonForScript(meta.jsonLd(site))}</script>`
+    );
   }
 
   return injectHead(setTitle(template, title), tags);
 }
-

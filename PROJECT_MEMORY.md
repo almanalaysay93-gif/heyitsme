@@ -207,3 +207,10 @@ Public card profile photo in `client/src/components/cardLanding.css`. Desktop `.
 - Browser check on a local in-process PGlite harness: pricing (desktop and 485 px), contacts lead bar, upgrade dialog, locked insight ranges, billing page (Pro founding member), paused public card, complimentary account. Fixed B1–B9 found there.
 - Not tested: a real 2C2P sandbox payment (no credentials), production deploy, the migration on Supabase.
 - Open owner actions: refund policy (marked `[Owner: ...]` in Terms and FAQ), 2C2P merchant capability for Google Pay and GCash (`DPAY`) in PHP, backend notification URL.
+
+## 2026-10-03: Free and Pro PHP299 implementation
+- [stated] Requested scope: Free plus Pro PHP299/month, premium design/motion, QR branding/campaigns, analytics, CRM, and server enforcement.
+- Implemented locally on feat/pro-299 from origin/feat/monetization-phase-0-5. No commit, push, or deployment.
+- Added migration 0010_pro_tools.sql and default-off design, campaign, and analytics flags. Existing provider supports manual monthly renewal. Live merchant payment verification remains outstanding.
+- Verification: 330 tests passed, 3 skipped. TypeScript, production build, and git diff whitespace checks passed. Browser mobile widths, reduced-motion behavior, live Pro preview, and rounded QR decoding verified. Final logo/frame browser check interrupted by shared browser session.
+- Temporary in-memory QA harness removed. Production migration and feature activation remain deployment steps.

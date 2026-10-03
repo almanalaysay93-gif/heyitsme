@@ -1,3 +1,4 @@
+import { designSchema, qrSchema } from "./design";
 import { isContactLink } from "./contactLink";
 import { z } from "zod";
 
@@ -87,6 +88,8 @@ export const contactPersonSchema = z.object({
 export type ContactPerson = z.infer<typeof contactPersonSchema>;
 
 export const pageConfigSchema = z.object({
+  design: designSchema.optional(),
+  qr: qrSchema.optional(),
   template: z.enum(TEMPLATE_IDS).default("professional"),
   /** Owner accent as #rrggbb; empty means the theme's own accent. */
   accent: z

@@ -37,7 +37,8 @@ export function AboutPage() {
       <h3>Start free, pay when it pays</h3>
       <p>
         Your profile, QR code, and card link are free and never expire. Pro adds more cards, unlimited lead capture, and a
-        year of insights for people whose networking brings in work. See <Link href="/pricing">pricing</Link> for details.
+        year of insights for people whose networking brings in work. See{" "}
+        <Link href="/pricing">pricing</Link> for details.
       </p>
 
       <h3>Privacy by default</h3>
@@ -49,7 +50,8 @@ export function AboutPage() {
       <h2>Contact and support</h2>
       <p>
         heyitsme is maintained as an open, accessible digital card service. For technical assistance, bug reports, or general inquiries,
-        reach out to <ContactLine />.
+        reach out to{" "}
+        <ContactLine />.
       </p>
     </LegalShell>
   );
@@ -142,14 +144,14 @@ export function FaqPage() {
       <h2>Plans and billing</h2>
       <h3>What is free, and what is Pro?</h3>
       <p>
-        Free gives you one card with your own link, QR code, save-to-contacts, and up to 10 new leads a month, with 7 days of insights.
-        Pro is &#8369;149 a month or &#8369;1,290 a year and adds up to 3 cards, unlimited lead capture, 365 days of insights, and the option
+        Free gives you one card with your own link, QR code, save-to-contacts, and up to 10 contact exchanges a month, with 7 days of insights.
+        Pro is &#8369;299 a month and adds up to 5 cards, unlimited contact exchanges, 365 days of insights, and the option
         to hide heyitsme branding on your page. See <Link href="/pricing">pricing</Link>.
       </p>
 
-      <h3>What happens when I reach 10 leads on Free?</h3>
+      <h3>What happens when I reach 10 contact exchanges on Free?</h3>
       <p>
-        Lead capture pauses until the next month starts (midnight, Philippine time, on the 1st). Your page stops showing the
+        Contact exchanges pauses until the next month starts (midnight, Philippine time, on the 1st). Your page stops showing the
         <em> Exchange details</em> form, so visitors are never asked for details you can&rsquo;t receive. They can still save your contact
         and reach you through your links. Everyone you already met stays in your Contacts.
       </p>
@@ -165,12 +167,6 @@ export function FaqPage() {
         Yes, from <em>Billing</em> in your workspace. Pro stays on until the end of the period you paid for, then your account moves to Free.
         Nothing is deleted: cards, contacts, and insights data stay. Cards above the Free limit stay live and editable; you just can&rsquo;t
         create new ones until you&rsquo;re under the limit or back on Pro.
-      </p>
-
-      <h3>What is the Founding Member price?</h3>
-      <p>
-        The first 500 Pro members pay &#8369;99 a month or &#8369;999 a year. The price holds while the plan stays active. If a founding
-        plan ends and you start again later, the standard price applies.
       </p>
 
       <h3>Can I get a refund?</h3>
@@ -189,7 +185,8 @@ export function FaqPage() {
 
       <h2>Support</h2>
       <p>
-        Have questions that aren&rsquo;t covered here? Send an email to <ContactLine /> and we&rsquo;ll be glad to help.
+        Have questions that aren&rsquo;t covered here? Send an email to{" "}
+        <ContactLine /> and we&rsquo;ll be glad to help.
       </p>
     </LegalShell>
   );

@@ -48,6 +48,10 @@ import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import "./cardLanding.css";
+import { renderedBackground } from "@shared/design";
+import { QrPreview } from "./QrPreview";
+import "./proDesign.css";
+import "./proFonts.css";
 
 // Paper, ink and a default accent per palette. Accents here pass 4.5:1 on their paper.
 const PALETTES: Record<string, { paper: string; accent: string }> = {
@@ -153,12 +157,34 @@ export function CardLanding(props: CardLandingProps) {
   // On the demo, placeholder booking links and the fictional phone number open an explanation, not a blank tab or a call.
   const demoClick = (kind: "booking" | "phone") =>
     onDemoAction ? (event: { preventDefault: () => void }) => { event.preventDefault(); onDemoAction(kind); } : undefined;
-  const motionOn = useMotionOn(interactive);
-  const enter = useHeroEntrance(interactive) as (step: "eyebrow" | "name" | "lead" | "actions" | "photo") => any;
+  const design = config.design;
+  const motionEnabled =
+    !design ||
+    (design.animation.preset !== "none" &&
+      design.animation.intensity !== "off");
+  const motionOn = useMotionOn(interactive && motionEnabled);
+  const enter = useHeroEntrance(interactive && motionEnabled && !design) as (
+    step: "eyebrow" | "name" | "lead" | "actions" | "photo"
+  ) => any;
+
   const press = usePressProps(interactive) as any;
   const rootRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLElement>(null);
-  const parallax = useHeroParallax(heroRef, interactive);
+  const parallax = useHeroParallax(
+    heroRef,
+    interactive && motionEnabled && !design
+  );
+  const [replay, setReplay] = useState(0);
+  useEffect(() => {
+    const play = () => setReplay(n => n + 1);
+    window.addEventListener("replay-card-animation", play);
+    return () => window.removeEventListener("replay-card-animation", play);
+  }, []);
+  useEffect(
+    () => setReplay(n => n + 1),
+    [design?.animation.preset, design?.animation.intensity]
+  );
+
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const links = parseLinks(card.links).filter((link) => normalizeWebsiteUrl(link));
@@ -168,11 +194,31 @@ export function CardLanding(props: CardLandingProps) {
   const works = portfolio.filter((item) => item.kind !== "image");
 
   const palette = PALETTES[card.theme] ?? PALETTES.midnight;
-  const ink = INK[card.theme] ?? INK.midnight;
-  const accent = config.accent || palette.accent;
+  const ink = design?.text ?? INK[card.theme] ?? INK.midnight;
+  const accent = design?.accent ?? (config.accent || palette.accent);
   // A pale owner accent still works on buttons (text flips to dark); accent-colored text needs 4.5:1 or falls back to ink.
-  const accentText = contrastRatio(accent, palette.paper) >= 4.5 ? accent : ink;
-  const style = {
+  const accentText =
+    contrastRatio(accent, design?.colors[0] ?? palette.paper) >= 4.5
+      ? accent
+      : ink;
+  const style: React.CSSProperties & Record<string, string> = {
+    ...(design
+      ? {
+          "--design-background": renderedBackground(design),
+          "--design-base": design.colors[0],
+          "--design-ink": design.text,
+          "--design-button": design.button,
+          "--design-button-text": design.buttonText,
+          "--design-heading": `"${design.headingFont ?? design.font}", Georgia, serif`,
+          "--design-font": `"${design.font}", ${design.font.includes("Serif") || design.font === "Georgia" ? "Georgia, serif" : "Arial, sans-serif"}`,
+          "--design-radius":
+            design.radius === "small"
+              ? "8px"
+              : design.radius === "medium"
+                ? "16px"
+                : "24px",
+        }
+      : {}),
     ["--accent" as string]: accent,
     ["--on-accent" as string]: readableOn(accent),
     ["--accent-text" as string]: accentText,
@@ -596,7 +642,41 @@ export function CardLanding(props: CardLandingProps) {
   };
 
   return (
-    <div className={`lx lx-${template}${cover ? " lx-has-cover" : ""} lx-theme-${PALETTES[card.theme] ? card.theme : "midnight"}`} style={style} ref={rootRef} inert={!interactive || undefined}>
+    <div
+      key={replay}
+      data-animation={design?.animation.preset}
+      data-motion={design?.animation.intensity}
+      data-background={design?.backgroundType}
+      data-button={design?.buttonStyle}
+      data-shadow={design?.shadow}
+      onPointerMove={event => {
+        if (
+          !motionOn ||
+          !design ||
+          !["parallax", "spotlight"].includes(design.animation.preset) ||
+          event.pointerType !== "mouse"
+        )
+          return;
+        const r = event.currentTarget.getBoundingClientRect();
+        event.currentTarget.style.setProperty(
+          "--pointer-x",
+          `${event.clientX - r.left}px`
+        );
+        event.currentTarget.style.setProperty(
+          "--pointer-y",
+          `${event.clientY - r.top}px`
+        );
+        event.currentTarget.style.setProperty(
+          "--pointer-dx",
+          `${(event.clientX - r.left - r.width / 2) * 0.01}px`
+        );
+        event.currentTarget.style.setProperty(
+          "--pointer-dy",
+          `${(event.clientY - r.top - r.height / 2) * 0.01}px`
+        );
+      }}
+      className={`lx ${design ? "lx-designed" : ""} lx-${template}${cover ? " lx-has-cover" : ""} lx-theme-${PALETTES[card.theme] ? card.theme : "midnight"}`}
+      style={style} ref={rootRef} inert={!interactive || undefined}>
       {card.backgroundUrl ? <div className="lx-bg" aria-hidden="true"><img src={card.backgroundUrl} alt="" decoding="async" /></div> : null}
       {cover ? (
         <div className="lx-cover-top" aria-hidden="true">
@@ -641,7 +721,7 @@ export function CardLanding(props: CardLandingProps) {
               </div>
             </div>
             {/* Dark on the white tile in every theme so any camera reads it. */}
-            <QRCodeSVG value={pageUrl} size={132} bgColor="transparent" fgColor="#10152a" aria-label="QR code for this page" role="img" />
+            <QrPreview value={pageUrl} design={config.qr} />
           </GlassPanel>
         ) : null}
       </MainTag>

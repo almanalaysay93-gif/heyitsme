@@ -215,10 +215,10 @@ function Workspace() {
   const contactsQuery = trpc.contacts.list.useInfiniteQuery(CONTACTS_PAGE, {
     enabled: isAuthenticated,
     retry: false,
-    getNextPageParam: (page) => page.nextCursor ?? undefined,
+    getNextPageParam: (page) => page?.nextCursor ?? undefined,
   });
   const serverContacts = useMemo(
-    () => (contactsQuery.data ? contactsQuery.data.pages.flatMap((page) => page.items) : undefined),
+    () => (contactsQuery.data ? contactsQuery.data.pages.flatMap((page) => page?.items ?? []) : undefined),
     [contactsQuery.data],
   );
   const createCard = trpc.cards.create.useMutation();
@@ -730,7 +730,7 @@ function Workspace() {
           <NavItem label="Overview" icon={LayoutGrid} active={mode === "overview"} onClick={() => { navigate("/app"); setMobileNavOpen(false); }} />
           <NavItem label="My cards" icon={CircleUserRound} active={mode === "cards"} badge={cards.length} onClick={() => { navigate("/app/cards"); setMobileNavOpen(false); }} />
           <NavItem
-            label="Contacts"
+            label="Contact Exchanges"
             icon={UsersRound}
             active={mode === "contacts"}
             badge={unseenCount > 0 ? `${unseenCount} new` : contacts.length}

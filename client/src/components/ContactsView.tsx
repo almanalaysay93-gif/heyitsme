@@ -1,13 +1,19 @@
-import { buildContactVCard, copyToClipboard, csvCell, downloadBlob, followUpDay, formatDate, formatFollowUp, getInitials, parseTags, safeFileName, sortByFollowUp } from "@/lib/cardKit";
+import { buildContactVCard, copyToClipboard, csvCell, downloadBlob, followUpDay, formatDate, formatFollowUp, getInitials, parseTags, safeFileName, sortByFollowUp,
+} from "@/lib/cardKit";
 import { LeadUsage } from "@/components/billing/LeadUsage";
 import type { UpgradeReason } from "@/lib/billing";
 import type { LeadUsage as LeadUsageData } from "@shared/plans";
 import { AnimatePresence, motion } from "framer-motion";
-import { AtSign, CalendarClock, Check, Copy, Download, Mail, Phone, Sparkles, Tag, Trash2, UserRoundPlus, UsersRound, X } from "lucide-react";
+import { AtSign, CalendarClock, Check, Copy, Download, Mail, Phone, Sparkles, Tag, Trash2, UserRoundPlus, UsersRound, X,
+} from "lucide-react";
 import { useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
+import { useBilling, useUpgrade } from "@/lib/billing";
 
 export type ContactRow = {
+  status?: "new" | "contacted" | "follow-up" | "converted" | "archived";
+  campaignId?: string | null;
   id: number;
   cardId?: number | null;
   name: string;
@@ -26,13 +32,18 @@ export type ContactRow = {
 };
 
 /** `followUpOn` is a "YYYY-MM-DD" day, or null to clear it. */
-export type ContactPatch = { tags?: string[]; notes?: string | null; followedUp?: boolean; followUpOn?: string | null };
+export type ContactPatch = {
+  status?: ContactRow["status"];
+  tags?: string[]; notes?: string | null; followedUp?: boolean; followUpOn?: string | null;
+};
 
 type StatusFilter = "all" | "new" | "todo" | "done";
 
 const MAX_TAGS = 12;
 
-function TagEditor({ tags, onChange, suggestions }: { tags: string[]; onChange: (tags: string[]) => void; suggestions: string[] }) {
+function TagEditor({ tags, onChange, suggestions,
+}: { tags: string[]; onChange: (tags: string[]) => void; suggestions: string[];
+}) {
   const [value, setValue] = useState("");
   const listId = useId();
   const inputId = useId();
@@ -40,7 +51,7 @@ function TagEditor({ tags, onChange, suggestions }: { tags: string[]; onChange: 
     const tag = raw.trim().replace(/,+$/, "").slice(0, 40);
     setValue("");
     if (!tag) return;
-    if (tags.some((existing) => existing.toLowerCase() === tag.toLowerCase())) return;
+    if (tags.some(existing => existing.toLowerCase() === tag.toLowerCase())) return;
     if (tags.length >= MAX_TAGS) {
       toast.error(`Up to ${MAX_TAGS} tags per contact.`);
       return;
@@ -59,24 +70,36 @@ function TagEditor({ tags, onChange, suggestions }: { tags: string[]; onChange: 
     <div className="field-label">
       <label htmlFor={inputId}>Tags</label>
       <div className="tag-editor">
-        {tags.map((tag) => (
+        {tags.map(tag => (
           <span className="tag-chip" key={tag}>
             {tag}
-            <button type="button" onClick={() => onChange(tags.filter((item) => item !== tag))} aria-label={`Remove tag ${tag}`}><X size={12} /></button>
+            <button
+              type="button"
+              onClick={() => onChange(tags.filter(item => item !== tag))}
+              aria-label={`Remove tag ${tag}`}
+            >
+              <X size={12} />
+            </button>
           </span>
         ))}
         <input
           id={inputId}
           value={value}
           list={listId}
-          onChange={(event) => setValue(event.target.value)}
+          onChange={event => setValue(event.target.value)}
           onKeyDown={onKeyDown}
           onBlur={() => add(value)}
-          placeholder={tags.length ? "Add another" : "e.g. investor, conference"}
+          placeholder={
+            tags.length ? "Add another" : "e.g. investor, conference"
+          }
           maxLength={40}
         />
         <datalist id={listId}>
-          {suggestions.filter((tag) => !tags.includes(tag)).map((tag) => <option key={tag} value={tag} />)}
+          {suggestions
+            .filter(tag => !tags.includes(tag))
+            .map(tag => (
+              <option key={tag} value={tag} />
+            ))}
         </datalist>
       </div>
     </div>
@@ -103,36 +126,53 @@ function ContactSheet({
   const [tags, setTags] = useState(() => parseTags(contact.tags));
   const [notes, setNotes] = useState(contact.notes ?? "");
   const [followedUp, setFollowedUp] = useState(Boolean(contact.followedUp));
-  const [followUpOn, setFollowUpOn] = useState(() => followUpDay(contact.followUpOn));
+  const [followUpOn, setFollowUpOn] = useState(() =>
+    followUpDay(contact.followUpOn)
+  );
   const [saving, setSaving] = useState(false);
+  const [emailCopied, setEmailCopied] = useState(false);
+  const [crmStatus, setCrmStatus] = useState(contact.status ?? "new");
   const titleId = useId();
   const notesId = useId();
   const followUpId = useId();
   const dirty =
+    crmStatus !== (contact.status ?? "new") ||
     JSON.stringify(tags) !== JSON.stringify(parseTags(contact.tags)) ||
     notes !== (contact.notes ?? "") ||
     followedUp !== Boolean(contact.followedUp) ||
     followUpOn !== followUpDay(contact.followUpOn);
 
   useEffect(() => {
-    const onKey = (event: globalThis.KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
   const save = async () => {
     setSaving(true);
-    const ok = await onSave({ tags, notes: notes.trim() || null, followedUp, followUpOn: followUpOn || null });
+    const ok = await onSave({
+      status: crmStatus,
+      tags,
+      notes: notes.trim() || null,
+      followedUp,
+      followUpOn: followUpOn || null,
+    });
     setSaving(false);
     if (ok) onClose();
   };
 
   const downloadContact = () => {
-    downloadBlob(new Blob([buildContactVCard(contact)], { type: "text/vcard;charset=utf-8" }), `${safeFileName(contact.name, "contact")}.vcf`);
+    downloadBlob(
+      new Blob([buildContactVCard(contact)], {
+        type: "text/vcard;charset=utf-8",
+      }),
+      `${safeFileName(contact.name, "contact")}.vcf`
+    );
     toast.success("Contact file (.vcf) downloaded.");
   };
 
-  const [emailCopied, setEmailCopied] = useState(false);
   const copyEmail = async () => {
     if (!contact.email) return;
     if (await copyToClipboard(contact.email)) { setEmailCopied(true); toast.success("Email copied."); }
@@ -140,7 +180,13 @@ function ContactSheet({
   };
 
   return (
-    <motion.div className="sheet-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+    <motion.div
+      className="sheet-backdrop"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
       <motion.div
         role="dialog"
         aria-modal="true"
@@ -150,45 +196,133 @@ function ContactSheet({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 20, scale: 0.98 }}
         transition={{ type: "spring", stiffness: 300, damping: 28 }}
-        onClick={(event) => event.stopPropagation()}
+        onClick={event => event.stopPropagation()}
       >
         <div className="sheet-header">
           <div className="contact-sheet-identity">
             <div className="contact-avatar">{getInitials(contact.name)}</div>
             <div>
-              <span className="mini-label">{isNew ? "Newly received" : contact.source === "exchange_form" ? "Exchanged details" : "Contact"}{contact.followedUp ? " · Followed up" : ""}</span>
+              <span className="mini-label">
+                {isNew
+                  ? "Newly received"
+                  : contact.source === "exchange_form"
+                    ? "Exchanged details"
+                    : "Contact"}
+                {contact.followedUp ? " · Followed up" : ""}
+              </span>
               <h2 id={titleId}>{contact.name}</h2>
-              <p>{contact.title || "Contact"}{contact.company ? ` · ${contact.company}` : ""}</p>
+              <p>
+                {contact.title || "Contact"}
+                {contact.company ? ` · ${contact.company}` : ""}
+              </p>
             </div>
           </div>
-          <button type="button" className="icon-button" onClick={onClose} aria-label="Close contact details" autoFocus><X size={17} /></button>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={onClose}
+            aria-label="Close contact details"
+            autoFocus
+          >
+            <X size={17} />
+          </button>
         </div>
 
         <p className="contact-sheet-meta">
-          Met {formatDate(contact.createdAt)}{cardName ? <> through <strong>{cardName}</strong></> : null}
+          <label>
+            Status
+            <select
+              value={crmStatus}
+              onChange={e => setCrmStatus(e.target.value as typeof crmStatus)}
+            >
+              {["new", "contacted", "follow-up", "converted", "archived"].map(
+                v => (
+                  <option key={v}>{v}</option>
+                )
+              )}
+            </select>
+          </label>
+          {contact.campaignId ? (
+            <span>Campaign: {contact.campaignId}</span>
+          ) : null}
+          Met {formatDate(contact.createdAt)}
+          {cardName ? (
+            <>
+              {" "}
+              through <strong>{cardName}</strong>
+            </>
+          ) : null}
         </p>
 
         <div className="contact-sheet-actions">
-          {contact.email ? <a className="outline-button" href={`mailto:${contact.email}`}><Mail size={15} /> Email</a> : null}
-          {contact.phone ? <a className="outline-button" href={`tel:${contact.phone.replace(/\s+/g, "")}`}><Phone size={15} /> Call</a> : null}
-          {contact.email ? <button type="button" className="outline-button" onClick={() => void copyEmail()}><Copy size={15} /> {emailCopied ? "Email copied" : "Copy email"}</button> : null}
-          <button type="button" className="outline-button" onClick={downloadContact}><Download size={15} /> Save .vcf</button>
+          {contact.email ? (
+            <a className="outline-button" href={`mailto:${contact.email}`}>
+              <Mail size={15} /> Email
+            </a>
+          ) : null}
+          {contact.phone ? (
+            <a
+              className="outline-button"
+              href={`tel:${contact.phone.replace(/\s+/g, "")}`}
+            >
+              <Phone size={15} /> Call
+            </a>
+          ) : null}
+          {contact.email ? (
+            <button
+              type="button"
+              className="outline-button"
+              onClick={() => void copyEmail()}
+            >
+              <Copy size={15} /> {emailCopied ? "Email copied" : "Copy email"}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="outline-button"
+            onClick={downloadContact}
+          >
+            <Download size={15} /> Save .vcf
+          </button>
         </div>
 
         <label className="follow-switch">
-          <input type="checkbox" checked={followedUp} onChange={(event) => setFollowedUp(event.target.checked)} />
-          <span className="follow-switch-track" aria-hidden="true"><span /></span>
+          <input
+            type="checkbox"
+            checked={followedUp}
+            onChange={event => setFollowedUp(event.target.checked)}
+          />
+          <span className="follow-switch-track" aria-hidden="true">
+            <span />
+          </span>
           <span className="follow-switch-copy">
             <strong>Followed up</strong>
-            <small>{followedUp ? "Done. Nice work." : "Mark this once you’ve reached out."}</small>
+            <small>
+              {followedUp
+                ? "Done. Nice work."
+                : "Mark this once you’ve reached out."}
+            </small>
           </span>
         </label>
 
         <div className="field-label contact-follow-up">
           <label htmlFor={followUpId}>Follow up on</label>
           <div className="contact-follow-up-row">
-            <input id={followUpId} type="date" value={followUpOn} onChange={(event) => setFollowUpOn(event.target.value)} />
-            {followUpOn ? <button type="button" className="text-button" onClick={() => setFollowUpOn("")}>Clear</button> : null}
+            <input
+              id={followUpId}
+              type="date"
+              value={followUpOn}
+              onChange={event => setFollowUpOn(event.target.value)}
+            />
+            {followUpOn ? (
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => setFollowUpOn("")}
+              >
+                Clear
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -196,13 +330,36 @@ function ContactSheet({
 
         <div className="field-label contact-notes">
           <label htmlFor={notesId}>Notes</label>
-          <textarea id={notesId} value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={1000} placeholder="Where you met, what you talked about, what to send next." />
+          <textarea
+            id={notesId}
+            value={notes}
+            onChange={event => setNotes(event.target.value)}
+            maxLength={1000}
+            placeholder="Where you met, what you talked about, what to send next."
+          />
         </div>
 
         <div className="contact-sheet-footer">
-          <button type="button" className="text-button danger-text" onClick={onDelete}><Trash2 size={14} /> Delete contact</button>
-          <button type="button" className="glass-button glass-button-primary" onClick={() => void save()} disabled={!dirty || saving}>
-            {saving ? "Saving…" : <><Check size={15} /> Save changes</>}
+          <button
+            type="button"
+            className="text-button danger-text"
+            onClick={onDelete}
+          >
+            <Trash2 size={14} /> Delete contact
+          </button>
+          <button
+            type="button"
+            className="glass-button glass-button-primary"
+            onClick={() => void save()}
+            disabled={!dirty || saving}
+          >
+            {saving ? (
+              "Saving…"
+            ) : (
+              <>
+                <Check size={15} /> Save changes
+              </>
+            )}
           </button>
         </div>
       </motion.div>
@@ -266,61 +423,113 @@ export function ContactsView({
   leadUsage?: LeadUsageData | null;
   onUpgrade?: (reason: UpgradeReason) => void;
 }) {
-  const [guestContacts, setGuestContacts] = useState<ContactRow[]>(SAMPLE_GUEST_CONTACTS);
+  const [guestContacts, setGuestContacts] = useState<ContactRow[]>(
+    SAMPLE_GUEST_CONTACTS
+  );
+  const billing = useBilling(isAuthenticated);
+  const { openUpgrade } = useUpgrade();
+  const utils = trpc.useUtils();
+  const pro = Boolean(billing.data?.entitlements.features.advancedCrm || billing.data?.limitsEnforced === false);
+  const [crmFilter, setCrmFilter] = useState("all");
   const contacts = isAuthenticated ? rawContacts : guestContacts;
-  const newIds = isAuthenticated ? rawNewIds : useMemo(() => new Set([-101]), []);
+  const newIds = isAuthenticated
+    ? rawNewIds
+    : useMemo(() => new Set([-101]), []);
   const [search, setSearch] = useState("");
   const [cardFilter, setCardFilter] = useState("all");
   const [tagFilter, setTagFilter] = useState("all");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [openId, setOpenId] = useState<number | null>(null);
 
-  const cardNames = useMemo(() => new Map(cards.map((card) => [card.id, card.displayName || "Untitled card"])), [cards]);
+  const cardNames = useMemo(
+    () =>
+      new Map(
+        cards.map(card => [card.id, card.displayName || "Untitled card"])
+      ),
+    [cards]
+  );
   const allTags = useMemo(() => {
     const seen = new Map<string, string>();
-    for (const contact of contacts) for (const tag of parseTags(contact.tags)) if (!seen.has(tag.toLowerCase())) seen.set(tag.toLowerCase(), tag);
+    for (const contact of contacts)
+      for (const tag of parseTags(contact.tags))
+        if (!seen.has(tag.toLowerCase())) seen.set(tag.toLowerCase(), tag);
     return Array.from(seen.values()).sort((a, b) => a.localeCompare(b));
   }, [contacts]);
   const cardOptions = useMemo(() => {
-    const ids = new Set(contacts.map((contact) => contact.cardId).filter((id): id is number => typeof id === "number"));
-    return Array.from(ids).map((id) => ({ id, name: cardNames.get(id) ?? "Deleted card" }));
+    const ids = new Set(
+      contacts
+        .map(contact => contact.cardId)
+        .filter((id): id is number => typeof id === "number")
+    );
+    return Array.from(ids).map(id => ({
+      id,
+      name: cardNames.get(id) ?? "Deleted card",
+    }));
   }, [cardNames, contacts]);
 
-  const counts = useMemo(() => ({
-    all: contacts.length,
-    new: contacts.filter((contact) => newIds.has(contact.id)).length,
-    todo: contacts.filter((contact) => !contact.followedUp).length,
-    done: contacts.filter((contact) => contact.followedUp).length,
-  }), [contacts, newIds]);
+  const counts = useMemo(
+    () => ({
+      all: contacts.length,
+      new: contacts.filter(contact => newIds.has(contact.id)).length,
+      todo: contacts.filter(contact => !contact.followedUp).length,
+      done: contacts.filter(contact => contact.followedUp).length,
+    }),
+    [contacts, newIds]
+  );
 
   const visible = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return sortByFollowUp(contacts).filter((contact) => {
+    return sortByFollowUp(contacts).filter(contact => {
+      if (crmFilter !== "all" && (contact.status ?? "new") !== crmFilter)
+        return false;
       if (status === "new" && !newIds.has(contact.id)) return false;
       if (status === "todo" && contact.followedUp) return false;
       if (status === "done" && !contact.followedUp) return false;
-      if (cardFilter !== "all" && String(contact.cardId ?? "") !== cardFilter) return false;
+      if (cardFilter !== "all" && String(contact.cardId ?? "") !== cardFilter)
+        return false;
       const tags = parseTags(contact.tags);
-      if (tagFilter !== "all" && !tags.some((tag) => tag.toLowerCase() === tagFilter.toLowerCase())) return false;
+      if (
+        tagFilter !== "all" &&
+        !tags.some(tag => tag.toLowerCase() === tagFilter.toLowerCase())
+      )
+        return false;
       if (!query) return true;
-      return [contact.name, contact.company, contact.email, contact.phone, contact.title, contact.notes, ...tags]
-        .some((field) => field?.toLowerCase().includes(query));
+      return [
+        contact.name,
+        contact.company,
+        contact.email,
+        contact.phone,
+        contact.title,
+        contact.notes,
+        ...tags,
+      ].some(field => field?.toLowerCase().includes(query));
     });
-  }, [cardFilter, contacts, newIds, search, status, tagFilter]);
+  }, [cardFilter, contacts, newIds, search, status, tagFilter, crmFilter]);
 
-  const filtersActive = Boolean(search.trim()) || cardFilter !== "all" || tagFilter !== "all" || status !== "all";
-  const openContact = contacts.find((contact) => contact.id === openId) ?? null;
+  const filtersActive =
+    Boolean(search.trim()) ||
+    cardFilter !== "all" ||
+    tagFilter !== "all" ||
+    status !== "all";
+  const openContact = contacts.find(contact => contact.id === openId) ?? null;
 
   const handleUpdate = async (id: number, patch: ContactPatch) => {
+    if (isAuthenticated && !pro) {
+      openUpgrade("general");
+      return false;
+    }
     if (!isAuthenticated) {
-      setGuestContacts((prev) =>
-        prev.map((c) =>
+      setGuestContacts(prev =>
+        prev.map(c =>
           c.id === id
             ? {
                 ...c,
                 ...patch,
                 tags: patch.tags ? JSON.stringify(patch.tags) : c.tags,
-                followUpOn: patch.followUpOn !== undefined ? patch.followUpOn : c.followUpOn,
+                followUpOn:
+                  patch.followUpOn !== undefined
+                    ? patch.followUpOn
+                    : c.followUpOn,
               }
             : c
         )
@@ -333,39 +542,33 @@ export function ContactsView({
 
   const handleDelete = async (id: number) => {
     if (!isAuthenticated) {
-      setGuestContacts((prev) => prev.filter((c) => c.id !== id));
+      setGuestContacts(prev => prev.filter(c => c.id !== id));
       toast.success("Sample contact removed.");
       return;
     }
     return onDelete(id);
   };
 
-  const exportContacts = () => {
-    if (!isAuthenticated) {
-      toast.info("This is sample preview data. Sign in with Google to collect and export real contacts.");
+  const exportContacts = async () => {
+    if (!isAuthenticated) return;
+    if (!pro) {
+      openUpgrade("general");
       return;
     }
-    const header = ["name", "email", "phone", "company", "title", "tags", "notes", "followed_up", "follow_up_on", "card", "source", "met_on"].join(",");
-    const rows = visible.map((contact) => [
-      contact.name,
-      contact.email,
-      contact.phone,
-      contact.company,
-      contact.title,
-      parseTags(contact.tags).join("; "),
-      contact.notes,
-      contact.followedUp ? "yes" : "no",
-      followUpDay(contact.followUpOn),
-      contact.cardId ? cardNames.get(contact.cardId) ?? "" : "",
-      contact.source,
-      contact.createdAt ? new Date(contact.createdAt).toISOString().slice(0, 10) : "",
-    ].map(csvCell).join(","));
-    // BOM so Excel opens names with accents correctly.
-    downloadBlob(new Blob([`﻿${header}\n${rows.join("\n")}`], { type: "text/csv;charset=utf-8" }), "heyitsme-contacts.csv");
-    toast.success(`Exported ${visible.length} contact${visible.length === 1 ? "" : "s"}.`);
+    try {
+      const csv = await utils.contacts.export.fetch();
+      downloadBlob(
+        new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }),
+        "heyitsme-contacts.csv"
+      );
+      toast.success("Contact exchanges exported.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Export failed.");
+    }
   };
 
   const clearFilters = () => {
+    setCrmFilter("all");
     setSearch("");
     setCardFilter("all");
     setTagFilter("all");
@@ -380,36 +583,100 @@ export function ContactsView({
   ];
 
   return (
-    <motion.div className="page-stack" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+    <motion.div
+      className="page-stack"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+    >
       <div className="page-heading-row">
         <div>
-          <span className="section-kicker"><UsersRound size={14} /> Your people</span>
-          <h1>Keep the<br /><em>good ones close.</em></h1>
-          <p>Tag who you met, jot what matters, and check them off once you follow up.</p>
+          <span className="section-kicker">
+            <UsersRound size={14} /> Your people
+          </span>
+          <h1>
+            Keep the
+            <br />
+            <em>good ones close.</em>
+          </h1>
+          <p>
+            Tag who you met, jot what matters, and check them off once you
+            follow up.
+          </p>
         </div>
-        <button type="button" className="outline-button" onClick={exportContacts} disabled={visible.length === 0}><Download size={15} /> Export CSV</button>
+        <label>
+          Status
+          <select
+            value={crmFilter}
+            onChange={e => {
+              if (!pro) {
+                openUpgrade("general");
+                return;
+              }
+              setCrmFilter(e.target.value);
+            }}
+          >
+            {[
+              "all",
+              "new",
+              "contacted",
+              "follow-up",
+              "converted",
+              "archived",
+            ].map(v => (
+              <option key={v}>{v}</option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          className="outline-button"
+          onClick={() => void exportContacts()}
+          disabled={visible.length === 0}
+        >
+          <Download size={15} /> Export CSV {!pro ? <small>PRO</small> : null}
+        </button>
       </div>
-      {isAuthenticated && leadUsage && onUpgrade ? <LeadUsage usage={leadUsage} onUpgrade={onUpgrade} /> : null}
+      {isAuthenticated && leadUsage && onUpgrade ? (
+        <LeadUsage usage={leadUsage} onUpgrade={onUpgrade} />
+      ) : null}
 
       {!isAuthenticated ? (
         <div className="guest-sample-banner">
           <Sparkles size={18} />
           <div className="guest-sample-copy">
             <strong>Sample contacts preview</strong>
-            <span>When people save your card or exchange details, they land here. Sign in to collect, tag, and export contacts.</span>
+            <span>
+              When people save your card or exchange details, they land here.
+              Sign in to collect, tag, and export contacts.
+            </span>
           </div>
           {onSignIn ? (
-            <button type="button" className="glass-button glass-button-primary" onClick={onSignIn}>
+            <button
+              type="button"
+              className="glass-button glass-button-primary"
+              onClick={onSignIn}
+            >
               Continue with Google
             </button>
           ) : null}
         </div>
       ) : null}
 
-      <div className="contact-status-tabs" role="group" aria-label="Filter by follow-up status">
-        {statusTabs.map((tab) => (
-          <button key={tab.id} type="button" aria-pressed={status === tab.id} className={status === tab.id ? "is-active" : ""} onClick={() => setStatus(tab.id)}>
-            {tab.label}<span>{counts[tab.id]}</span>
+      <div
+        className="contact-status-tabs"
+        role="group"
+        aria-label="Filter by follow-up status"
+      >
+        {statusTabs.map(tab => (
+          <button
+            key={tab.id}
+            type="button"
+            aria-pressed={status === tab.id}
+            className={status === tab.id ? "is-active" : ""}
+            onClick={() => setStatus(tab.id)}
+          >
+            {tab.label}
+            <span>{counts[tab.id]}</span>
           </button>
         ))}
       </div>
@@ -417,62 +684,159 @@ export function ContactsView({
       <div className="contacts-toolbar glass-panel">
         <div className="search-field">
           <AtSign size={16} aria-hidden="true" />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search people, companies, notes, tags…" aria-label="Search contacts" />
-          {search ? <button type="button" onClick={() => setSearch("")} aria-label="Clear search"><X size={15} /></button> : null}
+          <input
+            value={search}
+            onChange={event => setSearch(event.target.value)}
+            placeholder="Search people, companies, notes, tags…"
+            aria-label="Search contacts"
+          />
+          {search ? (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              aria-label="Clear search"
+            >
+              <X size={15} />
+            </button>
+          ) : null}
         </div>
         {cardOptions.length > 1 ? (
-          <select className="contacts-filter" value={cardFilter} onChange={(event) => setCardFilter(event.target.value)} aria-label="Filter by card">
+          <select
+            className="contacts-filter"
+            value={cardFilter}
+            onChange={event => setCardFilter(event.target.value)}
+            aria-label="Filter by card"
+          >
             <option value="all">All cards</option>
-            {cardOptions.map((card) => <option key={card.id} value={String(card.id)}>{card.name}</option>)}
+            {cardOptions.map(card => (
+              <option key={card.id} value={String(card.id)}>
+                {card.name}
+              </option>
+            ))}
           </select>
         ) : null}
         {allTags.length ? (
-          <select className="contacts-filter" value={tagFilter} onChange={(event) => setTagFilter(event.target.value)} aria-label="Filter by tag">
+          <select
+            className="contacts-filter"
+            value={tagFilter}
+            onChange={event => setTagFilter(event.target.value)}
+            aria-label="Filter by tag"
+          >
             <option value="all">All tags</option>
-            {allTags.map((tag) => <option key={tag} value={tag}>{tag}</option>)}
+            {allTags.map(tag => (
+              <option key={tag} value={tag}>
+                {tag}
+              </option>
+            ))}
           </select>
         ) : null}
-        <span aria-live="polite">{visible.length} of {contacts.length}</span>
+        <span aria-live="polite">
+          {visible.length} of {contacts.length}
+        </span>
       </div>
 
       <div className="contacts-list glass-panel">
         {visible.map((contact, index) => {
           const tags = parseTags(contact.tags);
           const isNew = newIds.has(contact.id);
-          const followUp = contact.followedUp ? "" : followUpDay(contact.followUpOn);
+          const followUp = contact.followedUp
+            ? ""
+            : followUpDay(contact.followUpOn);
           return (
-            <motion.div className={`contact-row ${contact.followedUp ? "is-done" : ""}`} key={contact.id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: Math.min(index, 10) * 0.04 }}>
-              <button type="button" className="contact-open" onClick={() => setOpenId(contact.id)} aria-label={`Open ${contact.name}${isNew ? ", new" : ""}`}>
-                <div className="contact-avatar">{getInitials(contact.name)}</div>
+            <motion.div
+              className={`contact-row ${contact.followedUp ? "is-done" : ""}`}
+              key={contact.id}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: Math.min(index, 10) * 0.04 }}
+            >
+              <button
+                type="button"
+                className="contact-open"
+                onClick={() => setOpenId(contact.id)}
+                aria-label={`Open ${contact.name}${isNew ? ", new" : ""}`}
+              >
+                <div className="contact-avatar">
+                  {getInitials(contact.name)}
+                </div>
                 <div className="contact-main">
                   <strong>
                     {contact.name}
-                    {isNew ? <span className="new-pill" title="Newly received this visit">New</span> : null}
-                    {contact.followedUp ? <span className="followed-pill" title="Followed up">Followed up</span> : null}
+                    {isNew ? (
+                      <span
+                        className="new-pill"
+                        title="Newly received this visit"
+                      >
+                        New
+                      </span>
+                    ) : null}
+                    {contact.followedUp ? (
+                      <span className="followed-pill" title="Followed up">
+                        Followed up
+                      </span>
+                    ) : null}
                   </strong>
-                  <span>{contact.title || "Contact"}{contact.company ? ` · ${contact.company}` : ""}</span>
+                  <span>
+                    {contact.title || "Contact"}
+                    {contact.company ? ` · ${contact.company}` : ""}
+                  </span>
                 </div>
                 <div className="contact-detail">
-                  <span>{contact.email || contact.phone || "No email added"}</span>
+                  <span>
+                    {contact.email || contact.phone || "No email added"}
+                  </span>
                   {tags.length ? (
-                    <span className="contact-tags">{tags.slice(0, 3).map((tag) => <small key={tag}><Tag size={10} /> {tag}</small>)}{tags.length > 3 ? <small>+{tags.length - 3}</small> : null}</span>
+                    <span className="contact-tags">
+                      {tags.slice(0, 3).map(tag => (
+                        <small key={tag}>
+                          <Tag size={10} /> {tag}
+                        </small>
+                      ))}
+                      {tags.length > 3 ? (
+                        <small>+{tags.length - 3}</small>
+                      ) : null}
+                    </span>
                   ) : (
-                    <small>{contact.notes ? contact.notes.slice(0, 60) : contact.source === "exchange_form" ? "Exchanged details" : "Saved from your card"}</small>
+                    <small>
+                      {contact.notes
+                        ? contact.notes.slice(0, 60)
+                        : contact.source === "exchange_form"
+                          ? "Exchanged details"
+                          : "Saved from your card"}
+                    </small>
                   )}
                 </div>
                 {followUp ? (
-                  <div className="contact-date is-follow-up" title="Follow up on"><CalendarClock size={12} aria-hidden="true" /> {formatFollowUp(followUp)}</div>
+                  <div
+                    className="contact-date is-follow-up"
+                    title="Follow up on"
+                  >
+                    <CalendarClock size={12} aria-hidden="true" />{" "}
+                    {formatFollowUp(followUp)}
+                  </div>
                 ) : (
-                  <div className="contact-date">{formatDate(contact.createdAt)}</div>
+                  <div className="contact-date">
+                    {formatDate(contact.createdAt)}
+                  </div>
                 )}
               </button>
               <button
                 type="button"
                 className={`follow-toggle ${contact.followedUp ? "is-done" : ""}`}
                 aria-pressed={Boolean(contact.followedUp)}
-                aria-label={contact.followedUp ? `${contact.name}: followed up. Mark as needs follow-up` : `Mark ${contact.name} as followed up`}
-                title={contact.followedUp ? "Followed up" : "Mark as followed up"}
-                onClick={() => void handleUpdate(contact.id, { followedUp: !contact.followedUp })}
+                aria-label={
+                  contact.followedUp
+                    ? `${contact.name}: followed up. Mark as needs follow-up`
+                    : `Mark ${contact.name} as followed up`
+                }
+                title={
+                  contact.followedUp ? "Followed up" : "Mark as followed up"
+                }
+                onClick={() =>
+                  void handleUpdate(contact.id, {
+                    followedUp: !contact.followedUp,
+                  })
+                }
               >
                 <Check size={16} />
               </button>
@@ -485,12 +849,22 @@ export function ContactsView({
             {contacts.length === 0 ? (
               <>
                 <strong>No contacts yet.</strong>
-                <span>When someone exchanges details on your card, they land here.</span>
+                <span>
+                  When someone exchanges details on your card, they land here.
+                </span>
               </>
             ) : (
               <>
                 <strong>No matches.</strong>
-                {filtersActive ? <button type="button" className="outline-button" onClick={clearFilters}>Clear filters</button> : null}
+                {filtersActive ? (
+                  <button
+                    type="button"
+                    className="outline-button"
+                    onClick={clearFilters}
+                  >
+                    Clear filters
+                  </button>
+                ) : null}
               </>
             )}
           </div>
@@ -502,13 +876,20 @@ export function ContactsView({
           <ContactSheet
             key={openContact.id}
             contact={openContact}
-            cardName={openContact.cardId ? cardNames.get(openContact.cardId) : undefined}
+            cardName={
+              openContact.cardId ? cardNames.get(openContact.cardId) : undefined
+            }
             isNew={newIds.has(openContact.id)}
             suggestions={allTags}
             onClose={() => setOpenId(null)}
-            onSave={(patch) => handleUpdate(openContact.id, patch)}
+            onSave={patch => handleUpdate(openContact.id, patch)}
             onDelete={() => {
-              if (!window.confirm(`Delete ${openContact.name}? This cannot be undone.`)) return;
+              if (
+                !window.confirm(
+                  `Delete ${openContact.name}? This cannot be undone.`
+                )
+              )
+                return;
               setOpenId(null);
               void handleDelete(openContact.id);
             }}

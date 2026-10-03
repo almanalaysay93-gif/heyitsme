@@ -1,3 +1,4 @@
+import { DesignControls } from "./DesignControls";
 import { hasPendingEdits, isUnusableLink, moveSection, toEmittable, toggleSection } from "@/lib/pageDesigner";
 import {
   FRAME_IDS,
@@ -85,6 +86,7 @@ export function PageDesigner({ children, value, onChange, themeAccent, onPending
     address: config.address,
     setAddress: (address) => commit({ ...config, address }),
     layout: <div className="pd">
+      <DesignControls config={config} onChange={commit} />
       <TemplatePicker value={config.template} onSelect={(id) => { if (id !== config.template) commit(switchTemplate(config, id)); }} />
 
       {config.template === "services" ? (
