@@ -139,3 +139,11 @@
 .fold-hint { color: #6b6f82; font-size: 12px; line-height: 1.45; }
 @media (hover: hover) { .fold > summary:hover { color: var(--purple-deep); } }
 @media (prefers-reduced-motion: reduce) { .fold > summary, .fold > summary::after { transition: none; } }
+
+/* Drag handle for reordering sections. */
+.pd-sections { list-style: none; }
+.pd-section-row, .builder-page .pd-section-row { position: relative; grid-template-columns: 26px 18px minmax(0, 1fr) auto auto; -webkit-user-select: none; user-select: none; transition-property: border-color, background, box-shadow; }
+.pd-grip { display: inline-grid; place-items: center; flex: none; width: 32px; height: 40px; margin-left: -6px; color: #8a8da0; background: transparent; border: 0; border-radius: 8px; cursor: grab; touch-action: none; transition: color .16s var(--ease-out), background .16s var(--ease-out); }
+.pd-grip:active { cursor: grabbing; color: var(--purple-deep); }
+.pd-grip:focus-visible { outline: 2px solid var(--purple); outline-offset: 2px; }
+@media (hover: hover) { .pd-grip:hover { color: var(--purple-deep); background: rgba(107,92,255,.08); } }

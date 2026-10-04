@@ -14,9 +14,11 @@ import {
   switchTemplate,
   type FrameId,
   type PageConfig,
+  type PageSection,
   type TemplateId,
 } from "@shared/pageConfig";
-import { ArrowDown, ArrowUp, Eye, EyeOff, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Reorder, useDragControls } from "framer-motion";
+import { Eye, EyeOff, GripVertical, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import "./pageDesigner.css";
 
@@ -157,48 +159,19 @@ export function PageDesigner({ children, value, onChange, themeAccent, onPending
     sections: <div className="pd-block">
       <div className="pd-block-head">
         <h3>Sections</h3>
-        <p>Show, hide and reorder the parts of your page. Hidden sections keep their place for when you turn them back on.</p>
+        <p>Drag a row to reorder your page. The eye shows or hides a section; hidden ones keep their place.</p>
       </div>
-      <ol className="pd-sections">
-        {sections.map((section, index) => {
-          const label = SECTION_LABELS[section.id];
-          const setSections = (next: typeof sections) => commit({ ...config, sections: next });
-          return (
-            <li key={section.id} className={`pd-section-row${section.hidden ? " is-hidden" : ""}`}>
-              <span className="pd-section-index" aria-hidden="true">{index + 1}</span>
-              <span className="pd-section-name">{label}</span>
-              <span className="pd-section-state">{section.hidden ? "Hidden" : ""}</span>
-              <button
-                type="button"
-                className="icon-button"
-                aria-pressed={!section.hidden}
-                aria-label={`Show ${label} on page`}
-                onClick={() => setSections(toggleSection(sections, index))}
-              >
-                {section.hidden ? <EyeOff size={14} /> : <Eye size={14} />}
-              </button>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label={`Move ${label} up`}
-                aria-disabled={index === 0}
-                onClick={() => move(index, -1)}
-              >
-                <ArrowUp size={14} />
-              </button>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label={`Move ${label} down`}
-                aria-disabled={index === sections.length - 1}
-                onClick={() => move(index, 1)}
-              >
-                <ArrowDown size={14} />
-              </button>
-            </li>
-          );
-        })}
-      </ol>
+      <Reorder.Group as="ol" axis="y" className="pd-sections" values={sections} onReorder={(next) => commit({ ...config, sections: next })}>
+        {sections.map((section, index) => (
+          <SectionRow
+            key={section.id}
+            section={section}
+            index={index}
+            onToggle={() => commit({ ...config, sections: toggleSection(sections, index) })}
+            onMove={(direction) => move(index, direction)}
+          />
+        ))}
+      </Reorder.Group>
       <p className="pd-sr-only" role="status" aria-live="polite">{announcement}</p>
     </div>,
     accent: <div className="pd-block">
@@ -404,6 +377,36 @@ export function PageDesigner({ children, value, onChange, themeAccent, onPending
     {children ? children(panels) : <>{panels.template}{panels.sections}{panels.content}{panels.contact}{panels.design()}{panels.accent}</>}
     {tooLarge ? <p className="pd-warn" role="status">This page has more text than we can save. Shorten a few descriptions or links.</p> : null}
   </>;
+}
+
+/** One draggable section row. Drag by the handle; with a keyboard, focus the handle and press the up or down arrow. */
+function SectionRow({ section, index, onToggle, onMove }: { section: PageSection; index: number; onToggle: () => void; onMove: (direction: -1 | 1) => void }) {
+  const controls = useDragControls();
+  const label = SECTION_LABELS[section.id];
+  return (
+    <Reorder.Item as="li" value={section} dragListener={false} dragControls={controls} className={`pd-section-row${section.hidden ? " is-hidden" : ""}`}>
+      <button
+        type="button"
+        className="pd-grip"
+        aria-label={`Reorder ${label}. Drag, or press the up or down arrow key.`}
+        onPointerDown={(event) => controls.start(event)}
+        onKeyDown={(event) => {
+          const direction = event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 0;
+          if (!direction) return;
+          event.preventDefault();
+          onMove(direction);
+        }}
+      >
+        <GripVertical size={16} aria-hidden="true" />
+      </button>
+      <span className="pd-section-index" aria-hidden="true">{index + 1}</span>
+      <span className="pd-section-name">{label}</span>
+      <span className="pd-section-state">{section.hidden ? "Hidden" : ""}</span>
+      <button type="button" className="icon-button" aria-pressed={!section.hidden} aria-label={`Show ${label} on page`} onClick={onToggle}>
+        {section.hidden ? <EyeOff size={14} /> : <Eye size={14} />}
+      </button>
+    </Reorder.Item>
+  );
 }
 
 function TemplatePicker({ value, onSelect }: { value: TemplateId; onSelect: (id: TemplateId) => void }) {
