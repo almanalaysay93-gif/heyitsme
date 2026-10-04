@@ -124,6 +124,44 @@ describe("team event page", () => {
     expect(audit.filter(row => row.action === "event.page_changed")).toHaveLength(1);
   });
 
+  it("saves days, tiers and row speakers, and settles the cross-references on the server", async () => {
+    const team = await makeTeam("phase2-owner@example.com");
+    const event = await makeEvent(team);
+    const saved = await team.asOwner.teamEvents.savePage({
+      ...event.target,
+      page: {
+        agendaDays: ["Friday", "Saturday"],
+        speakers: [{ name: "Ada", id: "ada" }, { name: "Grace" }, { name: "Copy", id: "ada" }],
+        agenda: [
+          { time: "9:00 AM", title: "Keynote", day: 0, speakerIds: ["ada", "nobody"] },
+          { time: "2:00 PM", title: "Workshop", day: 1 },
+          { title: "Stray", day: 6 },
+        ],
+        sponsorTiers: ["Gold", "Silver"],
+        sponsors: [{ name: "Acme", tier: 1 }, { name: "Stray", tier: 4 }],
+      },
+    });
+    const ids = saved.page.speakers.map(speaker => speaker.id);
+    expect(ids[0]).toBe("ada");
+    expect(new Set(ids).size).toBe(3);
+    expect(ids.every(id => /^[a-z0-9]{1,16}$/.test(id))).toBe(true);
+    expect(saved.page.agenda.map(row => [row.title, row.day, row.speakerIds])).toEqual([["Keynote", 0, ["ada"]], ["Workshop", 1, []], ["Stray", 0, []]]);
+    expect(saved.page.sponsors.map(sponsor => [sponsor.name, sponsor.tier])).toEqual([["Acme", 1], ["Stray", 0]]);
+
+    const seen = await visitor().publicEvent.get({ slug: event.slug });
+    expect(seen.page).toEqual(saved.page);
+    expect(seen.page.agendaDays).toEqual(["Friday", "Saturday"]);
+    expect(seen.page.sponsorTiers).toEqual(["Gold", "Silver"]);
+
+    // Removing a speaker and the days in a later save leaves no row pointing at something that is gone.
+    const trimmed = await team.asOwner.teamEvents.savePage({
+      ...event.target,
+      page: { ...saved.page, agendaDays: [], speakers: saved.page.speakers.slice(1) },
+    });
+    expect(trimmed.page.agenda.map(row => [row.day, row.speakerIds])).toEqual([[0, []], [0, []], [0, []]]);
+    await expect(team.asOwner.teamEvents.savePage({ ...event.target, page: { agendaDays: Array.from({ length: 8 }, (_, index) => `Day ${index + 1}`) } })).rejects.toThrow("Up to 7 days.");
+  });
+
   it("moves an older event's button color and font onto the new page", async () => {
     const team = await makeTeam();
     const event = await makeEvent(team);

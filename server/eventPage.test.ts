@@ -4,6 +4,7 @@ import {
   EVENT_PALETTES,
   EVENT_SECTION_IDS,
   EVENT_THEMES,
+  agendaByDay,
   defaultEventPage,
   eventAccent,
   eventCountdown,
@@ -11,9 +12,12 @@ import {
   eventPageImages,
   eventPageSchema,
   googleCalendarLink,
+  normalizeEventPage,
   orderSpeakers,
   parseEventPage,
   resolveEventSections,
+  rowSpeakers,
+  sponsorsByTier,
 } from "@shared/eventPage";
 import { contrastRatio } from "@shared/pageConfig";
 
@@ -86,6 +90,67 @@ describe("event page schema", () => {
     expect(featured.map(item => item.name)).toEqual(["B", "C"]);
     expect(rest.map(item => item.name)).toEqual(["A"]);
     expect(eventPageImages(page)).toEqual(["/storage/team-1/event-1-b.png", "/storage/team-1/event-1-g.png", "/storage/team-1/event-1-s.png"]);
+  });
+});
+
+describe("event days, tiers and row speakers", () => {
+  it("reads a page saved before days, tiers and row speakers as one flat list", () => {
+    const old = parseEventPage({ agenda: [{ time: "9:00", title: "Doors" }], speakers: [{ name: "Ada" }], sponsors: [{ name: "Acme" }] });
+    expect(old).toMatchObject({ agendaDays: [], sponsorTiers: [], agenda: [{ day: 0, speakerIds: [] }], speakers: [{ id: "" }], sponsors: [{ tier: 0 }] });
+    expect(agendaByDay(old)).toEqual([{ label: "", top: false, items: old.agenda }]);
+    expect(sponsorsByTier(old)).toEqual([{ label: "", top: false, items: old.sponsors }]);
+    expect(agendaByDay(defaultEventPage())).toEqual([]);
+  });
+
+  it("groups rows by day and sponsors by tier, in the admin's order, leaving out empty groups", () => {
+    const page = eventPageSchema.parse({
+      agendaDays: ["Friday", "Saturday", "Sunday"],
+      agenda: [{ title: "Closing", day: 2 }, { title: "Doors", day: 0 }, { title: "Keynote", day: 0 }],
+      sponsorTiers: ["Gold", "Silver"],
+      sponsors: [{ name: "Beta", tier: 1 }, { name: "Acme", tier: 0 }, { name: "Core", tier: 1 }],
+    });
+    expect(agendaByDay(page).map(day => [day.label, day.items.map(row => row.title)])).toEqual([["Friday", ["Doors", "Keynote"]], ["Sunday", ["Closing"]]]);
+    expect(sponsorsByTier(page).map(tier => [tier.label, tier.top, tier.items.map(item => item.name)])).toEqual([["Gold", true, ["Acme"]], ["Silver", false, ["Beta", "Core"]]]);
+    // Only the first tier the admin listed is the top one, even when it has no sponsors.
+    expect(sponsorsByTier({ ...page, sponsors: page.sponsors.filter(item => item.tier === 1) }).map(tier => tier.top)).toEqual([false]);
+  });
+
+  it("gives every speaker its own id and keeps the ids they already have", () => {
+    let next = 0;
+    const page = eventPageSchema.parse({ speakers: [{ name: "Ada", id: "keep1" }, { name: "Grace" }, { name: "Twin", id: "keep1" }] });
+    const fixed = normalizeEventPage(page, () => `new${++next}`);
+    expect(fixed.speakers.map(speaker => speaker.id)).toEqual(["keep1", "new1", "new2"]);
+    expect(normalizeEventPage(fixed, () => "unused")).toEqual(fixed);
+    const ids = normalizeEventPage(eventPageSchema.parse({ speakers: Array.from({ length: 12 }, (_, index) => ({ name: `S${index}` })) })).speakers.map(speaker => speaker.id);
+    expect(new Set(ids).size).toBe(12);
+    for (const id of ids) expect(id).toMatch(/^[a-z0-9]{1,16}$/);
+  });
+
+  it("drops row speakers that do not exist and pulls rows back from a day or tier that is gone", () => {
+    const page = eventPageSchema.parse({
+      agendaDays: ["Friday", "Saturday"],
+      speakers: [{ name: "Ada", id: "ada" }, { name: "Grace", id: "grace" }],
+      agenda: [{ title: "Panel", day: 1, speakerIds: ["grace", "ghost", "ada", "grace"] }, { title: "Lost", day: 5 }],
+      sponsors: [{ name: "Acme", tier: 3 }],
+    });
+    const fixed = normalizeEventPage(page);
+    expect(fixed.agenda.map(row => [row.day, row.speakerIds])).toEqual([[1, ["grace", "ada"]], [0, []]]);
+    expect(fixed.sponsors[0].tier).toBe(0);
+    expect(rowSpeakers(fixed, fixed.agenda[0]).map(speaker => speaker.name)).toEqual(["Grace", "Ada"]);
+    expect(rowSpeakers(page, { speakerIds: ["ghost"] })).toEqual([]);
+  });
+
+  it("caps days, tiers and speakers on a row, and refuses a blank name or a strange id", () => {
+    const names = (count: number) => Array.from({ length: count }, (_, index) => `Name ${index + 1}`);
+    expect(eventPageSchema.safeParse({ agendaDays: names(7), sponsorTiers: names(5) }).success).toBe(true);
+    expect(eventPageSchema.safeParse({ agendaDays: names(8) }).error?.issues[0].message).toBe("Up to 7 days.");
+    expect(eventPageSchema.safeParse({ sponsorTiers: names(6) }).error?.issues[0].message).toBe("Up to 5 sponsor tiers.");
+    expect(eventPageSchema.safeParse({ agendaDays: ["  "] }).success).toBe(false);
+    expect(eventPageSchema.safeParse({ agenda: [{ title: "Panel", speakerIds: ["a", "b", "c", "d", "e", "f", "g"] }] }).error?.issues[0].message).toBe("Up to 6 speakers on one row.");
+    expect(eventPageSchema.safeParse({ agenda: [{ title: "Panel", day: 7 }] }).success).toBe(false);
+    expect(eventPageSchema.safeParse({ agenda: [{ title: "Panel", day: -1 }] }).success).toBe(false);
+    expect(eventPageSchema.safeParse({ speakers: [{ name: "Ada", id: "<script>" }] }).success).toBe(false);
+    expect(EVENT_PAGE_LIMITS).toMatchObject({ agendaDays: 7, sponsorTiers: 5, rowSpeakers: 6 });
   });
 });
 

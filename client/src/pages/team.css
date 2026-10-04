@@ -100,6 +100,15 @@
 .event-question-main .gr-field{margin:4px 0}
 .event-add{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
 .event-add .gr-field{flex:1 1 220px;margin:0}
+/* Day and tier names, and the speakers named on a schedule row. */
+.event-groups{margin:16px 0;padding:14px 16px;border:1px solid rgba(24,30,60,.1);border-radius:16px;background:rgba(255,255,255,.55)}
+.event-groups h3{margin:0;font-size:1rem}
+.event-group-row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between;margin:8px 0}
+.event-group-row .gr-field{flex:1 1 220px;margin:0}
+.event-row-speakers{border:0;margin:4px 0;padding:0;min-width:0}
+.event-row-speakers legend{padding:0;font-weight:650}
+.event-chips{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0}
+.event-chips button{overflow-wrap:anywhere;text-align:left}
 .event-table td,.event-table th{white-space:normal;text-align:left;vertical-align:top;max-width:260px;overflow-wrap:anywhere}
 .event-table .team-person-actions{flex-wrap:nowrap}
 .event-table .team-status{white-space:nowrap}
