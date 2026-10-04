@@ -15,7 +15,12 @@ export default function GoogleReviews() {
   const { isAuthenticated, loading } = useAuth();
   const cards = trpc.cards.list.useQuery(undefined, { enabled: isAuthenticated });
   const [cardId, setCardId] = useState(0);
-  useEffect(() => { if (!cardId && cards.data?.length) setCardId(cards.data[0].id); }, [cards.data, cardId]);
+  // The card editor links here with ?card=, so the page opens on the card being edited.
+  useEffect(() => {
+    if (cardId || !cards.data?.length) return;
+    const wanted = Number(new URLSearchParams(location.search).get("card"));
+    setCardId(cards.data.find(card => card.id === wanted)?.id ?? cards.data[0].id);
+  }, [cards.data, cardId]);
   const page = trpc.googleReviews.ownerPage.useQuery({ cardId }, { enabled: cardId > 0 });
   const allowance = trpc.googleReviews.allowance.useQuery({ cardId }, { enabled: cardId > 0 });
   const [query, setQuery] = useState("");
