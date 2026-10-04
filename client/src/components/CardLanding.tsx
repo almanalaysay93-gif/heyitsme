@@ -549,7 +549,7 @@ export function CardLanding(props: CardLandingProps) {
                     {googleReview.reviewCount != null ? <span>{googleReview.reviewCount} {googleReview.reviewCount === 1 ? "review" : "reviews"}</span> : null}
                   </p>
                 ) : (
-                  <p className="lx-review-score"><span className="lx-stars" style={{ "--fill": "100%" } as React.CSSProperties} aria-hidden="true">★★★★★</span><span>Be one of the first to review us.</span></p>
+                  <p className="lx-review-score"><span className="lx-stars" style={{ "--fill": "100%" } as React.CSSProperties} aria-hidden="true">★★★★★</span><span>Rate us on Google</span></p>
                 )}
                 <p className="lx-review-ask">Share your experience on Google.</p>
                 <a

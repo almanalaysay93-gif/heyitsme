@@ -151,6 +151,41 @@ export async function connectReviewPage(cardId: number, ownerId: number, place: 
   });
 }
 
+export async function connectManualReviewPage(cardId: number, ownerId: number, suppliedReviewUrl: string) {
+  const reviewUrl = directReviewLink(suppliedReviewUrl);
+  if (!reviewUrl) throw new ReviewLinkRequiredError();
+  const db = await database();
+  return db.transaction(async (tx) => {
+    const [owner] = await tx.select({ id: users.id, email: users.email }).from(users).where(eq(users.id, ownerId)).for("update").limit(1);
+    if (!owner) return null;
+    const plan = (await getUserEntitlements(tx, owner)).plan;
+    const [card] = await tx.select().from(cards).where(and(eq(cards.id, cardId), eq(cards.ownerUserId, ownerId), isNull(cards.workspaceId))).limit(1);
+    if (!card || card.deletedAt) return null;
+    const [other] = await tx.select({ id: googleReviewPages.id }).from(googleReviewPages).where(and(eq(googleReviewPages.ownerUserId, ownerId), ne(googleReviewPages.cardId, cardId), eq(googleReviewPages.enabled, true))).limit(1);
+    if (!canConnectBusiness(plan, Boolean(other))) throw new ReviewPlanLimitError();
+    const usage = await setupUsage(tx, owner);
+    if (!usage.canSetup) throw new ReviewPlanLimitError(setupLimitMessage(usage));
+    const data = {
+      placeId: null,
+      businessName: (card.company || card.displayName).slice(0, 200),
+      address: null,
+      category: null,
+      latitude: null,
+      longitude: null,
+      rating: null,
+      reviewCount: null,
+      mapsUrl: null,
+      reviewUrl,
+      enabled: true,
+      lastSyncedAt: null,
+      updatedAt: new Date(),
+    };
+    const [page] = await tx.insert(googleReviewPages).values({ ...data, cardId, ownerUserId: ownerId, slug: nanoid(8), branding: { logoUrl: card.logoUrl ?? card.avatarUrl, theme: card.theme ?? "clean" } }).onConflictDoUpdate({ target: googleReviewPages.cardId, set: data }).returning();
+    await tx.insert(googlePlacesUsage).values({ requestType: SETUP_LOG_TYPE, requestCount: 0, cardId, ownerUserId: ownerId });
+    return page;
+  });
+}
+
 export async function publicReviewPage(slug: string) {
   const db = await database();
   const [row] = await db.select({ page: googleReviewPages, card: cards }).from(googleReviewPages).innerJoin(cards, eq(cards.id, googleReviewPages.cardId)).where(and(eq(googleReviewPages.slug, slug), eq(googleReviewPages.enabled, true))).limit(1);
@@ -158,7 +193,7 @@ export async function publicReviewPage(slug: string) {
   const { page, card } = row;
   return {
     slug: page.slug, businessName: page.businessName, rating: page.rating, reviewCount: page.reviewCount,
-    mapsUrl: mapsDestination(page),
+    mapsUrl: page.placeId || googleLink(page.mapsUrl) ? mapsDestination(page) : null,
     reviewUrl: `/api/google-reviews/${encodeURIComponent(page.slug)}/write`, logoUrl: typeof page.branding.logoUrl === "string" ? page.branding.logoUrl : card.logoUrl,
     branding: page.branding, cardSlug: card.slug, showOnCard: page.showOnCard,
   };

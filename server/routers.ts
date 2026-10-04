@@ -57,7 +57,7 @@ import {
 } from "./billing/gate";
 import { getPlaceDetails, searchBusinesses, signSelection, verifyConfirmedPlace, verifySelection } from "./googlePlaces";
 import { PlacesCapError, placesUsageReport, savePlacesSettings } from "./googlePlacesUsage";
-import { assertSetupAvailable, connectReviewPage, deleteReviewPage, directReviewLink, ownerReviewPage, publicReviewPage, reviewConnectionAllowance, ReviewLinkRequiredError, ReviewPlanLimitError, reviewPageForCard, reviewSummary, trackReviewEvent, updateReviewSettings } from "./googleReviews";
+import { assertSetupAvailable, connectManualReviewPage, connectReviewPage, deleteReviewPage, directReviewLink, ownerReviewPage, publicReviewPage, reviewConnectionAllowance, ReviewLinkRequiredError, ReviewPlanLimitError, reviewPageForCard, reviewSummary, trackReviewEvent, updateReviewSettings } from "./googleReviews";
 
 // Rendered as <img src>, so only http(s) or same-origin storage paths — never data:/javascript:.
 const imageUrl = z
@@ -350,6 +350,21 @@ export const appRouter = router({
         if (error instanceof ReviewLinkRequiredError) throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
         console.error("[Google Reviews] connection failed:", error);
         throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Could not connect your business. Please try again." });
+      }
+    }),
+    connectManual: protectedProcedure.input(z.object({ cardId: z.number().int().positive(), reviewUrl: z.string().url().max(2048) })).mutation(async ({ ctx, input }) => {
+      await enforceRateLimit("manual-review-connect", `user:${ctx.user.id}`, 10, MINUTE);
+      if (!directReviewLink(input.reviewUrl)) throw new TRPCError({ code: "BAD_REQUEST", message: "Paste the review link from your Google Business Profile." });
+      try {
+        const page = await connectManualReviewPage(input.cardId, ctx.user.id, input.reviewUrl);
+        if (!page) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found." });
+        return page;
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        if (error instanceof ReviewPlanLimitError) throw new TRPCError({ code: "FORBIDDEN", message: error.message });
+        if (error instanceof ReviewLinkRequiredError) throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+        console.error("[Google Reviews] manual connection failed:", error);
+        throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Could not save your review link. Please try again." });
       }
     }),
     ownerPage: protectedProcedure.input(z.object({ cardId: z.number().int().positive() })).query(({ ctx, input }) => ownerReviewPage(input.cardId, ctx.user.id)),
