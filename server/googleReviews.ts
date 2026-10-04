@@ -16,7 +16,7 @@ async function database() {
 export async function ownerReviewPage(cardId: number, ownerId: number) {
   const db = await database();
   const [page] = await db.select().from(googleReviewPages).where(and(eq(googleReviewPages.cardId, cardId), eq(googleReviewPages.ownerUserId, ownerId))).limit(1);
-  return page ?? null;
+  return page ? { ...page, hasDirectReviewLink: Boolean(directReviewLink(page.reviewUrl)) } : null;
 }
 
 export class ReviewPlanLimitError extends Error {
@@ -97,16 +97,25 @@ export function directReviewLink(value?: string | null) {
   } catch { return null; }
 }
 
-// Pages connected before the links were stored have none; a place ID is enough to build both.
-export function reviewDestination(page: { placeId: string | null; reviewUrl: string | null; mapsUrl?: string | null; businessName?: string | null }) {
-  return directReviewLink(page.reviewUrl) ?? (page.placeId || googleLink(page.mapsUrl) ? mapsDestination(page) : null);
+export function reviewDestination(page: { reviewUrl: string | null; placeId?: string | null; mapsUrl?: string | null; businessName?: string | null }) {
+  return directReviewLink(page.reviewUrl);
 }
 
 export function mapsDestination(page: { placeId: string | null; mapsUrl?: string | null; businessName?: string | null }) {
   return googleLink(page.mapsUrl) ?? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(page.businessName ?? "Google")}&query_place_id=${encodeURIComponent(page.placeId ?? "")}`;
 }
 
-export async function connectReviewPage(cardId: number, ownerId: number, place: Place) {
+export class ReviewLinkRequiredError extends Error {
+  constructor() { super("Google did not provide a direct review link. Paste the review link from your Google Business Profile."); }
+}
+
+export function reviewLinkForSetup(place: Place, suppliedReviewUrl?: string, previous?: { placeId: string | null; reviewUrl: string | null } | null) {
+  const reviewUrl = directReviewLink(place.googleMapsLinks?.writeAReviewUri) ?? directReviewLink(suppliedReviewUrl) ?? (previous?.placeId === place.id ? directReviewLink(previous.reviewUrl) : null);
+  if (!reviewUrl) throw new ReviewLinkRequiredError();
+  return reviewUrl;
+}
+
+export async function connectReviewPage(cardId: number, ownerId: number, place: Place, suppliedReviewUrl?: string) {
   const db = await database();
   return db.transaction(async (tx) => {
     const [owner] = await tx.select({ id: users.id, email: users.email }).from(users).where(eq(users.id, ownerId)).for("update").limit(1);
@@ -120,6 +129,7 @@ export async function connectReviewPage(cardId: number, ownerId: number, place: 
     const usage = await setupUsage(tx, owner);
     if (!usage.canSetup) throw new ReviewPlanLimitError(setupLimitMessage(usage));
     const [previous] = await tx.select({ placeId: googleReviewPages.placeId, reviewUrl: googleReviewPages.reviewUrl }).from(googleReviewPages).where(eq(googleReviewPages.cardId, cardId)).limit(1);
+    const reviewUrl = reviewLinkForSetup(place, suppliedReviewUrl, previous);
     const data = {
       placeId: place.id,
       businessName: (place.displayName?.text ?? card.company ?? card.displayName).slice(0, 200),
@@ -130,7 +140,7 @@ export async function connectReviewPage(cardId: number, ownerId: number, place: 
       rating: place.rating != null ? place.rating.toFixed(1) : null,
       reviewCount: place.userRatingCount ?? null,
       mapsUrl: googleLink(place.googleMapsLinks?.placeUri),
-      reviewUrl: directReviewLink(place.googleMapsLinks?.writeAReviewUri) ?? (previous?.placeId === place.id ? directReviewLink(previous.reviewUrl) : null),
+      reviewUrl,
       enabled: true,
       lastSyncedAt: new Date(),
       updatedAt: new Date(),
@@ -144,27 +154,26 @@ export async function connectReviewPage(cardId: number, ownerId: number, place: 
 export async function publicReviewPage(slug: string) {
   const db = await database();
   const [row] = await db.select({ page: googleReviewPages, card: cards }).from(googleReviewPages).innerJoin(cards, eq(cards.id, googleReviewPages.cardId)).where(and(eq(googleReviewPages.slug, slug), eq(googleReviewPages.enabled, true))).limit(1);
-  if (!row || row.card.deletedAt) return null;
+  if (!row || row.card.deletedAt || !reviewDestination(row.page)) return null;
   const { page, card } = row;
   return {
     slug: page.slug, businessName: page.businessName, rating: page.rating, reviewCount: page.reviewCount,
     mapsUrl: mapsDestination(page),
     reviewUrl: `/api/google-reviews/${encodeURIComponent(page.slug)}/write`, logoUrl: typeof page.branding.logoUrl === "string" ? page.branding.logoUrl : card.logoUrl,
-    hasDirectReviewLink: Boolean(directReviewLink(page.reviewUrl)),
     branding: page.branding, cardSlug: card.slug, showOnCard: page.showOnCard,
   };
 }
 
 export async function publicReviewDestination(slug: string) {
   const db = await database();
-  const [page] = await db.select({ placeId: googleReviewPages.placeId, reviewUrl: googleReviewPages.reviewUrl, mapsUrl: googleReviewPages.mapsUrl, businessName: googleReviewPages.businessName }).from(googleReviewPages).where(and(eq(googleReviewPages.slug, slug), eq(googleReviewPages.enabled, true))).limit(1);
+  const [page] = await db.select({ reviewUrl: googleReviewPages.reviewUrl }).from(googleReviewPages).where(and(eq(googleReviewPages.slug, slug), eq(googleReviewPages.enabled, true))).limit(1);
   return page ? reviewDestination(page) : null;
 }
 
 export async function reviewPageForCard(cardId: number) {
   const db = await database();
   const [page] = await db.select({ slug: googleReviewPages.slug, businessName: googleReviewPages.businessName, rating: googleReviewPages.rating, reviewCount: googleReviewPages.reviewCount, reviewUrl: googleReviewPages.reviewUrl }).from(googleReviewPages).innerJoin(cards, eq(cards.id, googleReviewPages.cardId)).where(and(eq(googleReviewPages.cardId, cardId), eq(googleReviewPages.enabled, true), eq(googleReviewPages.showOnCard, true), eq(cards.published, true), sql`${cards.deletedAt} is null`)).limit(1);
-  return page ? { slug: page.slug, businessName: page.businessName, rating: page.rating, reviewCount: page.reviewCount, hasDirectReviewLink: Boolean(directReviewLink(page.reviewUrl)) } : null;
+  return page && directReviewLink(page.reviewUrl) ? { slug: page.slug, businessName: page.businessName, rating: page.rating, reviewCount: page.reviewCount } : null;
 }
 
 export type ReviewEventType = "page_view" | "qr_scan" | "nfc_tap" | "google_review_click" | "view_google_maps_click" | "review_completion_acknowledged";

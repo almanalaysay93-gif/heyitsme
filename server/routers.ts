@@ -57,7 +57,7 @@ import {
 } from "./billing/gate";
 import { getPlaceDetails, searchBusinesses, signSelection, verifyConfirmedPlace, verifySelection } from "./googlePlaces";
 import { PlacesCapError, placesUsageReport, savePlacesSettings } from "./googlePlacesUsage";
-import { assertSetupAvailable, connectReviewPage, deleteReviewPage, directReviewLink, ownerReviewPage, publicReviewPage, reviewConnectionAllowance, ReviewPlanLimitError, reviewPageForCard, reviewSummary, trackReviewEvent, updateReviewSettings } from "./googleReviews";
+import { assertSetupAvailable, connectReviewPage, deleteReviewPage, directReviewLink, ownerReviewPage, publicReviewPage, reviewConnectionAllowance, ReviewLinkRequiredError, ReviewPlanLimitError, reviewPageForCard, reviewSummary, trackReviewEvent, updateReviewSettings } from "./googleReviews";
 
 // Rendered as <img src>, so only http(s) or same-origin storage paths — never data:/javascript:.
 const imageUrl = z
@@ -326,6 +326,7 @@ export const appRouter = router({
             category: place.primaryTypeDisplayName?.text,
             rating: place.rating,
             reviewCount: place.userRatingCount,
+            hasDirectReviewLink: Boolean(directReviewLink(place.googleMapsLinks?.writeAReviewUri)),
           },
           selectionToken: signSelection(place.id, ctx.user.id, place),
         };
@@ -333,18 +334,20 @@ export const appRouter = router({
         throw placesFailure("details", error);
       }
     }),
-    connect: protectedProcedure.input(z.object({ cardId: z.number().int().positive(), selectionToken: z.string().max(8000) })).mutation(async ({ ctx, input }) => {
+    connect: protectedProcedure.input(z.object({ cardId: z.number().int().positive(), selectionToken: z.string().max(8000), reviewUrl: z.string().url().max(2048).optional() })).mutation(async ({ ctx, input }) => {
       await enforceRateLimit("places-connect", `user:${ctx.user.id}`, 10, MINUTE);
+      if (input.reviewUrl && !directReviewLink(input.reviewUrl)) throw new TRPCError({ code: "BAD_REQUEST", message: "Paste the review link from your Google Business Profile." });
       // The signed token carries the details fetched in `select`, so confirming costs no Google request.
       const place = verifyConfirmedPlace(input.selectionToken, ctx.user.id);
       if (!place) throw new TRPCError({ code: "BAD_REQUEST", message: "Search for your business again." });
       try {
-        const page = await connectReviewPage(input.cardId, ctx.user.id, place);
+        const page = await connectReviewPage(input.cardId, ctx.user.id, place, input.reviewUrl);
         if (!page) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found." });
         return page;
       } catch (error) {
         if (error instanceof TRPCError) throw error;
         if (error instanceof ReviewPlanLimitError) throw new TRPCError({ code: "FORBIDDEN", message: error.message });
+        if (error instanceof ReviewLinkRequiredError) throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
         console.error("[Google Reviews] connection failed:", error);
         throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Could not connect your business. Please try again." });
       }

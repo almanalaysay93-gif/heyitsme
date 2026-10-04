@@ -73,7 +73,7 @@ export type CardLandingProps = {
   card: CardDraft;
   config: PageConfig;
   references: ReferenceRow[];
-  googleReview?: { slug: string; businessName?: string | null; rating?: string | null; reviewCount?: number | null; showOnCard?: boolean; hasDirectReviewLink?: boolean } | null;
+  googleReview?: { slug: string; businessName?: string | null; rating?: string | null; reviewCount?: number | null; showOnCard?: boolean } | null;
   /** false = builder preview: no nav, dock, QR or motion, and nothing inside can be focused or clicked. */
   interactive: boolean;
   canExchange: boolean;
@@ -566,9 +566,9 @@ export function CardLanding(props: CardLandingProps) {
                     event.preventDefault();
                   }}
                 >
-                  {googleReview.hasDirectReviewLink ? "Write a review" : "Open on Google Maps"}
+                  Write a review
                 </a>
-                <small className="lx-review-note">{googleReview.hasDirectReviewLink ? "Opens Google's review form." : "Tap Write a review on the Google Maps listing."}</small>
+                <small className="lx-review-note">Opens Google's review form.</small>
               </div>
             ) : null}
           </>
