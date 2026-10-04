@@ -28,7 +28,8 @@ export const DEFAULT_FRAME: Record<"professional" | "business" | "services", Fra
   services: "circle",
 };
 
-export const SECTION_IDS = ["stats", "services", "visit", "portfolio", "references", "contact", "contactPersons", "resourceLinks"] as const;
+// googleReviews is its own section on Business and Services pages. The Professional page has none.
+export const SECTION_IDS = ["stats", "services", "visit", "portfolio", "references", "googleReviews", "contact", "contactPersons", "resourceLinks"] as const;
 export type SectionId = (typeof SECTION_IDS)[number];
 
 export const TEMPLATES: Record<TemplateId, { label: string; blurb: string; sections: SectionId[] }> = {
@@ -40,12 +41,12 @@ export const TEMPLATES: Record<TemplateId, { label: string; blurb: string; secti
   business: {
     label: "Business",
     blurb: "Company first, with hours, address and what you offer.",
-    sections: ["stats", "services", "visit", "portfolio", "references", "contact", "contactPersons", "resourceLinks"],
+    sections: ["stats", "services", "visit", "portfolio", "references", "googleReviews", "contact", "contactPersons", "resourceLinks"],
   },
   services: {
     label: "Services",
     blurb: "A priced menu of what you do and one clear way to book.",
-    sections: ["services", "stats", "references", "portfolio", "visit", "contact", "contactPersons", "resourceLinks"],
+    sections: ["services", "stats", "references", "googleReviews", "portfolio", "visit", "contact", "contactPersons", "resourceLinks"],
   },
 };
 
@@ -55,6 +56,7 @@ export const SECTION_LABELS: Record<SectionId, string> = {
   visit: "Hours & address",
   portfolio: "Portfolio",
   references: "Client references",
+  googleReviews: "Google reviews",
   contact: "Contact & links",
   contactPersons: "Contact persons",
   resourceLinks: "Resource links",
@@ -168,7 +170,11 @@ export function resolveSections(config: PageConfig): PageSection[] {
       // Business blocks previously belonged to Contact. Keep a saved hidden choice on old cards.
       const inheritedHidden = (id === "contactPersons" || id === "resourceLinks")
         && Boolean(config.sections?.find((section) => section.id === "contact")?.hidden);
-      out.push({ id, hidden: inheritedHidden });
+      // The Google box used to sit inside the references section. On a card saved before it became its own
+      // section, keep it right after references, hidden if references was hidden, so the page looks the same.
+      const after = id === "googleReviews" ? out.findIndex((section) => section.id === "references") : -1;
+      if (after >= 0) out.splice(after + 1, 0, { id, hidden: out[after].hidden });
+      else out.push({ id, hidden: inheritedHidden });
     }
   }
   return out;

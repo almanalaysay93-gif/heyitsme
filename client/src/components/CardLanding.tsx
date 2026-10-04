@@ -289,7 +289,8 @@ export function CardLanding(props: CardLandingProps) {
     services: config.services.length > 0,
     visit: config.hours.length > 0 || Boolean(address),
     portfolio: portfolio.length > 0,
-    references: references.length > 0 || takesReviews || Boolean(googleReview && googleReview.showOnCard !== false),
+    references: references.length > 0 || takesReviews || (template === "professional" && Boolean(googleReview && googleReview.showOnCard !== false)),
+    googleReviews: template !== "professional" && Boolean(googleReview && googleReview.showOnCard !== false),
     contact: contactRows.length > 0 || channels.length > 0,
     contactPersons: config.contactPersons.length > 0,
     resourceLinks: config.links.length > 0,
@@ -305,6 +306,53 @@ export function CardLanding(props: CardLandingProps) {
       </header>
     );
   };
+
+  // The Google rating and review button. Its own section on Business and Services pages; on the Professional
+  // page it stays under the references, as before.
+  const googleBox = (withQuotes: boolean) =>
+    googleReview && googleReview.showOnCard !== false ? (
+              <div className={`lx-review${withQuotes ? " has-quotes" : ""}`}>
+                <div className="lx-review-head">
+                  <svg className="lx-review-mark" viewBox="0 0 48 48" width="28" height="28" aria-hidden="true">
+                    <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z" />
+                    <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.500-4.800 7.200l7.700 6c4.500-4.200 6.900-10.300 6.900-17.700z" />
+                    <path fill="#FBBC05" d="M10.500 28.700c-.5-1.500-.8-3.100-.8-4.700s.3-3.200.8-4.700l-7.900-6.100C.900 16.500 0 20.100 0 24s.9 7.500 2.600 10.800l7.900-6.100z" />
+                    <path fill="#34A853" d="M24 48c6.500 0 11.900-2.100 15.900-5.800l-7.700-6c-2.200 1.500-5 2.300-8.200 2.300-6.300 0-11.600-4.100-13.500-9.800l-7.900 6.100C6.500 42.600 14.600 48 24 48z" />
+                  </svg>
+                  <div>
+                    <strong>{googleReview.businessName || "Review us on Google"}</strong>
+                    <span>Google reviews</span>
+                  </div>
+                </div>
+                {googleReview.rating ? (
+                  <p className="lx-review-score">
+                    <b>{googleReview.rating}</b>
+                    <span className="lx-stars" style={{ "--fill": `${Math.min(100, Number(googleReview.rating) / 5 * 100)}%` } as React.CSSProperties} role="img" aria-label={`${googleReview.rating} out of 5 stars`}>★★★★★</span>
+                    {googleReview.reviewCount != null ? <span>{googleReview.reviewCount} {googleReview.reviewCount === 1 ? "review" : "reviews"}</span> : null}
+                  </p>
+                ) : (
+                  <p className="lx-review-score"><span className="lx-stars" style={{ "--fill": "100%" } as React.CSSProperties} aria-hidden="true">★★★★★</span><span>Rate us on Google</span></p>
+                )}
+                <p className="lx-review-ask">Share your experience on Google.</p>
+                <a
+                  href={`/api/google-reviews/${encodeURIComponent(googleReview.slug)}/write?source=profile`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="lx-btn lx-btn-primary"
+                  onClick={(event) => {
+                    if (!interactive || !window.matchMedia("(min-width: 700px)").matches) return;
+                    const width = 520, height = 720;
+                    const popup = window.open(event.currentTarget.href, "google-review", `popup=yes,width=${width},height=${height},left=${Math.max(0, window.screenX + (window.outerWidth - width) / 2)},top=${Math.max(0, window.screenY + (window.outerHeight - height) / 2)}`);
+                    if (!popup) return;
+                    popup.opener = null;
+                    event.preventDefault();
+                  }}
+                >
+                  Write a review
+                </a>
+                <small className="lx-review-note">Opens Google's review form.</small>
+              </div>
+    ) : null;
 
   const actions = (
     <div className="lx-actions" ref={actionsRef}>
@@ -542,51 +590,11 @@ export function CardLanding(props: CardLandingProps) {
               </div>
             ) : null}
             {takesReviews && onReview ? <ReviewForm onSubmit={onReview} /> : null}
-            {googleReview && googleReview.showOnCard !== false ? (
-              <div className={`lx-review${references.length > 0 ? " has-quotes" : ""}`}>
-                <div className="lx-review-head">
-                  <svg className="lx-review-mark" viewBox="0 0 48 48" width="28" height="28" aria-hidden="true">
-                    <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z" />
-                    <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.500-4.800 7.200l7.700 6c4.500-4.200 6.900-10.300 6.900-17.700z" />
-                    <path fill="#FBBC05" d="M10.500 28.700c-.5-1.500-.8-3.100-.8-4.700s.3-3.200.8-4.700l-7.900-6.100C.900 16.500 0 20.100 0 24s.9 7.500 2.600 10.800l7.900-6.100z" />
-                    <path fill="#34A853" d="M24 48c6.500 0 11.900-2.100 15.900-5.800l-7.700-6c-2.200 1.500-5 2.300-8.200 2.300-6.300 0-11.600-4.100-13.500-9.800l-7.900 6.100C6.500 42.600 14.600 48 24 48z" />
-                  </svg>
-                  <div>
-                    <strong>{googleReview.businessName || "Review us on Google"}</strong>
-                    <span>Google reviews</span>
-                  </div>
-                </div>
-                {googleReview.rating ? (
-                  <p className="lx-review-score">
-                    <b>{googleReview.rating}</b>
-                    <span className="lx-stars" style={{ "--fill": `${Math.min(100, Number(googleReview.rating) / 5 * 100)}%` } as React.CSSProperties} role="img" aria-label={`${googleReview.rating} out of 5 stars`}>★★★★★</span>
-                    {googleReview.reviewCount != null ? <span>{googleReview.reviewCount} {googleReview.reviewCount === 1 ? "review" : "reviews"}</span> : null}
-                  </p>
-                ) : (
-                  <p className="lx-review-score"><span className="lx-stars" style={{ "--fill": "100%" } as React.CSSProperties} aria-hidden="true">★★★★★</span><span>Rate us on Google</span></p>
-                )}
-                <p className="lx-review-ask">Share your experience on Google.</p>
-                <a
-                  href={`/api/google-reviews/${encodeURIComponent(googleReview.slug)}/write?source=profile`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="lx-btn lx-btn-primary"
-                  onClick={(event) => {
-                    if (!interactive || !window.matchMedia("(min-width: 700px)").matches) return;
-                    const width = 520, height = 720;
-                    const popup = window.open(event.currentTarget.href, "google-review", `popup=yes,width=${width},height=${height},left=${Math.max(0, window.screenX + (window.outerWidth - width) / 2)},top=${Math.max(0, window.screenY + (window.outerHeight - height) / 2)}`);
-                    if (!popup) return;
-                    popup.opener = null;
-                    event.preventDefault();
-                  }}
-                >
-                  Write a review
-                </a>
-                <small className="lx-review-note">Opens Google's review form.</small>
-              </div>
-            ) : null}
+            {template === "professional" ? googleBox(references.length > 0) : null}
           </>
         );
+      case "googleReviews":
+        return googleBox(false);
       case "contactPersons":
         return <>{heading("Contact persons")}
             {config.contactPersons?.length ? (
@@ -789,7 +797,7 @@ export function CardLanding(props: CardLandingProps) {
           </GlassPanel>
         ))}
         {sections.map((section) => (
-          <GlassPanel enabled={interactive} light={section.id !== "stats" && section.id !== "references"} key={section.id} className={`lx-section lx-section-${section.id}`}>
+          <GlassPanel enabled={interactive} light={section.id !== "stats" && section.id !== "references" && section.id !== "googleReviews"} key={section.id} className={`lx-section lx-section-${section.id}`}>
             {renderSection(section.id)}
           </GlassPanel>
         ))}

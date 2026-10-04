@@ -30,6 +30,18 @@ describe("resolveSections", () => {
     expect(resolveSections(defaultPageConfig("business")).map((s) => s.id)).toEqual(TEMPLATES.business.sections);
   });
 
+  it("gives Business and Services a Google reviews section, and Professional none", () => {
+    expect(resolveSections(defaultPageConfig("business")).map((s) => s.id)).toContain("googleReviews");
+    expect(resolveSections(defaultPageConfig("services")).map((s) => s.id)).toContain("googleReviews");
+    expect(resolveSections(defaultPageConfig("professional")).map((s) => s.id)).not.toContain("googleReviews");
+  });
+
+  it("on a card saved before Google reviews was its own section, places it right after references with the same visibility", () => {
+    const saved = { ...defaultPageConfig("business"), sections: [{ id: "references" as const, hidden: true }, { id: "contact" as const, hidden: false }] };
+    const out = resolveSections(saved);
+    expect(out.slice(0, 3)).toEqual([{ id: "references", hidden: true }, { id: "googleReviews", hidden: true }, { id: "contact", hidden: false }]);
+  });
+
   it("keeps owner order, drops duplicates and appends sections the owner never placed", () => {
     const config = { ...defaultPageConfig("services"), sections: [{ id: "contact" as const, hidden: true }, { id: "contact" as const, hidden: false }] };
     const out = resolveSections(config);
