@@ -343,7 +343,7 @@ Seats and per-team entitlements. No Teams price, no checkout: the owner has not 
 - **Checks**: `pnpm check` clean, 496 tests pass (18 new), build clean, browser pass on a local PGlite harness in all themes at 1280 and 390 wide. Real image upload not browser-tested.
 - **Open**: unsaved editor uploads are never swept. Phase 2 (owner approved as later work): multi-day agenda, sponsor tiers, several speakers per agenda row.
 
-## 2026-10-04 — Event page phase 2 (Claude, branch `feat/event-phase2`, NOT committed, NOT merged)
+## 2026-10-04 — Event page phase 2 (Claude, branch `feat/event-phase2`, commit `c380b34`, merged to `main` and live)
 The three items the owner deferred from v1: multi-day schedule, sponsor tiers, speakers on schedule rows.
 - Data: all in `workspaceEvents.page` JSON, every new field optional with a default. No migration; pages saved by v1 read as before.
   - `agendaDays: string[]` (up to 7) and `agenda[].day` (position in that list). Empty list means a one-day schedule.
@@ -354,3 +354,14 @@ The three items the owner deferred from v1: multi-day schedule, sponsor tiers, s
 - Public page: `agendaByDay`, `sponsorsByTier`, `rowSpeakers`. Empty days and tiers are not shown.
 - Gates: `pnpm check` clean, `pnpm test` 502 passed (52 files), `pnpm build` clean. Browser pass on the throwaway PGlite harness at 1280 and 390 wide, Tide theme only.
 - Not checked in a browser: Sunset and Midnight themes for the new blocks, and sponsor logos in tiers (harness has no storage, so tiles showed names).
+
+## 2026-10-04 — Event builder (Claude, branch `feat/event-builder`, NOT committed, NOT merged)
+Owner asked for event creation to look and work like the card builder.
+- New `client/src/components/EventBuilder.tsx` + `eventBuilder.css`: one screen for making and editing an event. Reuses the card builder frame from `index.css` (`builder-page`, `builder-toolbar`, `builder-tabs`, `builder-layout`, `builder-panel`). Tabs: Details, Page, RSVP form, Design, plus Preview on phones. Folds inside Details and Page. Live preview renders `EventLanding` from the draft, inert.
+- One save for everything: `create` or `update`, then `savePage`, `saveFields`, and `setStatus(published)` when publishing. A new event's ready-made questions are matched to the server's rows by `standardKey` before `saveFields`. No server change.
+- `EventPageEditor.tsx` is now controlled: exports `EventPageSections`, `EventPageLook`, `eventPageProblem`. It no longer saves on its own.
+- `TeamEvents.tsx`: "Create event" and the new "Edit event" button open the builder. The event screen keeps status actions, Responses and Share. `CreateEvent`, `DetailsForm`, `FormBuilder` and the old Details / Page / RSVP form sections are gone.
+- Pictures (banner, gallery, speaker and sponsor images) need an event id, so they can be added only after the event is first created. The builder says so in place.
+- Publishing without a start date is stopped in the builder with the server's own words.
+- Gates: `pnpm check` clean, `pnpm test` 502 passed (52 files), `pnpm build` clean. Browser pass on the throwaway PGlite harness at 1280 and 390 wide: create, edit, publish, arrow-key tabs, Preview tab, no console errors, no sideways scroll, no control under 44px.
+- Not checked in a browser: real image upload (harness has no storage), Discard changes, the leave-without-saving prompt.
