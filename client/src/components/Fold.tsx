@@ -9,6 +9,7 @@ export function Fold({
   meta,
   hint,
   attention = false,
+  attentionLabel = "Unfinished",
   forceOpen = false,
   defaultOpen = false,
   children,
@@ -17,6 +18,7 @@ export function Fold({
   meta?: ReactNode;
   hint?: ReactNode;
   attention?: boolean;
+  attentionLabel?: string;
   forceOpen?: boolean;
   defaultOpen?: boolean;
   children: ReactNode;
@@ -30,7 +32,7 @@ export function Fold({
     <details ref={ref} className="fold" open={defaultOpen || undefined}>
       <summary>
         <span className="fold-title">{title}</span>
-        {attention ? <span className="fold-flag">Unfinished</span> : null}
+        {attention ? <span className="fold-flag">{attentionLabel}</span> : null}
         {meta ? <span className="fold-meta">{meta}</span> : null}
       </summary>
       <div className="fold-body">

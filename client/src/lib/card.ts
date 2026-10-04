@@ -31,7 +31,7 @@ export type CardDraft = {
 
 export type PortfolioItem = { id: string; kind: "image" | "video" | "file" | "link"; title: string; url: string; description?: string; mimeType?: string };
 export type ChannelItem = { provider: string; url: string; label?: string };
-export type ReferenceRow = { id: number; clientName: string; clientRole?: string | null; company?: string | null; quote: string; approved?: boolean };
+export type ReferenceRow = { id: number; clientName: string; clientRole?: string | null; company?: string | null; quote: string; approved?: boolean; rating?: number | null; fromVisitor?: boolean };
 
 export const MAX_PORTFOLIO_ITEMS = 20;
 export const MAX_PORTFOLIO_LENGTH = 12000;

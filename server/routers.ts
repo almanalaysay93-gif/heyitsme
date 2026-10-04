@@ -1,3 +1,4 @@
+import { parsePageConfig } from "@shared/pageConfig";
 import { COOKIE_NAME } from "@shared/const";
 import { DEMO_CARD_ID } from "@shared/demoCard";
 import { makeCardSlug } from "@shared/routes";
@@ -20,6 +21,9 @@ import {
   deleteCard,
   deleteContact,
   deleteReference,
+  setReferenceApproved,
+  countPendingReviews,
+  MAX_PENDING_REVIEWS,
   getCardById,
   getCardByIdForOwner,
   getCardsByOwner,
@@ -625,6 +629,14 @@ export const appRouter = router({
     delete: protectedProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .mutation(({ ctx, input }) => deleteReference(input.id, ctx.user.id)),
+    /** Approve a visitor's review so it shows on the card, or take it back off. */
+    setApproved: protectedProcedure
+      .input(z.object({ id: z.number().int().positive(), approved: z.boolean() }))
+      .mutation(async ({ ctx, input }) => {
+        const found = await setReferenceApproved(input.id, ctx.user.id, input.approved);
+        if (!found) throw new TRPCError({ code: "NOT_FOUND", message: "Review not found" });
+        return true;
+      }),
   }),
   media: router({
     upload: protectedProcedure
@@ -718,6 +730,42 @@ export const appRouter = router({
         const { workspaceId: _team, assignedUserId: _holder, teamStatus: _status, ...shown } = card;
         // team: the banners and company files this card shows, or null. Never the team itself.
         return { ...shown, references: refs, acceptsDetails, team };
+      }),
+    /**
+     * A visitor leaves a review on a Business or Services card. It is stored unapproved:
+     * nothing a stranger writes shows on the card until its owner approves it.
+     */
+    review: publicProcedure
+      .input(
+        z.object({
+          slug: z.string().min(1).max(120),
+          name: z.string().trim().min(1).max(80),
+          rating: z.number().int().min(1).max(5),
+          body: z.string().trim().min(8).max(1200),
+          website: z.string().max(200).optional().nullable(), // Honeypot field
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        await enforceRateLimit("review", clientIp(ctx.req), 3, 60 * MINUTE);
+        // A bot that fills the hidden field gets a normal-looking answer and nothing is stored.
+        if (input.website) return { received: true };
+        const card = await getPublicCardBySlug(input.slug);
+        if (!card) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
+        if (card.id === DEMO_CARD_ID) return { received: true };
+        if (parsePageConfig(card.page).template === "professional")
+          throw new TRPCError({ code: "BAD_REQUEST", message: "This card does not take reviews." });
+        if ((await countPendingReviews(card.id)) >= MAX_PENDING_REVIEWS)
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "This card has many reviews waiting. Please try again later." });
+        await createReference({
+          cardId: card.id,
+          ownerUserId: card.ownerUserId,
+          clientName: input.name,
+          quote: input.body,
+          rating: input.rating,
+          fromVisitor: true,
+          approved: false,
+        });
+        return { received: true };
       }),
     exchange: publicProcedure
       .input(

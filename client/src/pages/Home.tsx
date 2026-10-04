@@ -941,6 +941,10 @@ function Workspace() {
                 onPagePending={setPagePending}
                 canRemoveBranding={Boolean(billing.data?.entitlements.canRemoveBranding)}
                 onLockedBranding={() => openUpgrade("branding")}
+                onSetupGoogle={async () => {
+                  const saved = await saveDraft({ redirect: false });
+                  if (saved) navigate(`/app/google-reviews?card=${saved.id}`);
+                }}
                 onAddReference={async (reference: Omit<ReferenceRow, "id">) => {
                   if (isAuthenticated && draft.id > 0) {
                     try {
@@ -1310,6 +1314,7 @@ function BuilderView({
   onPagePending,
   canRemoveBranding = false,
   onLockedBranding,
+  onSetupGoogle,
 }: any) {
   const [tab, setTab] = useState<BuilderTab>("profile");
   // On a phone the preview takes the place of the form, so there it is one more tab.
@@ -1325,6 +1330,7 @@ function BuilderView({
   const selected = mobilePreview ? "preview" : tab;
   const portfolioCount = parsePortfolio(draft.portfolio).length;
   const referenceCount = previewReferences.data?.length ?? 0;
+  const waitingReviews = ((previewReferences.data as ReferenceRow[] | undefined) ?? []).filter((reference) => reference.approved === false).length;
 
   const openTab = (next: BuilderTab | "preview") => {
     if (next === "preview") setMobilePreview(true);
@@ -1589,33 +1595,37 @@ function BuilderView({
                     />
                   </Fold>
                   <Fold
-                    title="Client references"
-                    meta={referenceCount ? `${referenceCount} added` : undefined}
-                    hint="Show the thoughtful words people remember after the work is done."
+                    title={page.template === "professional" ? "Client references" : "Client reviews"}
+                    meta={waitingReviews ? `${waitingReviews} to approve` : referenceCount ? `${referenceCount} added` : undefined}
+                    attention={waitingReviews > 0}
+                    attentionLabel="New"
+                    hint={page.template === "professional" ? "Show the thoughtful words people remember after the work is done." : "Visitors leave reviews on your card page. Approve one to show it. You can also add one yourself."}
                   >
-                    <ReferencesEditor cardId={draft.id} onAddReference={onAddReference} onDeleteReference={onDeleteReference} isAuthenticated={isAuthenticated} />
+                    <ReferencesEditor cardId={draft.id} onAddReference={onAddReference} onDeleteReference={onDeleteReference} isAuthenticated={isAuthenticated} reviews={page.template !== "professional"} />
                   </Fold>
                 </div>
               </div>
 
+              {page.template === "professional" ? null : (
               <div className="form-section">
                 <div className="pd-block-head">
                   <h3>Google Reviews</h3>
                   <p>Connect your Google business to show your rating and a review button on this card.</p>
                 </div>
-                {draft.id > 0 && isAuthenticated ? (
+                <Field id="field-referencesHeading" label="Section heading" value={panels.referencesHeading} onChange={(value: string) => panels.setReferencesHeading(value.slice(0, 60))} placeholder="Kind words" hint="Title shown above your client references and Google reviews." />
+                {draft.id > 0 && isAuthenticated && !isDirty ? (
                   <a className="outline-button builder-google" href={`/app/google-reviews?card=${draft.id}`}><Star size={14} /> Set up Google Reviews</a>
                 ) : (
                   <>
                     {/* The setup page works on a saved card in an account, so the button first gets the owner there. */}
-                    <button type="button" className="outline-button builder-google" disabled={saving} onClick={isAuthenticated ? onSave : onPublishAndCopy}>
-                      <Star size={14} /> {isAuthenticated ? "Save card to set up Google Reviews" : "Sign in to set up Google Reviews"}
+                    <button type="button" className="outline-button builder-google" disabled={saving} onClick={isAuthenticated ? onSetupGoogle : onPublishAndCopy}>
+                      <Star size={14} /> {!isAuthenticated ? "Sign in to set up Google Reviews" : draft.id > 0 ? "Save and set up Google Reviews" : "Save card to set up Google Reviews"}
                     </button>
-                    <p className="fold-hint builder-google-note">{isAuthenticated ? "Google Reviews connects to a saved card. Save, then open this card again to set it up." : "Google Reviews connects to a saved card in your account."}</p>
+                    <p className="fold-hint builder-google-note">{isAuthenticated ? "Saves this card, then opens Google Reviews setup for it." : "Google Reviews connects to a saved card in your account."}</p>
                   </>
                 )}
-                <Field id="field-referencesHeading" label="Section heading" value={panels.referencesHeading} onChange={(value: string) => panels.setReferencesHeading(value.slice(0, 60))} placeholder="Kind words" hint="Title shown above your client references and Google reviews." />
               </div>
+              )}
             </div>
             {stepNav("page")}
           </section>
@@ -1675,7 +1685,7 @@ function BuilderView({
               <span>Live preview</span>
               <span><span className="status-dot" /> updates as you type</span>
             </div>
-            <LandingPreview card={{ ...draft, displayName: draft.displayName || "Your name", title: draft.title || "Your title" }} references={(previewReferences.data as ReferenceRow[] | undefined) ?? []} />
+            <LandingPreview card={{ ...draft, displayName: draft.displayName || "Your name", title: draft.title || "Your title" }} references={((previewReferences.data as ReferenceRow[] | undefined) ?? []).filter((reference) => reference.approved !== false)} />
             <div className="preview-tip">
               <Sparkles size={15} />
               <span>Keep it light. Your card can do the talking.</span>
@@ -2139,7 +2149,10 @@ function ReferencesEditor({
   onAddReference,
   onDeleteReference,
   isAuthenticated,
+  reviews = false,
 }: {
+  /** Business and Services cards: visitors leave these, and the owner approves them here. */
+  reviews?: boolean;
   cardId: number;
   onAddReference: (reference: Omit<ReferenceRow, "id">) => Promise<void>;
   onDeleteReference?: (id: number) => Promise<void>;
@@ -2194,6 +2207,17 @@ function ReferencesEditor({
     }
   };
 
+  const setApproved = trpc.references.setApproved.useMutation();
+  const approve = async (id: number, approved: boolean) => {
+    try {
+      await setApproved.mutateAsync({ id, approved });
+      await referencesQuery.refetch();
+      toast.success(approved ? "Review is now on your card." : "Review hidden from your card.");
+    } catch {
+      toast.error("Could not update that review. Try again.");
+    }
+  };
+
   const remove = async (id: number) => {
     if (onDeleteReference && isAuthenticated && cardId > 0) {
       await onDeleteReference(id);
@@ -2226,26 +2250,33 @@ function ReferencesEditor({
           onClick={() => void add()}
           disabled={submitting || cardId <= 0}
         >
-          <Quote size={14} /> {submitting ? "Adding…" : "Add reference"}
+          <Quote size={14} /> {submitting ? "Adding…" : reviews ? "Add review" : "Add reference"}
         </button>
         {cardId <= 0 && <small style={{ color: "var(--muted-foreground, #888)", display: "block", marginTop: "4px" }}>Save card first to attach references.</small>}
       </div>
       <div className="reference-mini-list">
-        {references.slice(0, 5).map((reference) => (
-          <div className="reference-mini" key={reference.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        {/* Reviews waiting for approval come first, and all of them show, so none is missed. */}
+        {[...references.filter((reference) => reference.approved === false), ...references.filter((reference) => reference.approved !== false).slice(0, 5)].map((reference) => (
+          <div className={`reference-mini${reference.approved === false ? " is-waiting" : ""}`} key={reference.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div style={{ display: "flex", gap: "10px" }}>
               <Quote size={14} />
               <div>
+                {reference.rating ? <span className="reference-stars" role="img" aria-label={`${reference.rating} out of 5 stars`}>{"★".repeat(reference.rating)}{"☆".repeat(5 - reference.rating)}</span> : null}
                 <p>“{reference.quote}”</p>
-                <span>{reference.clientName}{reference.company ? ` · ${reference.company}` : ""}</span>
+                <span>{reference.clientName}{reference.company ? ` · ${reference.company}` : ""}{reference.fromVisitor ? (reference.approved === false ? " · waiting for your approval" : " · from a visitor") : ""}</span>
               </div>
             </div>
+            {reference.fromVisitor ? (
+              <button className="outline-button reference-approve" type="button" disabled={setApproved.isPending} onClick={() => void approve(reference.id, reference.approved === false)}>
+                {reference.approved === false ? "Approve" : "Hide"}
+              </button>
+            ) : null}
             <button className="icon-button" type="button" onClick={() => void remove(reference.id)} title="Delete reference" aria-label={`Delete reference from ${reference.clientName}`}>
               <Trash2 size={13} />
             </button>
           </div>
         ))}
-        {references.length === 0 && <p className="editor-empty">No references added yet.</p>}
+        {references.length === 0 && <p className="editor-empty">{reviews ? "No reviews yet. Share your card and visitors can leave one." : "No references added yet."}</p>}
       </div>
     </div>
   );

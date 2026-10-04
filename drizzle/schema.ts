@@ -136,6 +136,10 @@ export const references = pgTable("references", {
   quote: text("quote").notNull(),
   avatarUrl: text("avatarUrl"),
   approved: boolean("approved").default(true).notNull(),
+  /** 1 to 5 stars. Only reviews left by visitors carry one. */
+  rating: integer("rating"),
+  /** True when a visitor left it on the public card. Those wait, unapproved, for the owner. */
+  fromVisitor: boolean("fromVisitor").default(false).notNull(),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
 },
   table => [index("references_card_created_idx").on(table.cardId, table.createdAt),

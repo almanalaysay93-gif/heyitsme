@@ -327,3 +327,9 @@ Seats and per-team entitlements. No Teams price, no checkout: the owner has not 
 - `.app-frame` uses `overflow: clip` so pinned bars work (the preview's pinning was broken before).
 - Checked: `pnpm check`, 461 tests, build, browser checks at 1440/1100/390 wide. Waiting for owner's OK before merge and deploy.
 - Still open: `feat/teams` (PHP 899 checkout, pricing section) conflicts with the Teams build on main; owner to decide. Flow clips paused (owner disliked them).
+
+## 2026-10-04 — Builder follow-ups and client reviews (Claude, branch `feat/builder-tabs`, NOT merged)
+- Sections reorder by drag (framer-motion Reorder, grip handle; arrow keys on the handle). Layout corners now reach the card panels. PRO badge on every paid choice. Hover/press feedback across the builder.
+- Professional template: no Google Reviews / reviews-heading block in the builder. Business and Services keep it; the button saves the card first when needed, then opens `/app/google-reviews?card=<id>`.
+- Client reviews (owner decision): on Business and Services cards visitors leave a star rating and review on the public card (`publicCard.review`, 3 per hour per IP, honeypot, max 30 waiting per card). Stored in `references` with new columns `rating`, `fromVisitor` (migration `0021_client_reviews.sql`, also in `ensureSchema`), unapproved until the owner approves in the builder (`references.setApproved`). Professional cards keep owner-typed "Client references".
+- Tests: `server/clientReviews.test.ts` (6). Total 467 pass. Local signed-in harness: `.harness/builder-harness.ts` (git-ignored).

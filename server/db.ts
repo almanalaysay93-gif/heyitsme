@@ -47,6 +47,9 @@ const SCHEMA_INDEXES = [
 async function ensureSchema(client: postgres.Sql) {
   await client`alter table "contacts" add column if not exists "status" varchar(16) not null default 'new'`;
   await client`alter table "contacts" add column if not exists "campaignId" varchar(32)`;
+  // drizzle/0021_client_reviews.sql
+  await client`alter table "references" add column if not exists "rating" integer`;
+  await client`alter table "references" add column if not exists "fromVisitor" boolean default false not null`;
   await client`create table if not exists "qrCampaigns" ("id" varchar(32) primary key, "ownerUserId" integer not null references "users"("id"), "cardId" integer not null references "cards"("id"), "name" varchar(80) not null, "createdAt" timestamp not null default now())`;
   await client`create index if not exists "qr_campaign_owner_idx" on "qrCampaigns" ("ownerUserId", "cardId")`;
   await client`alter table "qrCampaigns" enable row level security`.catch(
@@ -444,6 +447,31 @@ export async function createContact(input: InsertContact) {
   const result = await db.insert(contacts).values(input).returning();
   return result[0];
 }
+
+/** Shows or hides one review on the public card. Only the card's owner can. */
+export async function setReferenceApproved(id: number, ownerUserId: number, approved: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const rows = await db
+    .update(references)
+    .set({ approved })
+    .where(and(eq(references.id, id), eq(references.ownerUserId, ownerUserId)))
+    .returning({ id: references.id });
+  return rows.length > 0;
+}
+
+/** Visitor reviews still waiting for the owner. Caps how many strangers can pile onto one card. */
+export async function countPendingReviews(cardId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+  const rows = await db
+    .select({ id: references.id })
+    .from(references)
+    .where(and(eq(references.cardId, cardId), eq(references.fromVisitor, true), eq(references.approved, false)))
+    .limit(MAX_PENDING_REVIEWS);
+  return rows.length;
+}
+export const MAX_PENDING_REVIEWS = 30;
 
 export async function deleteReference(id: number, ownerUserId: number) {
   const db = await getDb();

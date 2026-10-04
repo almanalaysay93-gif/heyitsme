@@ -37,6 +37,7 @@ export default function PublicCardPage() {
     }
   );
   const exchange = trpc.publicCard.exchange.useMutation();
+  const review = trpc.publicCard.review.useMutation();
   const trackEvent = trpc.publicCard.track.useMutation();
   const scan = trpc.qrCampaigns.scan.useMutation();
   const campaignId =
@@ -281,6 +282,7 @@ export default function PublicCardPage() {
         onCopyLink={() => void copyLink()}
         track={track}
         onDemoAction={isDemo ? setDemoAction : undefined}
+        onReview={async (input) => { await review.mutateAsync({ slug: card.slug, ...input }); }}
       />
       <InfoDialog
         open={manualCopy}

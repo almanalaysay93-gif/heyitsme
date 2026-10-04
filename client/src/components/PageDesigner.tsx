@@ -165,6 +165,7 @@ export function PageDesigner({ children, value, onChange, themeAccent, onPending
         {sections.map((section, index) => (
           <SectionRow
             key={section.id}
+            label={section.id === "references" && config.template !== "professional" ? "Client reviews" : SECTION_LABELS[section.id]}
             section={section}
             index={index}
             onToggle={() => commit({ ...config, sections: toggleSection(sections, index) })}
@@ -380,9 +381,8 @@ export function PageDesigner({ children, value, onChange, themeAccent, onPending
 }
 
 /** One draggable section row. Drag by the handle; with a keyboard, focus the handle and press the up or down arrow. */
-function SectionRow({ section, index, onToggle, onMove }: { section: PageSection; index: number; onToggle: () => void; onMove: (direction: -1 | 1) => void }) {
+function SectionRow({ section, label, index, onToggle, onMove }: { section: PageSection; label: string; index: number; onToggle: () => void; onMove: (direction: -1 | 1) => void }) {
   const controls = useDragControls();
-  const label = SECTION_LABELS[section.id];
   return (
     <Reorder.Item as="li" value={section} dragListener={false} dragControls={controls} className={`pd-section-row${section.hidden ? " is-hidden" : ""}`}>
       <button
