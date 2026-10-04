@@ -1,5 +1,6 @@
 import { EventAnswerInput, type EventAnswer } from "@/components/EventAnswerInput";
 import { EventBuilder } from "@/components/EventBuilder";
+import { eventGuestWorkbook } from "@/lib/eventGuestExport";
 import { failed, logoData, readBase64, save } from "@/lib/teamFiles";
 import { trpc } from "@/lib/trpc";
 import {
@@ -73,7 +74,7 @@ export function TeamEvents({ workspaceId, admin }: { workspaceId: number; admin:
   </section>;
 }
 
-const SECTIONS = ["Responses", "Share"] as const;
+const SECTIONS = ["Responses", "Guests", "Share"] as const;
 type Section = (typeof SECTIONS)[number];
 const NEXT_STATUS: Record<EventStatus, [EventStatus, string][]> = {
   draft: [["published", "Publish"], ["archived", "Archive"]],
@@ -136,12 +137,18 @@ function EventManager({ workspaceId, eventId, onBack, onEdit }: { workspaceId: n
       </div>
     </section>
 
-    {section === "Responses" ? <Responses target={target} stats={stats} title={event.title} onChanged={refresh} /> : null}
+    {section === "Responses" ? <ResponseSummary stats={stats} /> : null}
+    {section === "Guests" ? <Guests target={target} title={event.title} onChanged={refresh} /> : null}
     {section === "Share" ? <Share workspaceId={workspaceId} slug={event.slug} isPublic={isPublic} /> : null}
   </>;
 }
 
-function Responses({ target, stats, title, onChanged }: { target: { workspaceId: number; eventId: number }; stats: EventData["stats"]; title: string; onChanged: () => Promise<unknown> }) {
+function ResponseSummary({ stats }: { stats: EventData["stats"] }) {
+  const metrics: [string, number][] = [["Responses", stats.responses], ["Attending", stats.attending], ["Maybe", stats.maybe], ["Not attending", stats.notAttending], ["Guests they bring", stats.guests], ["Checked in", stats.checkedIn]];
+  return <section className="gr-panel"><h2>Responses</h2><div className="gr-metrics team-metrics">{metrics.map(([label, value]) => <div key={label}><strong>{value.toLocaleString()}</strong><span>{label}</span></div>)}</div></section>;
+}
+
+function Guests({ target, title, onChanged }: { target: { workspaceId: number; eventId: number }; title: string; onChanged: () => Promise<unknown> }) {
   const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<RsvpStatus | "">("");
@@ -153,6 +160,8 @@ function Responses({ target, stats, title, onChanged }: { target: { workspaceId:
   );
   const checkIn = trpc.teamEvents.checkIn.useMutation();
   const exportCsv = trpc.teamEvents.exportCsv.useMutation();
+  const [downloadingExcel, setDownloadingExcel] = useState(false);
+  const fileName = title.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase() || "event";
 
   const changed = () => Promise.all([utils.teamEvents.rsvps.invalidate(target), onChanged()]);
   const toggle = async (row: RsvpRow) => {
@@ -167,30 +176,46 @@ function Responses({ target, stats, title, onChanged }: { target: { workspaceId:
     try {
       const file = await exportCsv.mutateAsync(target);
       if (file.count === 0) { toast.message("There are no responses to download yet."); return; }
-      save(new Blob(["﻿", file.csv], { type: "text/csv;charset=utf-8" }), `${title.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase() || "event"}-responses.csv`);
+      save(new Blob(["\uFEFF", file.csv], { type: "text/csv;charset=utf-8" }), `${fileName}-guests.csv`);
     } catch (error) {
       failed(error);
     }
   };
+  const downloadExcel = async () => {
+    setDownloadingExcel(true);
+    try {
+      const guests = await utils.teamEvents.rsvps.fetch(target, { staleTime: 0 });
+      if (guests.total === 0) { toast.message("There are no guests to download yet."); return; }
+      const buffer = await eventGuestWorkbook(guests.fields, guests.rows);
+      save(new Blob([new Uint8Array(buffer as unknown as ArrayBuffer)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `${fileName}-guests.xlsx`);
+    } catch (error) {
+      failed(error);
+    } finally {
+      setDownloadingExcel(false);
+    }
+  };
 
-  const metrics: [string, number][] = [["Responses", stats.responses], ["Attending", stats.attending], ["Maybe", stats.maybe], ["Not attending", stats.notAttending], ["Guests they bring", stats.guests], ["Checked in", stats.checkedIn]];
   const fields = table.data?.fields ?? [];
   const rows = table.data?.rows ?? [];
   const open = rows.find(row => row.id === viewing) ?? null;
 
   return <>
     <section className="gr-panel">
-      <h2>Responses</h2>
-      <div className="gr-metrics team-metrics">{metrics.map(([label, value]) => <div key={label}><strong>{value.toLocaleString()}</strong><span>{label}</span></div>)}</div>
+      <h2>Guests</h2>
+      <p>See each RSVP and the details guests gave. Exports include every response, even when the table is filtered.</p>
       <div className="team-contact-filters">
         <label className="gr-field">Search<input type="search" maxLength={100} value={search} onChange={event => setSearch(event.target.value)} /></label>
         <label className="gr-field">Response<select value={status} onChange={event => setStatus(event.target.value as RsvpStatus | "")}><option value="">All</option>{RSVP_STATUSES.map(option => <option key={option} value={option}>{RSVP_STATUS_LABELS[option]}</option>)}</select></label>
         <label className="gr-field">Check-in<select value={checked} onChange={event => setChecked(event.target.value as "" | "yes" | "no")}><option value="">All</option><option value="yes">Checked in</option><option value="no">Not checked in</option></select></label>
-        <div className="gr-actions"><button type="button" className="gr-secondary" disabled={exportCsv.isPending} onClick={() => void download()}>{exportCsv.isPending ? "Preparing..." : "Download spreadsheet"}</button></div>
       </div>
+      <div className="gr-actions event-guest-export">
+        <button type="button" className="gr-primary" disabled={downloadingExcel} onClick={() => void downloadExcel()}>{downloadingExcel ? "Preparing Excel file..." : "Download Excel (.xlsx)"}</button>
+        <button type="button" className="gr-secondary" disabled={exportCsv.isPending} onClick={() => void download()}>{exportCsv.isPending ? "Preparing CSV..." : "Download for Google Sheets (.csv)"}</button>
+      </div>
+      <p className="gr-attribution">To use the CSV in Google Sheets, open a sheet and select File, Import, then Upload.</p>
       {table.isLoading ? <p role="status">Loading...</p> : !table.data ? <p role="alert" className="gr-error">{table.error?.message ?? "Responses could not be loaded."}</p> : rows.length === 0 ? <p>{table.data.total === 0 ? "No responses yet." : "No responses match."}</p> : <div className="team-table-wrap" aria-busy={table.isFetching}>
         <table className="team-table event-table">
-          <caption className="sr-only">RSVP responses</caption>
+          <caption className="sr-only">Event guests and RSVP responses</caption>
           <thead><tr><th scope="col">Response</th>{fields.map(field => <th key={field.id} scope="col">{field.label}</th>)}<th scope="col">Check-in</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
           <tbody>{rows.map(row => <tr key={row.id}>
             <th scope="row">{RSVP_STATUS_LABELS[row.status]}</th>
