@@ -1,7 +1,8 @@
 import { EventAnswerInput } from "@/components/EventAnswerInput";
 import { EventLanding, type EventView } from "@/components/EventLanding";
-import { EventPageLook, EventPageSections, eventPageProblem, type EventPageChange } from "@/components/EventPageEditor";
+import { EventImagePicker, EventPageLook, EventPageSections, eventPageProblem, type EventPageChange } from "@/components/EventPageEditor";
 import { Fold } from "@/components/Fold";
+import { SortList, moveTo } from "@/components/SortList";
 import { failed, readBase64 } from "@/lib/teamFiles";
 import { trpc } from "@/lib/trpc";
 import { defaultEventPage, normalizeEventPage, resolveEventSections, type EventPage, type EventSectionId } from "@shared/eventPage";
@@ -21,7 +22,8 @@ import {
   type EventStatus,
 } from "@shared/events";
 import type { inferRouterOutputs } from "@trpc/server";
-import { CalendarDays, Check, ClipboardList, Eye, LayoutList, Palette, Sparkles } from "lucide-react";
+import { motion } from "framer-motion";
+import { CalendarDays, Check, ClipboardList, Eye, LayoutList, Palette, Share2, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { toast } from "sonner";
 import type { AppRouter } from "../../../server/routers";
@@ -174,7 +176,9 @@ function Builder({ workspaceId, initial, company, zone, onClose }: { workspaceId
   };
   useEffect(() => {
     if (!focusKey) return;
-    document.getElementById(`event-field-${focusKey}`)?.focus();
+    const field = document.getElementById(`event-field-${focusKey}`);
+    field?.scrollIntoView({ block: "center", behavior: "smooth" });
+    field?.focus({ preventScroll: true });
     setFocusKey(null);
   }, [focusKey, tab]);
 
@@ -185,33 +189,30 @@ function Builder({ workspaceId, initial, company, zone, onClose }: { workspaceId
   const changePage: EventPageChange = change => setDraft(current => ({ ...current, page: change(current.page) }));
   const setQuestions = (change: (list: Question[]) => Question[]) => setDraft(current => ({ ...current, questions: change(current.questions) }));
   const changeQuestion = (key: string, patch: Partial<Question>) => setQuestions(list => list.map(question => (question.key === key ? { ...question, ...patch } : question)));
-  const moveQuestion = (index: number, by: number) => setQuestions(list => {
-    const next = [...list];
-    const [item] = next.splice(index, 1);
-    next.splice(index + by, 0, item);
-    return next;
-  });
 
   const stop = (where: Tab, key: ErrorKey, text: string) => {
     setErrors(current => ({ ...current, [key]: text }));
     toast.error(text);
     openTab(where);
     setFocusKey(key);
+    return null;
   };
 
-  const save = async (publish: boolean) => {
+  /** Saves everything that changed. Gives back the event's link name, or null when nothing was saved. */
+  const save = async (publish: boolean): Promise<string | null> => {
     if (!draft.details.title.trim()) return stop("details", "title", "Give the event a title.");
     const limit = readCapacity(draft.details.capacity);
     if ("error" in limit) return stop("details", "capacity", limit.error);
     if (publish && !draft.details.startAt) return stop("details", "startAt", "Add a start date and time before you publish.");
     const issue = eventPageProblem(draft.page);
-    if (issue) { toast.error(issue.text); setPageIssue(issue.section); openTab("page"); return; }
+    if (issue) { toast.error(issue.text); setPageIssue(issue.section); openTab("page"); return null; }
     const formIssue = questionProblem(draft.questions);
-    if (formIssue) { toast.error(formIssue); openTab("rsvp"); return; }
+    if (formIssue) { toast.error(formIssue); openTab("rsvp"); return null; }
 
     const { details, page } = draft;
     const fields = { ...details, title: details.title.trim(), startAt: details.startAt || null, endAt: details.endAt || null, rsvpDeadline: details.rsvpDeadline || null, capacity: limit.capacity };
     let id = meta.id;
+    let done: string | null = null;
     setBusy(true);
     try {
       if (id === null) {
@@ -248,12 +249,25 @@ function Builder({ workspaceId, initial, company, zone, onClose }: { workspaceId
       setDraft(next);
       setMeta({ id: fresh.event.id, slug: fresh.event.slug, status: fresh.event.status as EventStatus, cover: fresh.event.coverImageUrl ?? null });
       setPageIssue(null);
+      done = fresh.event.slug;
       toast.success(publish ? "Event published. Anyone with the link can see it." : meta.id === null ? "Event created as a draft. Publish it when it is ready." : "Event saved.");
     } catch (error) {
       failed(error);
     } finally {
       setBusy(false);
       if (id !== null) void Promise.all([utils.teamEvents.list.invalidate({ workspaceId }), utils.teamEvents.get.invalidate({ workspaceId, eventId: id }), utils.teams.activity.invalidate({ workspaceId })]);
+    }
+    return done;
+  };
+  /** The card builder's second button: save, publish when still a draft, then put the public link on the clipboard. */
+  const saveAndCopy = async () => {
+    const slug = meta.status === "draft" || dirty ? await save(meta.status === "draft") : meta.slug;
+    if (!slug) return;
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/event/${slug}`);
+      toast.success("Link copied.");
+    } catch {
+      toast.message("The link could not be copied here. Copy it from Share on the event screen.");
     }
   };
 
@@ -328,9 +342,13 @@ function Builder({ workspaceId, initial, company, zone, onClose }: { workspaceId
   const choices = (["attending", "maybe", "not_attending"] as const).filter(choice => choice !== "maybe" || details.allowMaybe);
   const zoneName = zone.replaceAll("_", " ");
   const saving = busy || uploading;
+  // Shown on the tab as you type, the way the card builder marks a tab with a bad field.
+  const pageUnfinished = eventPageProblem(draft.page) !== null;
+  const formUnfinished = questionProblem(draft.questions) !== null;
+  const live = meta.status === "published";
 
   return (
-    <div className="builder-page event-builder">
+    <motion.div className="builder-page event-builder" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="builder-head">
         <button type="button" className="back-button" onClick={leave}>← {isNew ? "All events" : "Back to event"}</button>
         <h2 className="event-builder-title">{isNew ? "New event" : "Edit event"}</h2>
@@ -340,7 +358,7 @@ function Builder({ workspaceId, initial, company, zone, onClose }: { workspaceId
       <div className="builder-toolbar">
         <div className="builder-tabs" role="tablist" aria-label="Event builder sections" onKeyDown={onTabKey}>
           {TABS.map(({ id, label, icon: Icon }) => {
-            const alert = (id === "details" && (errors.title || errors.capacity || errors.startAt)) || (id === "page" && pageIssue !== null);
+            const alert = (id === "details" && (errors.title || errors.capacity || errors.startAt)) || (id === "page" && (pageIssue !== null || pageUnfinished)) || (id === "rsvp" && formUnfinished);
             return <button key={id} type="button" role="tab" id={`event-tab-${id}`} ref={node => { tabRefs.current[id] = node; }} className="builder-tab" aria-selected={selected === id} aria-controls={`event-panel-${id}`} tabIndex={selected === id ? 0 : -1} onClick={() => openTab(id)}>
               <Icon size={15} aria-hidden="true" />{label}
               {alert ? <span className="builder-tab-alert" role="img" aria-label="needs a fix" /> : null}
@@ -353,12 +371,14 @@ function Builder({ workspaceId, initial, company, zone, onClose }: { workspaceId
         <div className="builder-save-actions">
           {dirty
             ? <button type="button" className="text-button" disabled={saving} onClick={() => { setDraft(saved); setErrors({}); setPageIssue(null); }}>Discard changes</button>
-            : isNew ? null : <span className="save-status-indicator" role="status"><Check size={14} aria-hidden="true" /> Saved</span>}
-          {meta.status === "draft" ? <button type="button" className="publish-copy-button" disabled={saving} onClick={() => void save(true)}>
-            <span className="label-long">{isNew ? "Create and publish" : "Save and publish"}</span><span className="label-short">Publish</span>
+            : isNew ? null : <span className="save-status-indicator" role="status" title="All changes saved to your team"><Check size={14} aria-hidden="true" /> Saved</span>}
+          {meta.status === "draft" || live ? <button type="button" className="publish-copy-button" disabled={saving} onClick={() => void saveAndCopy()}>
+            <Share2 size={15} aria-hidden="true" />
+            <span className="label-long">{!live ? "Publish & copy link" : dirty ? "Save & copy public link" : "Copy public link"}</span><span className="label-short">{live ? "Copy link" : "Publish"}</span>
           </button> : null}
           <button type="button" className="glass-button glass-button-primary" disabled={saving || (!isNew && !dirty)} onClick={() => void save(false)}>
-            <span className="label-long">{busy ? "Saving..." : isNew ? "Create event" : meta.status === "published" ? "Save live changes" : "Save draft"}</span>
+            {busy ? null : <Check size={16} aria-hidden="true" />}
+            <span className="label-long">{busy ? "Saving..." : isNew ? "Create event" : live ? "Save live changes" : "Save draft"}</span>
             <span className="label-short">{busy ? "Saving..." : isNew ? "Create" : "Save"}</span>
           </button>
         </div>
@@ -374,15 +394,10 @@ function Builder({ workspaceId, initial, company, zone, onClose }: { workspaceId
                 <label className="field-label"><span>Description</span><textarea rows={5} maxLength={5000} value={details.description} onChange={event => setDetail("description", event.target.value)} /></label>
               </div>
               <div className="form-section">
-                <div className="field-label" role="group" aria-label="Banner">
-                  <span>Banner</span>
-                  {meta.cover ? <img className="event-banner-thumb" src={meta.cover} alt="Event banner" /> : null}
-                  {target ? <div className="event-row-tools">
-                    <label className="outline-button team-file">{uploadCover.isPending ? "Uploading..." : meta.cover ? "Replace banner" : "Upload banner"}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploadCover.isPending} onChange={change => { void pickCover(change.target.files?.[0]); change.target.value = ""; }} /></label>
-                    {meta.cover ? <button type="button" className="outline-button event-danger" disabled={removeCover.isPending} onClick={() => void clearCover()}>Remove banner</button> : null}
-                  </div> : null}
-                </div>
-                <p className="field-hint">{target ? "A wide picture works best. JPG, PNG or WebP, up to 3MB. It is saved as soon as you pick it." : "A banner can be added once the event is created."}</p>
+                <div className="pd-block-head"><h3>Banner</h3><p>The wide picture at the top of the event page.</p></div>
+                <EventImagePicker label="Event banner" shape="wide" url={meta.cover ?? ""} busy={uploadCover.isPending || removeCover.isPending} disabled={!target}
+                  hint={target ? "JPG, PNG or WebP, up to 3MB. Saved as soon as you pick it." : "Add it once the event is created."}
+                  onPick={file => void pickCover(file)} onClear={() => void clearCover()} />
               </div>
               <div className="fold-list">
                 <Fold title="When" defaultOpen forceOpen={Boolean(errors.startAt)} attention={Boolean(errors.startAt)} attentionLabel="Needs a date" meta={details.startAt ? details.startAt.replace("T", " ") : "No date yet"} hint={`Times are in your team's time zone (${zoneName}).`}>
@@ -405,7 +420,7 @@ function Builder({ workspaceId, initial, company, zone, onClose }: { workspaceId
           </section>
 
           <section {...panelProps("page")}>
-            <div className="builder-panel-head"><h2>Page</h2><p>Open a section to fill it in. A section with nothing in it stays off the page. The RSVP form is always last.</p></div>
+            <div className="builder-panel-head"><h2>Page</h2><p>Open a section to fill it in, and drag it by its grip to change the order. A section with nothing in it stays off the page. The RSVP form is always last.</p></div>
             <div className="builder-panel-body">
               <EventPageSections page={draft.page} onChange={changePage} target={target} issue={pageIssue} onBusy={setUploading} />
             </div>
@@ -413,10 +428,11 @@ function Builder({ workspaceId, initial, company, zone, onClose }: { workspaceId
           </section>
 
           <section {...panelProps("rsvp")}>
-            <div className="builder-panel-head"><h2>RSVP form</h2><p>Choose what to ask. Everyone is always asked whether they are coming. Hidden questions are not shown on the form.</p></div>
+            <div className="builder-panel-head"><h2>RSVP form</h2><p>Choose what to ask, and drag a question by its grip to change the order. Everyone is always asked whether they are coming. Hidden questions are not shown on the form.</p></div>
             <div className="builder-panel-body">
-              <ol className="event-questions">
-                {draft.questions.map((question, index) => <li key={question.key}>
+              <SortList className="event-questions" count={draft.questions.length} name={index => draft.questions[index].label || `question ${index + 1}`} onMove={(from, to) => setQuestions(list => moveTo(list, from, to))}>
+                {(index, grip) => { const question = draft.questions[index]; return <li key={question.key}>
+                  {grip}
                   <div className="event-question-main">
                     {question.standardKey ? <strong>{question.label}</strong> : <label className="field-label"><span>Question</span><input type="text" maxLength={160} value={question.label} onChange={event => changeQuestion(question.key, { label: event.target.value })} /></label>}
                     <span className="field-hint">{question.standardKey ? "Ready-made" : "Your question"} · {EVENT_FIELD_TYPE_LABELS[question.fieldType]}</span>
@@ -426,12 +442,10 @@ function Builder({ workspaceId, initial, company, zone, onClose }: { workspaceId
                     {question.standardKey === "fullName" ? <span className="event-fixed">Always required</span> : <select className="event-select" aria-label={`How "${question.label || "this question"}" appears`} value={question.mode} onChange={event => changeQuestion(question.key, { mode: event.target.value as EventFieldMode })}>
                       {(["required", "optional", "hidden"] as const).map(mode => <option key={mode} value={mode}>{MODE_LABELS[mode]}</option>)}
                     </select>}
-                    <button type="button" className="outline-button" disabled={index === 0} aria-label={`Move "${question.label}" up`} onClick={() => moveQuestion(index, -1)}>↑</button>
-                    <button type="button" className="outline-button" disabled={index === draft.questions.length - 1} aria-label={`Move "${question.label}" down`} onClick={() => moveQuestion(index, 1)}>↓</button>
                     {question.standardKey ? null : <button type="button" className="outline-button event-danger" aria-label={`Remove "${question.label || "this question"}"`} onClick={() => setQuestions(list => list.filter(item => item.key !== question.key))}>Remove</button>}
                   </div>
-                </li>)}
-              </ol>
+                </li>; }}
+              </SortList>
               {draft.questions.length < MAX_EVENT_FIELDS ? <div className="event-add">
                 <label className="field-label"><span>Add your own question</span><select value={newType} onChange={event => setNewType(event.target.value as EventFieldType)}>{EVENT_FIELD_TYPES.map(type => <option key={type} value={type}>{EVENT_FIELD_TYPE_LABELS[type]}</option>)}</select></label>
                 <button type="button" className="outline-button" onClick={() => setQuestions(list => [...list, { key: `new-${Date.now()}`, standardKey: null, label: "", fieldType: newType, mode: "optional", options: "" }])}>Add question</button>
@@ -473,6 +487,6 @@ function Builder({ workspaceId, initial, company, zone, onClose }: { workspaceId
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

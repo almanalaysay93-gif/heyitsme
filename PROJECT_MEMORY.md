@@ -232,7 +232,7 @@ Public card profile photo in `client/src/components/cardLanding.css`. Desktop `.
 - Checks: `pnpm check` clean, `pnpm test` 374 passed, `pnpm build` clean. 20 new tests in `server/teams/teams.test.ts`.
 - Not tested: any screen in a browser, the migration on Supabase, a real invitation email.
 - Before switching on: run `drizzle/0013_teams.sql` in Supabase as the table owner so row-level security is enabled, then set `TEAMS_ENABLED=true`.
-- Not committed.
+-
 
 ## 2026-10-03: Teams plan, phase 2 of 8 (Claude)
 - [stated] Owner said "continue" after the phase 1 report.
@@ -245,7 +245,7 @@ Public card profile photo in `client/src/components/cardLanding.css`. Desktop `.
 - Checks: `pnpm check` clean, `pnpm test` 391 passed, `pnpm build` clean. 17 new tests in `server/teams/teamCards.test.ts`.
 - Not tested: any screen in a browser, the migration on Supabase.
 - Before switching on: run `drizzle/0013_teams.sql` then `drizzle/0014_team_cards.sql` in Supabase as the table owner. `ensureSchema` also adds the 0014 columns at server start, with or without `TEAMS_ENABLED`.
-- Not committed.
+-
 
 ## 2026-10-03: Teams plan, phase 3 of 8 (Claude)
 
@@ -256,7 +256,7 @@ Brand, templates, locked details and change requests. Behind `TEAMS_ENABLED`, li
 - **Logo storage**: `team-<workspaceId>/logo-…`, outside the `<userId>-portfolio` prefix so the personal upload sweep never removes it. Old logo files are not deleted when replaced.
 - **Client**: `client/src/pages/TeamBrand.tsx` (Brand and Templates tabs, admins only), change-request panel and template picker on the Cards tab, member edits to locked details become a request.
 - **Interim choices**: a template look is one of the 15 ready-made looks plus optional brand colors on buttons and highlights (no free-form design editor yet). Templates may use Pro-grade looks on company cards with no plan check; phase 8 (seat billing and entitlements) decides that. A card cannot be detached from a template, only moved to another. No email is sent for requests.
-- **Checks**: `pnpm check` clean, `pnpm test` 406 passed (42 files), `pnpm build` clean. Not browser-tested. Not committed.
+- **Checks**: `pnpm check` clean, `pnpm test` 406 passed (42 files), `pnpm build` clean. Not browser-tested.
 
 ## 2026-10-04: Teams plan, phase 4 of 8 (Claude)
 
@@ -269,7 +269,7 @@ Shared team contacts. Behind `TEAMS_ENABLED`, like phases 1 to 3.
 - **Server**: `server/teams/contactsRouter.ts` mounted as `teamContacts` (list, update, reassign, remove, exportCsv, duplicates, merge), `canViewWorkspaceContact` in `server/teams/access.ts`. Members see their own, admins all. Duplicates = same email or same phone digits; merge is manual, admin only, archives the other contact. `teams.removeMember` takes `contacts: keep | transfer | archive` (+ `contactsToMemberId`); `leave` unassigns; `transferOwnership` moves `ownerUserId`. `teams.members` returns `contactCount` for admins. New-contact email for a company card links to `/app/team/<id>`.
 - **Client**: `client/src/pages/TeamContacts.tsx` (Contacts tab for everyone), contact choice in the removal panel in `Team.tsx`, activity labels.
 - [my choices, open to change] Lead quota for a company card still follows the team owner's personal plan until phase 8. Department on a contact is fixed at capture and does not follow reassignment. Members get no duplicate hint about colleagues' contacts. Admin delete is permanent and logged, meant for "forget me" requests. Export capped at 10,000 rows. No bulk select in the UI (server reassign takes up to 200 ids).
-- **Checks**: `pnpm check` clean, `pnpm test` 420 passed (43 files), `pnpm build` clean. 14 new tests in `server/teams/teamContacts.test.ts`. Not browser-tested. Not committed.
+- **Checks**: `pnpm check` clean, `pnpm test` 420 passed (43 files), `pnpm build` clean. 14 new tests in `server/teams/teamContacts.test.ts`. Not browser-tested.
 
 ## 2026-10-04: Teams plan, phase 5 of 8 (Claude)
 
@@ -280,7 +280,7 @@ Team analytics. Behind `TEAMS_ENABLED`, like phases 1 to 4.
 - **Leaderboard**: off by default. When on, every member sees the top ten (views, exchanges, QR scans) for the chosen range, whole team, not the filtered view. The admin "By person" table is in name order, never ranked.
 - **Client**: `client/src/pages/TeamAnalytics.tsx`, loaded only when the Analytics tab opens (it reuses `DailyViewsChart` from `InsightsView`). Analytics tab for everyone in `Team.tsx`.
 - [my choices, open to change] Days are UTC, like personal insights. Sharing in adoption counts for whoever holds the card today; "this month" is the UTC calendar month. No QR campaign filter yet: team QR campaigns do not exist until the Team QR work. Deleted cards are left out.
-- **Checks**: `pnpm check` clean, `pnpm test` 428 passed (44 files), `pnpm build` clean. 8 new tests in `server/teams/teamAnalytics.test.ts`. Not browser-tested. Not committed.
+- **Checks**: `pnpm check` clean, `pnpm test` 428 passed (44 files), `pnpm build` clean. 8 new tests in `server/teams/teamAnalytics.test.ts`. Not browser-tested.
 
 ## 2026-10-04: Teams plan, phase 6 of 8 (Claude)
 
@@ -292,7 +292,7 @@ Team events with RSVP. Behind `TEAMS_ENABLED`, like phases 1 to 5.
 - **RSVP safety**: answers validated on the server per question type with length limits and control characters stripped; only enabled questions of that event are accepted, any other field id is refused; honeypot field `website`; rate limits 10 per 10 minutes per IP and 600 per hour per event; capacity checked under advisory lock 7018.
 - **Client**: `client/src/pages/TeamEvents.tsx` (Events tab in `Team.tsx`, loaded only when opened): list, create, details, banner, status buttons, RSVP form builder, responses with search, filters, check-in, edit, delete and CSV download, share link and branded QR (PNG and SVG). `client/src/pages/PublicEvent.tsx` at `/event/:slug` (route in `App.tsx`, rewrite in `vercel.json`), `client/src/components/EventAnswerInput.tsx`, `client/src/pages/event.css`.
 - [my choices, open to change] Times are typed and shown in the team's time zone. Capacity counts each person coming plus their guests; when full, people can still answer Maybe or Not attending. An event past its end time counts as ended. The same email can reply more than once. Admin edits skip required and capacity checks. Check-ins are stored on the response, not in the activity log. No event delete: Archive hides the page and keeps responses. Removing a question that has answers hides it. The QR logo is left out when the browser cannot read the logo file.
-- **Checks**: `pnpm check` clean, `pnpm test` 438 passed (45 files), `pnpm build` clean. 10 new tests in `server/teams/teamEvents.test.ts`. Not browser-tested. Not committed.
+- **Checks**: `pnpm check` clean, `pnpm test` 438 passed (45 files), `pnpm build` clean. 10 new tests in `server/teams/teamEvents.test.ts`. Not browser-tested.
 
 ## 2026-10-04: Teams plan, phase 7 of 8 (Claude)
 
@@ -305,7 +305,7 @@ Company files, email signature, meeting background, scheduled banners. Behind `T
 - **Client**: `client/src/pages/TeamAssets.tsx` (Assets tab in `Team.tsx`, loaded only when opened) with Files, Email signature, Meeting background, and Banners (admins). Background is drawn in the browser at 1920x1080 or 1280x720. `client/src/lib/teamFiles.ts` holds the helpers `TeamEvents.tsx` and `TeamAssets.tsx` share. `CardLanding.tsx` takes an optional `team` prop: banners under the hero, a "From the company" files section.
 - [my choices, open to change] Files are archived, never deleted. A card shows up to 12 company files and 3 banners at once. Banner times are typed in the team's time zone. A banner aimed at a department reaches cards whose holder is in that department. Banners are removed for good (they hold no visitor data). One 16:9 background fits Zoom, Meet and Teams. Signature and background use published company cards only.
 - **Not built** (in the spec, in no phase of its build order): Team QR management (section 21), CTA settings by template or department (47), translations (48), NFC device inventory (49).
-- **Checks**: `pnpm check` clean, `pnpm test` 449 passed (46 files), `pnpm build` clean. 11 new tests in `server/teams/teamKit.test.ts`. The QR picture route has no automated test. Not browser-tested. Not committed.
+- **Checks**: `pnpm check` clean, `pnpm test` 449 passed (46 files), `pnpm build` clean. 11 new tests in `server/teams/teamKit.test.ts`. The QR picture route has no automated test. Not browser-tested.
 
 ## 2026-10-04: Teams plan, phase 8 of 8 (Claude)
 
@@ -355,7 +355,7 @@ The three items the owner deferred from v1: multi-day schedule, sponsor tiers, s
 - Gates: `pnpm check` clean, `pnpm test` 502 passed (52 files), `pnpm build` clean. Browser pass on the throwaway PGlite harness at 1280 and 390 wide, Tide theme only.
 - Not checked in a browser: Sunset and Midnight themes for the new blocks, and sponsor logos in tiers (harness has no storage, so tiles showed names).
 
-## 2026-10-04 — Event builder (Claude, branch `feat/event-builder`, NOT committed, NOT merged)
+## 2026-10-04 — Event builder (Claude, branch `feat/event-builder`, commit `2d77a43`, merged to `main` as `aff0ec2` and pushed)
 Owner asked for event creation to look and work like the card builder.
 - New `client/src/components/EventBuilder.tsx` + `eventBuilder.css`: one screen for making and editing an event. Reuses the card builder frame from `index.css` (`builder-page`, `builder-toolbar`, `builder-tabs`, `builder-layout`, `builder-panel`). Tabs: Details, Page, RSVP form, Design, plus Preview on phones. Folds inside Details and Page. Live preview renders `EventLanding` from the draft, inert.
 - One save for everything: `create` or `update`, then `savePage`, `saveFields`, and `setStatus(published)` when publishing. A new event's ready-made questions are matched to the server's rows by `standardKey` before `saveFields`. No server change.
@@ -365,3 +365,23 @@ Owner asked for event creation to look and work like the card builder.
 - Publishing without a start date is stopped in the builder with the server's own words.
 - Gates: `pnpm check` clean, `pnpm test` 502 passed (52 files), `pnpm build` clean. Browser pass on the throwaway PGlite harness at 1280 and 390 wide: create, edit, publish, arrow-key tabs, Preview tab, no console errors, no sideways scroll, no control under 44px.
 - Not checked in a browser: real image upload (harness has no storage), Discard changes, the leave-without-saving prompt.
+
+## 2026-10-04 — Event builder: drag to reorder (Claude, branch `feat/event-drag`, merged to `main` and pushed)
+Owner asked for drag and drop in place of the up and down arrow buttons.
+- New `client/src/components/SortList.tsx`: a list reordered by dragging a grip. Pointer events only, no new dependency. A row swaps with its neighbor when the pointer passes the neighbor's middle; the page scrolls when the pointer is near the top or bottom edge. Keyboard: focus the grip, press the up or down arrow. Each move is announced in a live region. Exports `moveTo` and `movedPosition`.
+- Used for every reorder in the event builder: page sections, rows inside each section (schedule, speakers, gallery, sponsors, questions, links), days and sponsor tiers, and RSVP questions. No arrow buttons remain. Remove and Hide from page stay as buttons.
+- Moving a day or a tier still carries its rows with it (`movedPosition`).
+- Grip is 44px, `touch-action: none`; styles in `eventBuilder.css`. No server change.
+- Gates: `pnpm check` clean, `pnpm test` 502 passed (52 files), `pnpm build` clean. Browser pass on the throwaway PGlite harness at 1280 and 390 wide: mouse drag of sections, schedule rows, days and questions; arrow keys on the grip; order kept after save and reopen; no console errors, no sideways scroll, no control under 44px.
+- Not checked: a real finger drag on a phone (the browser pass used a mouse at phone width).
+
+## 2026-10-04 — Event builder: card builder design parity (Claude, branch `feat/event-drag`, merged to `main` and pushed)
+Owner asked to find what the card builder's design has that the event builder lacks, and add it.
+- Toolbar: second button "Publish & copy link" (draft) / "Save & copy public link" / "Copy public link" (published) with the share icon; it saves, publishes a draft, and copies `/event/<slug>`. Check icon on Save; Save reads "Save live changes" on a published event. Saved indicator has a tooltip. `save()` in `EventBuilder.tsx` now returns the slug or null.
+- Pictures: `EventImagePicker` (exported from `EventPageEditor.tsx`) uses the card builder's `image-picker` tile for the banner, speaker photos and sponsor logos. The banner tile is shown disabled until the event exists.
+- Page tab: eye button on each section row shows or hides it; the "Hide from page" button inside the fold is gone.
+- Design tab: Theme, Font and Accent color have `pd-block-head` headings; accent is the `pd-swatch` chip with the hex value and a Reset button (empty accent = company color).
+- Tab dot shows while the Page or RSVP tab has a problem, not only after a failed save. Error focus scrolls the field to the middle. Builder fades in.
+- Left out, needs schema or server work: template picker, photo shape, page background photo, gradients and custom colors, QR styling, Google Reviews, branding toggle (billing).
+- Gates: `pnpm check` clean, `pnpm test` 504 passed (53 files), `pnpm build` clean. Browser pass on the throwaway PGlite harness at 1280 and 390 wide: copy link (clipboard read back), eye toggle, accent set and reset, error focus, no console errors, no sideways scroll, no control under 44px.
+- Not checked in a browser: real image upload into the tiles (harness has no storage), publish from draft through the new button, the live tab dot (code path only).

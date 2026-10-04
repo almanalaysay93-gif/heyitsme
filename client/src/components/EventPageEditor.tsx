@@ -1,4 +1,5 @@
 import { Fold } from "@/components/Fold";
+import { SortList, moveTo, movedPosition } from "@/components/SortList";
 import { failed, readBase64 } from "@/lib/teamFiles";
 import { trpc } from "@/lib/trpc";
 import {
@@ -13,7 +14,7 @@ import {
   type EventSectionId,
 } from "@shared/eventPage";
 import { EVENT_FONTS, EVENT_FONT_LABELS, type EventFont } from "@shared/events";
-import { Check } from "lucide-react";
+import { Check, Eye, EyeOff, Image as ImageIcon, RotateCcw, Trash2 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
@@ -41,13 +42,6 @@ const SECTION_HELP: Record<EventSectionId, string> = {
   links: "Tickets, a map, a livestream, a brochure. Each link needs a title.",
 };
 
-function moved<T>(list: T[], index: number, by: number): T[] {
-  const next = [...list];
-  const [item] = next.splice(index, 1);
-  next.splice(index + by, 0, item);
-  return next;
-}
-
 /** The first thing that would stop a save, in words the admin can act on, and the section it is in. */
 export function eventPageProblem(page: EventPage): { section: EventSectionId; text: string } | null {
   const row = (section: EventSectionId, index: number, what: string) => ({ section, text: `${EVENT_SECTION_LABELS[section]}, row ${index + 1}: ${what}` });
@@ -70,26 +64,24 @@ export function eventPageProblem(page: EventPage): { section: EventSectionId; te
   return null;
 }
 
-function RowTools({ name, index, count, onMove, onRemove }: { name: string; index: number; count: number; onMove: (by: number) => void; onRemove: () => void }) {
-  return <div className="event-row-tools">
-    <button type="button" className="outline-button" disabled={index === 0} aria-label={`Move ${name} up`} onClick={() => onMove(-1)}>↑</button>
-    <button type="button" className="outline-button" disabled={index === count - 1} aria-label={`Move ${name} down`} onClick={() => onMove(1)}>↓</button>
-    <button type="button" className="outline-button event-danger" aria-label={`Remove ${name}`} onClick={onRemove}>Remove</button>
-  </div>;
-}
-
-function ImagePick({ url, what, round, busy, onPick, onClear }: { url: string; what: string; round?: boolean; busy: boolean; onPick: (file: File | undefined) => void; onClear: () => void }) {
-  return <div className="event-image-pick">
-    {url ? <img className={round ? "event-thumb event-thumb-round" : "event-thumb"} src={url} alt="" /> : null}
-    <div className="event-row-tools">
-      <label className="outline-button team-file">{busy ? "Uploading..." : url ? `Replace ${what}` : `Upload ${what}`}<input type="file" accept={IMAGE_ACCEPT} disabled={busy} onChange={change => { onPick(change.target.files?.[0]); change.target.value = ""; }} /></label>
-      {url ? <button type="button" className="outline-button event-danger" onClick={onClear}>Remove {what}</button> : null}
+/** A picture tile, the same one the card builder uses: press it to choose a file. The picture is shown inside it. */
+export function EventImagePicker({ label, hint, shape, url, busy, disabled, contain, onPick, onClear }: { label: string; hint: string; shape: "round" | "wide"; url: string; busy: boolean; disabled?: boolean; contain?: boolean; onPick: (file: File | undefined) => void; onClear: () => void }) {
+  return <div className={`image-picker image-picker-${shape}${contain ? " image-picker-logo" : ""}${disabled ? " is-disabled" : ""}`}>
+    <label className="image-picker-drop">
+      {url ? <img src={url} alt="" /> : <span className="image-picker-empty"><ImageIcon size={18} aria-hidden="true" /></span>}
+      <input type="file" accept={IMAGE_ACCEPT} disabled={busy || disabled} onChange={change => { onPick(change.target.files?.[0]); change.target.value = ""; }} />
+      <span className="sr-only">{url ? `Replace ${label.toLowerCase()}` : `Upload ${label.toLowerCase()}`}</span>
+    </label>
+    <div className="image-picker-copy">
+      <strong>{label}</strong>
+      <span>{busy ? "Uploading..." : hint}</span>
+      {url && !disabled ? <button type="button" className="link-button" disabled={busy} onClick={onClear}><Trash2 size={12} aria-hidden="true" /> Remove</button> : null}
     </div>
   </div>;
 }
 
 /**
- * The Page tab of the event builder: section order, and each section's content in a fold.
+ * The Page tab of the event builder: sections in folds, dragged by their grips into the order the page shows them.
  * The builder owns the page and saves it; `target` is null until the event exists, and pictures need it.
  */
 export function EventPageSections({ page, onChange, target, issue, onBusy }: { page: EventPage; onChange: EventPageChange; target: Target | null; issue: EventSectionId | null; onBusy: (busy: boolean) => void }) {
@@ -103,8 +95,15 @@ export function EventPageSections({ page, onChange, target, issue, onBusy }: { p
   const setList = <K extends ListKey>(key: K, change: (list: EventPage[K]) => EventPage[K]) => edit(current => ({ ...current, [key]: change(current[key]) }));
   const setRow = <K extends ListKey>(key: K, index: number, patch: Partial<EventPage[K][number]>) =>
     setList(key, list => list.map((item, at) => (at === index ? { ...item, ...patch } : item)) as EventPage[K]);
-  const tools = (key: ListKey, index: number, name: string) =>
-    <RowTools name={name} index={index} count={page[key].length} onMove={by => setList(key, list => moved(list as unknown[], index, by) as never)} onRemove={() => setList(key, list => (list as unknown[]).filter((_, at) => at !== index) as never)} />;
+  /** One section's rows: drag the grip to reorder, Remove on the right. */
+  const rows = <K extends ListKey>(key: K, name: (item: EventPage[K][number], index: number) => string, main: (item: EventPage[K][number], index: number) => ReactNode) =>
+    <SortList className="event-questions" count={page[key].length} name={index => name(page[key][index], index)} onMove={(from, to) => setList(key, list => moveTo(list as unknown[], from, to) as never)}>
+      {(index, grip) => <li key={index}>
+        {grip}
+        <div className="event-question-main">{main(page[key][index], index)}</div>
+        <div className="event-row-tools"><button type="button" className="outline-button event-danger" aria-label={`Remove ${name(page[key][index], index)}`} onClick={() => setList(key, list => (list as unknown[]).filter((_, at) => at !== index) as never)}>Remove</button></div>
+      </li>}
+    </SortList>;
 
   const field = (label: string, value: string, max: number, onInput: (value: string) => void, extra: { type?: string; placeholder?: string } = {}) =>
     <label className="field-label"><span>{label}</span><input type={extra.type ?? "text"} maxLength={max} placeholder={extra.placeholder} value={value} onChange={event => onInput(event.target.value)} /></label>;
@@ -122,12 +121,13 @@ export function EventPageSections({ page, onChange, target, issue, onBusy }: { p
     return <div className="event-groups">
       <h3>{title}</h3>
       <p className="field-hint">{help}</p>
-      {names.map((value, index) => <div className="event-group-row" key={index}>
-        {field(`Name of ${one} ${index + 1}`, value, 40, next => edit(current => ({ ...current, [key]: current[key].map((item, at) => (at === index ? next : item)) })))}
-        <RowTools name={value || `${one} ${index + 1}`} index={index} count={names.length}
-          onMove={by => remap(key, list => moved(list, index, by), at => (at === index ? index + by : at === index + by ? index : at))}
-          onRemove={() => remap(key, list => list.filter((_, at) => at !== index), at => (at > index ? at - 1 : at === index ? 0 : at))} />
-      </div>)}
+      <SortList as="div" className="event-group-rows" count={names.length} name={index => names[index] || `${one} ${index + 1}`} onMove={(from, to) => remap(key, list => moveTo(list, from, to), at => movedPosition(at, from, to))}>
+        {(index, grip) => <div className="event-group-row" key={index}>
+          {grip}
+          {field(`Name of ${one} ${index + 1}`, names[index], 40, next => edit(current => ({ ...current, [key]: current[key].map((item, at) => (at === index ? next : item)) })))}
+          <div className="event-row-tools"><button type="button" className="outline-button event-danger" aria-label={`Remove ${names[index] || `${one} ${index + 1}`}`} onClick={() => remap(key, list => list.filter((_, at) => at !== index), at => (at > index ? at - 1 : at === index ? 0 : at))}>Remove</button></div>
+        </div>}
+      </SortList>
       {names.length < EVENT_PAGE_LIMITS[key]
         ? <div className="event-row-tools"><button type="button" className="outline-button" onClick={() => edit(current => ({ ...current, [key]: [...current[key], name(current[key].length + 1)] }))}>{add}</button></div>
         : <p className="field-hint">Up to {EVENT_PAGE_LIMITS[key]} {one}s.</p>}
@@ -217,35 +217,25 @@ export function EventPageSections({ page, onChange, target, issue, onBusy }: { p
     details: () => null,
     schedule: () => <>
       {groupEditor("agendaDays")}
-      <ol className="event-questions">
-        {page.agenda.map((item, index) => <li key={index}>
-          <div className="event-question-main">
+      {rows("agenda", (item, index) => item.title || `row ${index + 1}`, (item, index) => <>
             {field("Time", item.time, 40, time => setRow("agenda", index, { time }), { placeholder: "9:00 AM" })}
             {field("Title", item.title, 120, title => setRow("agenda", index, { title }))}
             {area("Note (optional)", item.note, 300, 2, note => setRow("agenda", index, { note }))}
             {groupPick("agendaDays", "Day", item.day, day => setRow("agenda", index, { day }))}
             {rowSpeakerPick(index, item.speakerIds)}
-          </div>
-          {tools("agenda", index, item.title || `row ${index + 1}`)}
-        </li>)}
-      </ol>
+      </>)}
       {addRow("agenda", "Add schedule row", () => setList("agenda", list => [...list, { time: "", title: "", note: "", day: list.at(-1)?.day ?? 0, speakerIds: [] }]))}
       {page.speakers.length === 0 ? <p className="field-hint">Add people in the Speakers section to show who is on each row.</p> : null}
     </>,
     speakers: () => <>
-      <ol className="event-questions">
-        {page.speakers.map((speaker, index) => <li key={index}>
-          <div className="event-question-main">
+      {rows("speakers", (speaker, index) => speaker.name || `speaker ${index + 1}`, (speaker, index) => <>
             {field("Name", speaker.name, 80, name => setRow("speakers", index, { name }))}
             {field("Role or title", speaker.role, 80, role => setRow("speakers", index, { role }))}
             {area("Bio (shown for featured speakers)", speaker.bio, 400, 3, bio => setRow("speakers", index, { bio }))}
-            {target ? <ImagePick url={speaker.photoUrl} what="photo" round busy={uploading === `speaker-${index}` || uploading === `card-${speaker.cardSlug}`} onPick={file => void upload(file, `speaker-${index}`).then(url => { if (url) setRow("speakers", index, { photoUrl: url }); })} onClear={() => setRow("speakers", index, { photoUrl: "" })} /> : null}
+            {target ? <EventImagePicker label="Photo" hint="Square works best. Up to 3MB" shape="round" url={speaker.photoUrl} busy={uploading === `speaker-${index}` || uploading === `card-${speaker.cardSlug}`} onPick={file => void upload(file, `speaker-${index}`).then(url => { if (url) setRow("speakers", index, { photoUrl: url }); })} onClear={() => setRow("speakers", index, { photoUrl: "" })} /> : null}
             <label className="team-toggle"><input type="checkbox" checked={speaker.featured} onChange={event => toggleFeatured(index, event.target.checked)} /> Featured speaker</label>
             {speaker.cardSlug ? <label className="team-toggle"><input type="checkbox" checked onChange={() => setRow("speakers", index, { cardSlug: "" })} /> Link to their heyitsme card</label> : null}
-          </div>
-          {tools("speakers", index, speaker.name || `speaker ${index + 1}`)}
-        </li>)}
-      </ol>
+      </>)}
       {page.speakers.length < EVENT_PAGE_LIMITS.speakers ? <div className="event-add">
         {cards.data?.length ? <label className="field-label"><span>Add from a team card</span><select value="" disabled={uploading !== ""} onChange={event => void addFromCard(event.target.value)}>
           <option value="">Choose a card...</option>
@@ -258,107 +248,93 @@ export function EventPageSections({ page, onChange, target, issue, onBusy }: { p
         : <p className="field-hint">Speaker photos, and adding a speaker from a team card, come once the event is created.</p>}
     </>,
     gallery: () => <>
-      <ol className="event-questions">
-        {page.gallery.map((photo, index) => <li key={photo.url}>
-          <div className="event-question-main">
+      {rows("gallery", (photo, index) => `photo ${index + 1}`, (photo, index) => <>
             <img className="event-thumb" src={photo.url} alt="" />
             {field("What the photo shows (for screen readers)", photo.alt, 120, alt => setRow("gallery", index, { alt }))}
-          </div>
-          {tools("gallery", index, `photo ${index + 1}`)}
-        </li>)}
-      </ol>
+      </>)}
       {!target ? needsEvent : page.gallery.length < EVENT_PAGE_LIMITS.gallery
         ? <div className="event-row-tools"><label className="outline-button team-file">{uploading === "gallery" ? "Uploading..." : "Upload photos"}<input type="file" accept={IMAGE_ACCEPT} multiple disabled={uploading !== ""} onChange={change => { void addPhotos(change.target.files); change.target.value = ""; }} /></label></div>
         : <p className="field-hint">This section is full ({EVENT_PAGE_LIMITS.gallery}).</p>}
     </>,
     sponsors: () => <>
       {groupEditor("sponsorTiers")}
-      <ol className="event-questions">
-        {page.sponsors.map((sponsor, index) => <li key={index}>
-          <div className="event-question-main">
+      {rows("sponsors", (sponsor, index) => sponsor.name || `sponsor ${index + 1}`, (sponsor, index) => <>
             {field("Name", sponsor.name, 80, name => setRow("sponsors", index, { name }))}
             {field("Website (optional)", sponsor.url, 600, url => setRow("sponsors", index, { url }), { type: "url", placeholder: "https://" })}
             {groupPick("sponsorTiers", "Tier", sponsor.tier, tier => setRow("sponsors", index, { tier }))}
-            {target ? <ImagePick url={sponsor.logoUrl} what="logo" busy={uploading === `sponsor-${index}`} onPick={file => void upload(file, `sponsor-${index}`).then(url => { if (url) setRow("sponsors", index, { logoUrl: url }); })} onClear={() => setRow("sponsors", index, { logoUrl: "" })} /> : null}
-          </div>
-          {tools("sponsors", index, sponsor.name || `sponsor ${index + 1}`)}
-        </li>)}
-      </ol>
+            {target ? <EventImagePicker label="Logo" hint="Shown whole, not cropped. Up to 3MB" shape="wide" contain url={sponsor.logoUrl} busy={uploading === `sponsor-${index}`} onPick={file => void upload(file, `sponsor-${index}`).then(url => { if (url) setRow("sponsors", index, { logoUrl: url }); })} onClear={() => setRow("sponsors", index, { logoUrl: "" })} /> : null}
+      </>)}
       {addRow("sponsors", "Add sponsor", () => setList("sponsors", list => [...list, { name: "", logoUrl: "", url: "", tier: list.at(-1)?.tier ?? 0 }]))}
       {target ? null : <p className="field-hint">Sponsor logos come once the event is created.</p>}
     </>,
     faq: () => <>
-      <ol className="event-questions">
-        {page.faq.map((item, index) => <li key={index}>
-          <div className="event-question-main">
+      {rows("faq", (item, index) => item.question || `question ${index + 1}`, (item, index) => <>
             {field("Question", item.question, 160, question => setRow("faq", index, { question }))}
             {area("Answer", item.answer, 800, 3, answer => setRow("faq", index, { answer }))}
-          </div>
-          {tools("faq", index, item.question || `question ${index + 1}`)}
-        </li>)}
-      </ol>
+      </>)}
       {addRow("faq", "Add question", () => setList("faq", list => [...list, { question: "", answer: "" }]))}
     </>,
     links: () => <>
-      <ol className="event-questions">
-        {page.links.map((link, index) => <li key={index}>
-          <div className="event-question-main">
+      {rows("links", (link, index) => link.title || `link ${index + 1}`, (link, index) => <>
             {field("Title", link.title, 80, title => setRow("links", index, { title }))}
             {field("Link", link.url, 600, url => setRow("links", index, { url }), { type: "url", placeholder: "https://" })}
             {field("Short description (optional)", link.description, 160, description => setRow("links", index, { description }))}
-          </div>
-          {tools("links", index, link.title || `link ${index + 1}`)}
-        </li>)}
-      </ol>
+      </>)}
       {addRow("links", "Add link", () => setList("links", list => [...list, { title: "", url: "", description: "" }]))}
     </>,
   };
   const count = (id: EventSectionId) => (id === "details" ? 0 : id === "schedule" ? page.agenda.length : page[id].length);
   const unfinished = eventPageProblem(page)?.section ?? null;
 
-  return <div className="fold-list">
-    {sections.map((section, index) => {
+  return <SortList as="div" className="fold-list" count={sections.length} name={index => EVENT_SECTION_LABELS[sections[index].id]} onMove={(from, to) => setSections(list => moveTo(list, from, to))}>
+    {(index, grip) => {
+      const section = sections[index];
       const label = EVENT_SECTION_LABELS[section.id];
       const items = count(section.id);
-      return <Fold key={section.id} title={label} hint={SECTION_HELP[section.id]} attention={unfinished === section.id} forceOpen={issue === section.id}
+      return <div className={`event-sort-fold${section.hidden ? " is-hidden" : ""}`} key={section.id}>{grip}<Fold title={label} hint={SECTION_HELP[section.id]} attention={unfinished === section.id} forceOpen={issue === section.id}
         meta={section.hidden ? "Hidden" : items ? `${items} added` : section.id === "details" ? "On the page" : "Empty"}>
-        <div className="event-row-tools">
-          <button type="button" className="outline-button" aria-pressed={!section.hidden} onClick={() => setSections(list => list.map(item => (item.id === section.id ? { ...item, hidden: !item.hidden } : item)))}>{section.hidden ? "Show on page" : "Hide from page"}</button>
-          <button type="button" className="outline-button" disabled={index === 0} aria-label={`Move ${label} up`} onClick={() => setSections(list => moved(list, index, -1))}>↑</button>
-          <button type="button" className="outline-button" disabled={index === sections.length - 1} aria-label={`Move ${label} down`} onClick={() => setSections(list => moved(list, index, 1))}>↓</button>
-        </div>
         {body[section.id]()}
-      </Fold>;
-    })}
-  </div>;
+      </Fold>
+        <button type="button" className="icon-button" aria-pressed={!section.hidden} aria-label={`Show ${label} on page`} title={section.hidden ? "Hidden. Press to show on the page." : "Shown. Press to hide from the page."} onClick={() => setSections(list => list.map(item => (item.id === section.id ? { ...item, hidden: !item.hidden } : item)))}>
+          {section.hidden ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+        </button>
+      </div>;
+    }}
+  </SortList>;
 }
 
 /** The Design tab of the event builder: theme, font and accent color. */
 export function EventPageLook({ page, onChange }: { page: EventPage; onChange: EventPageChange }) {
   return <>
     <div className="form-section">
-      <div className="field-label" role="group" aria-label="Theme">
-        <span>Theme</span>
-        <div className="theme-picker">
-          {EVENT_THEMES.map(theme => <button type="button" key={theme} aria-pressed={page.theme === theme} className={`theme-swatch ${page.theme === theme ? "is-selected" : ""}`} onClick={() => onChange(current => ({ ...current, theme }))}>
-            <span className="swatch-colors">
-              <i style={{ background: EVENT_PALETTES[theme].paper }} />
-              <i style={{ background: EVENT_PALETTES[theme].accent }} />
-              <i style={{ background: EVENT_PALETTES[theme].ink }} />
-            </span>
-            <span>{EVENT_THEME_LABELS[theme]}</span>
-            {page.theme === theme ? <Check size={14} aria-hidden="true" /> : null}
-          </button>)}
-        </div>
+      <div className="pd-block-head"><h3>Theme</h3><p>Sets the page background, the text color and the default accent.</p></div>
+      <div className="theme-picker" role="group" aria-label="Theme">
+        {EVENT_THEMES.map(theme => <button type="button" key={theme} aria-pressed={page.theme === theme} className={`theme-swatch ${page.theme === theme ? "is-selected" : ""}`} onClick={() => onChange(current => ({ ...current, theme }))}>
+          <span className="swatch-colors">
+            <i style={{ background: EVENT_PALETTES[theme].paper }} />
+            <i style={{ background: EVENT_PALETTES[theme].accent }} />
+            <i style={{ background: EVENT_PALETTES[theme].ink }} />
+          </span>
+          <span>{EVENT_THEME_LABELS[theme]}</span>
+          {page.theme === theme ? <Check size={14} aria-hidden="true" /> : null}
+        </button>)}
       </div>
     </div>
     <div className="form-section">
-      <label className="field-label"><span>Font</span><select value={page.font} onChange={event => onChange(current => ({ ...current, font: event.target.value as EventFont }))}>{EVENT_FONTS.map(font => <option key={font} value={font}>{EVENT_FONT_LABELS[font]}</option>)}</select></label>
+      <div className="pd-block-head"><h3>Font</h3><p>Used for every heading and line on the page.</p></div>
+      <label className="field-label"><select aria-label="Font" value={page.font} onChange={event => onChange(current => ({ ...current, font: event.target.value as EventFont }))}>{EVENT_FONTS.map(font => <option key={font} value={font}>{EVENT_FONT_LABELS[font]}</option>)}</select></label>
     </div>
     <div className="form-section">
-      <label className="team-toggle"><input type="checkbox" checked={page.accent !== ""} onChange={event => onChange(current => ({ ...current, accent: event.target.checked ? EVENT_PALETTES[current.theme].accent : "" }))} /> Use a different accent from the company color</label>
-      {page.accent ? <label className="field-label"><span>Accent color</span><input type="color" value={page.accent} onChange={event => onChange(current => ({ ...current, accent: event.target.value }))} /></label> : null}
-      <p className="field-hint">The accent colors the buttons and highlights. When it is off, the page uses your company color from Brand.</p>
+      <div className="pd-block">
+        <div className="pd-block-head"><h3>Accent color</h3><p>The accent colors the buttons and highlights. Without one of your own, the page uses your company color from Brand. Reset goes back to it.</p></div>
+        <div className="pd-accent">
+          <label className="pd-swatch">
+            <input type="color" aria-label="Accent color" value={page.accent || EVENT_PALETTES[page.theme].accent} onChange={event => onChange(current => ({ ...current, accent: event.target.value }))} />
+            <span>{page.accent ? page.accent.toUpperCase() : "Company color"}</span>
+          </label>
+          {page.accent ? <button type="button" className="outline-button pd-small-button" onClick={() => onChange(current => ({ ...current, accent: "" }))}><RotateCcw size={13} aria-hidden="true" /> Reset</button> : null}
+        </div>
+      </div>
     </div>
   </>;
 }
