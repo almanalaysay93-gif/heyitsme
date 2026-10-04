@@ -86,13 +86,23 @@ export async function reviewConnectionAllowance(cardId: number, ownerId: number)
 
 const googleUrl = /^https:\/\/(?:[a-z0-9-]+\.)?google\.com\//i;
 const googleLink = (value?: string | null) => value && googleUrl.test(value) ? value : null;
-
-// Pages connected before the links were stored have none; a place ID is enough to build both.
-export function reviewDestination(page: { placeId: string | null; reviewUrl: string | null }) {
-  return googleLink(page.reviewUrl) ?? (page.placeId ? `https://search.google.com/local/writereview?placeid=${encodeURIComponent(page.placeId)}` : null);
+export function directReviewLink(value?: string | null) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:") return null;
+    if (url.hostname === "g.page" && /^\/r\/[^/]+\/review\/?$/.test(url.pathname)) return url.href;
+    if (url.hostname === "www.google.com" && url.pathname.startsWith("/maps/place/") && url.pathname.includes("!12e1")) return url.href;
+    return null;
+  } catch { return null; }
 }
 
-export function mapsDestination(page: { placeId: string | null; mapsUrl: string | null; businessName: string | null }) {
+// Pages connected before the links were stored have none; a place ID is enough to build both.
+export function reviewDestination(page: { placeId: string | null; reviewUrl: string | null; mapsUrl?: string | null; businessName?: string | null }) {
+  return directReviewLink(page.reviewUrl) ?? (page.placeId || googleLink(page.mapsUrl) ? mapsDestination(page) : null);
+}
+
+export function mapsDestination(page: { placeId: string | null; mapsUrl?: string | null; businessName?: string | null }) {
   return googleLink(page.mapsUrl) ?? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(page.businessName ?? "Google")}&query_place_id=${encodeURIComponent(page.placeId ?? "")}`;
 }
 
@@ -109,6 +119,7 @@ export async function connectReviewPage(cardId: number, ownerId: number, place: 
     // The owner row is locked above, so two setups at once cannot both slip under the weekly limit.
     const usage = await setupUsage(tx, owner);
     if (!usage.canSetup) throw new ReviewPlanLimitError(setupLimitMessage(usage));
+    const [previous] = await tx.select({ placeId: googleReviewPages.placeId, reviewUrl: googleReviewPages.reviewUrl }).from(googleReviewPages).where(eq(googleReviewPages.cardId, cardId)).limit(1);
     const data = {
       placeId: place.id,
       businessName: (place.displayName?.text ?? card.company ?? card.displayName).slice(0, 200),
@@ -119,7 +130,7 @@ export async function connectReviewPage(cardId: number, ownerId: number, place: 
       rating: place.rating != null ? place.rating.toFixed(1) : null,
       reviewCount: place.userRatingCount ?? null,
       mapsUrl: googleLink(place.googleMapsLinks?.placeUri),
-      reviewUrl: googleLink(place.googleMapsLinks?.writeAReviewUri),
+      reviewUrl: directReviewLink(place.googleMapsLinks?.writeAReviewUri) ?? (previous?.placeId === place.id ? directReviewLink(previous.reviewUrl) : null),
       enabled: true,
       lastSyncedAt: new Date(),
       updatedAt: new Date(),
@@ -139,20 +150,21 @@ export async function publicReviewPage(slug: string) {
     slug: page.slug, businessName: page.businessName, rating: page.rating, reviewCount: page.reviewCount,
     mapsUrl: mapsDestination(page),
     reviewUrl: `/api/google-reviews/${encodeURIComponent(page.slug)}/write`, logoUrl: typeof page.branding.logoUrl === "string" ? page.branding.logoUrl : card.logoUrl,
+    hasDirectReviewLink: Boolean(directReviewLink(page.reviewUrl)),
     branding: page.branding, cardSlug: card.slug, showOnCard: page.showOnCard,
   };
 }
 
 export async function publicReviewDestination(slug: string) {
   const db = await database();
-  const [page] = await db.select({ placeId: googleReviewPages.placeId, reviewUrl: googleReviewPages.reviewUrl }).from(googleReviewPages).where(and(eq(googleReviewPages.slug, slug), eq(googleReviewPages.enabled, true))).limit(1);
+  const [page] = await db.select({ placeId: googleReviewPages.placeId, reviewUrl: googleReviewPages.reviewUrl, mapsUrl: googleReviewPages.mapsUrl, businessName: googleReviewPages.businessName }).from(googleReviewPages).where(and(eq(googleReviewPages.slug, slug), eq(googleReviewPages.enabled, true))).limit(1);
   return page ? reviewDestination(page) : null;
 }
 
 export async function reviewPageForCard(cardId: number) {
   const db = await database();
-  const [page] = await db.select({ slug: googleReviewPages.slug, businessName: googleReviewPages.businessName, rating: googleReviewPages.rating, reviewCount: googleReviewPages.reviewCount }).from(googleReviewPages).innerJoin(cards, eq(cards.id, googleReviewPages.cardId)).where(and(eq(googleReviewPages.cardId, cardId), eq(googleReviewPages.enabled, true), eq(googleReviewPages.showOnCard, true), eq(cards.published, true), sql`${cards.deletedAt} is null`)).limit(1);
-  return page ?? null;
+  const [page] = await db.select({ slug: googleReviewPages.slug, businessName: googleReviewPages.businessName, rating: googleReviewPages.rating, reviewCount: googleReviewPages.reviewCount, reviewUrl: googleReviewPages.reviewUrl }).from(googleReviewPages).innerJoin(cards, eq(cards.id, googleReviewPages.cardId)).where(and(eq(googleReviewPages.cardId, cardId), eq(googleReviewPages.enabled, true), eq(googleReviewPages.showOnCard, true), eq(cards.published, true), sql`${cards.deletedAt} is null`)).limit(1);
+  return page ? { slug: page.slug, businessName: page.businessName, rating: page.rating, reviewCount: page.reviewCount, hasDirectReviewLink: Boolean(directReviewLink(page.reviewUrl)) } : null;
 }
 
 export type ReviewEventType = "page_view" | "qr_scan" | "nfc_tap" | "google_review_click" | "view_google_maps_click" | "review_completion_acknowledged";
@@ -181,7 +193,7 @@ export async function deleteReviewPage(cardId: number, ownerId: number) {
   return Boolean(page);
 }
 
-export async function updateReviewSettings(cardId: number, ownerId: number, patch: { enabled?: boolean; showOnCard?: boolean; branding?: Record<string, unknown> }) {
+export async function updateReviewSettings(cardId: number, ownerId: number, patch: { enabled?: boolean; showOnCard?: boolean; reviewUrl?: string | null; branding?: Record<string, unknown> }) {
   const db = await database();
   const [page] = await db.update(googleReviewPages).set({ ...patch, updatedAt: new Date() }).where(and(eq(googleReviewPages.cardId, cardId), eq(googleReviewPages.ownerUserId, ownerId))).returning();
   return page ?? null;

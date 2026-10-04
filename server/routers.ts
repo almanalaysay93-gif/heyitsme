@@ -57,7 +57,7 @@ import {
 } from "./billing/gate";
 import { getPlaceDetails, searchBusinesses, signSelection, verifyConfirmedPlace, verifySelection } from "./googlePlaces";
 import { PlacesCapError, placesUsageReport, savePlacesSettings } from "./googlePlacesUsage";
-import { assertSetupAvailable, connectReviewPage, deleteReviewPage, ownerReviewPage, publicReviewPage, reviewConnectionAllowance, ReviewPlanLimitError, reviewPageForCard, reviewSummary, trackReviewEvent, updateReviewSettings } from "./googleReviews";
+import { assertSetupAvailable, connectReviewPage, deleteReviewPage, directReviewLink, ownerReviewPage, publicReviewPage, reviewConnectionAllowance, ReviewPlanLimitError, reviewPageForCard, reviewSummary, trackReviewEvent, updateReviewSettings } from "./googleReviews";
 
 // Rendered as <img src>, so only http(s) or same-origin storage paths — never data:/javascript:.
 const imageUrl = z
@@ -352,8 +352,9 @@ export const appRouter = router({
     ownerPage: protectedProcedure.input(z.object({ cardId: z.number().int().positive() })).query(({ ctx, input }) => ownerReviewPage(input.cardId, ctx.user.id)),
     allowance: protectedProcedure.input(z.object({ cardId: z.number().int().positive() })).query(({ ctx, input }) => reviewConnectionAllowance(input.cardId, ctx.user.id)),
     summary: protectedProcedure.input(z.object({ cardId: z.number().int().positive(), days: z.union([z.literal(1), z.literal(7), z.literal(30), z.literal(90)]).nullable() })).query(({ ctx, input }) => reviewSummary(input.cardId, ctx.user.id, input.days)),
-    settings: protectedProcedure.input(z.object({ cardId: z.number().int().positive(), enabled: z.boolean().optional(), showOnCard: z.boolean().optional() })).mutation(async ({ ctx, input }) => {
+    settings: protectedProcedure.input(z.object({ cardId: z.number().int().positive(), enabled: z.boolean().optional(), showOnCard: z.boolean().optional(), reviewUrl: z.string().url().max(2048).nullable().optional() })).mutation(async ({ ctx, input }) => {
       const { cardId, ...patch } = input;
+      if (patch.reviewUrl && !directReviewLink(patch.reviewUrl)) throw new TRPCError({ code: "BAD_REQUEST", message: "Paste the review link from your Google Business Profile." });
       const page = await updateReviewSettings(cardId, ctx.user.id, patch);
       if (!page) throw new TRPCError({ code: "NOT_FOUND", message: "Review page not found." });
       return page;
