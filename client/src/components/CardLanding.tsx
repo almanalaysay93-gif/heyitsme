@@ -51,6 +51,7 @@ import { toast } from "sonner";
 import "./cardLanding.css";
 import { fontStack, renderedBackground } from "@shared/design";
 import { QrPreview } from "./QrPreview";
+import { ReviewForm, type ReviewInput } from "./ReviewForm";
 import "./proDesign.css";
 import "./proFonts.css";
 
@@ -87,6 +88,8 @@ export type CardLandingProps = {
   onCopyLink: () => void;
   /** Demo card only: booking and phone actions explain themselves instead of leaving the page. */
   onDemoAction?: (kind: "booking" | "phone" | "link") => void;
+  /** Sends a visitor's review to the owner. Business and Services cards only; without it no review form shows. */
+  onReview?: (review: ReviewInput) => Promise<void>;
   track: Track;
   /** Company cards only: the banners running now and the files the company approved for this card. */
   team?: CardTeamExtras | null;
@@ -154,7 +157,7 @@ function WebsiteShot({ request, title }: { request: string; title: string }) {
 }
 
 export function CardLanding(props: CardLandingProps) {
-  const { card, config, references, googleReview, interactive, canExchange, pageUrl, onSaveContact, onExchange, onShare, onCopyLink, track, onDemoAction } = props;
+  const { card, config, references, googleReview, interactive, canExchange, pageUrl, onSaveContact, onExchange, onShare, onCopyLink, track, onDemoAction, onReview } = props;
   // Only the form depends on the quota. Save contact, QR and links always work.
   const showExchange = canExchange && props.acceptsDetails !== false;
   const branded = !config.hideBranding;
@@ -232,6 +235,11 @@ export function CardLanding(props: CardLandingProps) {
               : design.radius === "medium"
                 ? "16px"
                 : "24px",
+          ...(design.radius === "small"
+            ? { "--radius-panel": "10px", "--radius-media": "8px" }
+            : design.radius === "medium"
+              ? { "--radius-panel": "18px", "--radius-media": "14px" }
+              : {}),
         }
       : {}),
     ["--accent" as string]: accent,
@@ -240,6 +248,8 @@ export function CardLanding(props: CardLandingProps) {
   };
 
   const template = config.template;
+  // Visitors can review a Business or Services card. The Professional page shows the owner's references only.
+  const takesReviews = Boolean(interactive && onReview && template !== "professional");
   const address = config.address || card.location;
   // The builder preview sits inside the builder's own <main>: one main landmark per page.
   const MainTag = interactive ? "main" : "div";
@@ -279,7 +289,7 @@ export function CardLanding(props: CardLandingProps) {
     services: config.services.length > 0,
     visit: config.hours.length > 0 || Boolean(address),
     portfolio: portfolio.length > 0,
-    references: references.length > 0 || Boolean(googleReview && googleReview.showOnCard !== false),
+    references: references.length > 0 || takesReviews || Boolean(googleReview && googleReview.showOnCard !== false),
     contact: contactRows.length > 0 || channels.length > 0,
     contactPersons: config.contactPersons.length > 0,
     resourceLinks: config.links.length > 0,
@@ -514,11 +524,14 @@ export function CardLanding(props: CardLandingProps) {
       case "references":
         return (
           <>
-            {heading("Kind words", config.referencesHeading)}
+            {heading(template === "professional" ? "Kind words" : "Client reviews", config.referencesHeading)}
             {references.length > 0 ? (
               <div className="lx-quotes">
                 {references.map((reference) => (
                   <figure className="lx-quote" key={reference.id}>
+                    {reference.rating ? (
+                      <span className="lx-stars lx-quote-stars" style={{ "--fill": `${reference.rating * 20}%` } as React.CSSProperties} role="img" aria-label={`${reference.rating} out of 5 stars`}>★★★★★</span>
+                    ) : null}
                     <blockquote>{reference.quote}</blockquote>
                     <figcaption>
                       <strong>{reference.clientName}</strong>
@@ -528,6 +541,7 @@ export function CardLanding(props: CardLandingProps) {
                 ))}
               </div>
             ) : null}
+            {takesReviews && onReview ? <ReviewForm onSubmit={onReview} /> : null}
             {googleReview && googleReview.showOnCard !== false ? (
               <div className={`lx-review${references.length > 0 ? " has-quotes" : ""}`}>
                 <div className="lx-review-head">

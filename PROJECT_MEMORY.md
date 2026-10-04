@@ -319,3 +319,17 @@ Seats and per-team entitlements. No Teams price, no checkout: the owner has not 
 - Tests: `server/teams/teamSeats.test.ts` (8).
 - Not built: Teams checkout through 2C2P, per-seat price, renewals, receipts. Needs the owner's pricing first. Then `accessUntil` and `seatLimit` are what a settled payment should set.
 - Known gap: a member editing their own company card through the personal card editor is not paused when the plan has ended.
+
+## 2026-10-04 — Card builder rearranged into tabs (Claude, branch `feat/builder-tabs`, NOT merged)
+- Builder is now four tabs: Profile, Contact, Page, Design (+ Preview tab on phones). Short heading, pinned toolbar with tabs and save buttons, Next/Back at the foot of each tab.
+- Groups inside tabs are folds (`client/src/components/Fold.tsx`), closed by default, with counts and an "Unfinished" flag. All look controls live in Design; free choices first, Pro ones under one "More with Pro" label.
+- `PageDesigner` panels are now `design(extras)`, `template`, `sections`, `accent`, `contact`, `content`. A failed save bumps `errorSignal`; the builder opens the tab with the first bad field and focuses it.
+- `.app-frame` uses `overflow: clip` so pinned bars work (the preview's pinning was broken before).
+- Checked: `pnpm check`, 461 tests, build, browser checks at 1440/1100/390 wide. Waiting for owner's OK before merge and deploy.
+- Still open: `feat/teams` (PHP 899 checkout, pricing section) conflicts with the Teams build on main; owner to decide. Flow clips paused (owner disliked them).
+
+## 2026-10-04 — Builder follow-ups and client reviews (Claude, branch `feat/builder-tabs`, NOT merged)
+- Sections reorder by drag (framer-motion Reorder, grip handle; arrow keys on the handle). Layout corners now reach the card panels. PRO badge on every paid choice. Hover/press feedback across the builder.
+- Professional template: no Google Reviews / reviews-heading block in the builder. Business and Services keep it; the button saves the card first when needed, then opens `/app/google-reviews?card=<id>`.
+- Client reviews (owner decision): on Business and Services cards visitors leave a star rating and review on the public card (`publicCard.review`, 3 per hour per IP, honeypot, max 30 waiting per card). Stored in `references` with new columns `rating`, `fromVisitor` (migration `0021_client_reviews.sql`, also in `ensureSchema`), unapproved until the owner approves in the builder (`references.setApproved`). Professional cards keep owner-typed "Client references".
+- Tests: `server/clientReviews.test.ts` (6). Total 467 pass. Local signed-in harness: `.harness/builder-harness.ts` (git-ignored).

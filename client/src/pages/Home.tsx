@@ -8,7 +8,8 @@ import { CardVisual, Field } from "@/components/CardVisual";
 import type { ContactPatch, ContactRow } from "@/components/ContactsView";
 import { LegalLinks } from "@/components/LegalLinks";
 import { isVideoUrl } from "@/components/LoopVideo";
-import { PageDesigner, OptionalEditor } from "@/components/PageDesigner";
+import { Fold } from "@/components/Fold";
+import { PageDesigner } from "@/components/PageDesigner";
 import { ShareSheet } from "@/components/ShareSheet";
 import {
   DropdownMenu,
@@ -70,6 +71,7 @@ import {
   Mail,
   Menu,
   PanelLeftClose,
+  Palette,
   PanelLeftOpen,
   Pencil,
   PenLine,
@@ -85,7 +87,7 @@ import {
   Upload,
   UsersRound,
 } from "lucide-react";
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 import { InfoDialog } from "@/components/InfoDialog";
@@ -206,6 +208,8 @@ function Workspace() {
   const [sharingCard, setSharingCard] = useState<CardDraft | null>(null);
   const [showGuestPublishModal, setShowGuestPublishModal] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  // Bumped on every failed save, so the builder opens the tab with the first bad field and focuses it.
+  const [errorSignal, setErrorSignal] = useState(0);
   const isSavingRef = useRef(false);
   const clearFieldError = (key: string) => {
     setFieldErrors((prev) => {
@@ -388,13 +392,7 @@ function Workspace() {
         setFieldErrors(validation.errors);
         const firstError = Object.values(validation.errors)[0];
         toast.error(firstError);
-        const firstKey = Object.keys(validation.errors)[0];
-        // Every validated control carries id="field-<key>", so the first error is always reachable, even far down on a phone.
-        const el = document.getElementById(`field-${firstKey}`);
-        if (el) {
-          el.scrollIntoView({ block: "center", behavior: "smooth" });
-          (el as HTMLElement).focus({ preventScroll: true });
-        }
+        setErrorSignal((count) => count + 1);
         return null;
       }
       setFieldErrors({});
@@ -937,11 +935,16 @@ function Workspace() {
                 onUpload={addMediaFile}
                 isAuthenticated={isAuthenticated}
                 fieldErrors={fieldErrors}
+                errorSignal={errorSignal}
                 onClearError={clearFieldError}
                 isDirty={isDirty}
                 onPagePending={setPagePending}
                 canRemoveBranding={Boolean(billing.data?.entitlements.canRemoveBranding)}
                 onLockedBranding={() => openUpgrade("branding")}
+                onSetupGoogle={async () => {
+                  const saved = await saveDraft({ redirect: false });
+                  if (saved) navigate(`/app/google-reviews?card=${saved.id}`);
+                }}
                 onAddReference={async (reference: Omit<ReferenceRow, "id">) => {
                   if (isAuthenticated && draft.id > 0) {
                     try {
@@ -1282,6 +1285,17 @@ function CardsView({
   );
 }
 
+// The builder's tabs, in the order a new owner fills them in. `fields` are the validated fields each tab holds.
+const BUILDER_TABS = [
+  { id: "profile", label: "Profile", icon: CircleUserRound, fields: ["displayName", "title", "company", "location", "bio"] },
+  { id: "contact", label: "Contact", icon: Mail, fields: ["email", "phone", "links", "channels", "contactHeading"] },
+  { id: "page", label: "Page", icon: LayoutGrid, fields: ["portfolio", "galleryHeading", "portfolioHeading"] },
+  { id: "design", label: "Design", icon: Palette, fields: [] },
+] as const;
+type BuilderTab = (typeof BUILDER_TABS)[number]["id"];
+// These show their error while the owner types; the rest only after a save is refused.
+const LIVE_CHECKED = ["email", "phone", "links"];
+
 function BuilderView({
   draft,
   setDraft,
@@ -1294,237 +1308,373 @@ function BuilderView({
   onDeleteReference,
   isAuthenticated,
   fieldErrors = {},
+  errorSignal = 0,
   onClearError,
   isDirty = false,
   onPagePending,
   canRemoveBranding = false,
   onLockedBranding,
+  onSetupGoogle,
 }: any) {
-  const [mobileTab, setMobileTab] = useState<"edit" | "preview">("edit");
+  const [tab, setTab] = useState<BuilderTab>("profile");
+  // On a phone the preview takes the place of the form, so there it is one more tab.
+  const [mobilePreview, setMobilePreview] = useState(false);
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+  const layoutRef = useRef<HTMLDivElement>(null);
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   // Same query key as the references editor below, so this reuses its data rather than fetching twice.
   const previewReferences = trpc.references.list.useQuery({ cardId: draft.id }, { enabled: isAuthenticated && draft.id > 0 });
   const update = (key: keyof CardDraft, value: string) => setDraft((current: CardDraft) => ({ ...current, [key]: value }));
   const page = parsePageConfig(draft.page);
-  const liveErrors = validateCardData(draft).errors;
+  const liveErrors: Record<string, string> = validateCardData(draft).errors;
+  const selected = mobilePreview ? "preview" : tab;
+  const portfolioCount = parsePortfolio(draft.portfolio).length;
+  const referenceCount = previewReferences.data?.length ?? 0;
+  const waitingReviews = ((previewReferences.data as ReferenceRow[] | undefined) ?? []).filter((reference) => reference.approved === false).length;
+
+  const openTab = (next: BuilderTab | "preview") => {
+    if (next === "preview") setMobilePreview(true);
+    else {
+      setTab(next);
+      setMobilePreview(false);
+    }
+    // A shorter tab would leave the reader past its end, so bring its top back under the pinned bar.
+    requestAnimationFrame(() => {
+      const layout = layoutRef.current;
+      if (layout && layout.getBoundingClientRect().top < 96) layout.scrollIntoView({ block: "start" });
+    });
+  };
+
+  const onTabKey = (event: KeyboardEvent<HTMLButtonElement>, id: string) => {
+    // Preview is a tab on phones only, so step through the tabs that are on screen.
+    const ids = [...BUILDER_TABS.map((item) => item.id as string), "preview"].filter((key) => tabRefs.current[key]?.offsetParent);
+    const index = ids.indexOf(id);
+    const next =
+      event.key === "ArrowRight" ? ids[(index + 1) % ids.length]
+      : event.key === "ArrowLeft" ? ids[(index - 1 + ids.length) % ids.length]
+      : event.key === "Home" ? ids[0]
+      : event.key === "End" ? ids[ids.length - 1]
+      : null;
+    if (!next) return;
+    event.preventDefault();
+    openTab(next as BuilderTab | "preview");
+    tabRefs.current[next]?.focus();
+  };
+
+  // A failed save names its first bad field. That field may sit on another tab, so open the tab, then focus it.
+  useEffect(() => {
+    if (!errorSignal) return;
+    const key = Object.keys(fieldErrors)[0];
+    if (!key) return;
+    const owner = BUILDER_TABS.find((item) => (item.fields as readonly string[]).includes(key));
+    if (owner) {
+      setTab(owner.id);
+      setMobilePreview(false);
+    }
+    setFocusKey(key);
+  }, [errorSignal]);
+  useEffect(() => {
+    if (!focusKey) return;
+    // Every validated control carries id="field-<key>", so the first error is always reachable.
+    const el = document.getElementById(`field-${focusKey}`);
+    if (el) {
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      el.focus({ preventScroll: true });
+    }
+    setFocusKey(null);
+  }, [focusKey]);
+
+  const panelProps = (id: BuilderTab) => ({
+    id: `builder-panel-${id}`,
+    role: "tabpanel",
+    "aria-labelledby": `builder-tab-${id}`,
+    hidden: tab !== id,
+    className: "builder-panel",
+  });
+  const stepNav = (id: BuilderTab) => {
+    const index = BUILDER_TABS.findIndex((item) => item.id === id);
+    const prev = BUILDER_TABS[index - 1];
+    const next = BUILDER_TABS[index + 1];
+    return (
+      <div className="builder-panel-nav">
+        {prev ? <button type="button" className="text-button" onClick={() => openTab(prev.id)}>← {prev.label}</button> : <span />}
+        {next ? <button type="button" className="outline-button" onClick={() => openTab(next.id)}>Next: {next.label} →</button> : null}
+      </div>
+    );
+  };
+
   return (
     <motion.div className="builder-page" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className="page-heading-row builder-heading">
-        <div>
-          <button className="back-button" onClick={onCancel}>← Back to cards</button>
-          <span className="section-kicker"><Sparkles size={14} /> Card builder</span>
-          <h1>Make it<br /><em>unmistakably you.</em></h1>
-          {!isAuthenticated ? (
-            <div className="guest-builder-banner">
-              <span className="status-dot" />
-              <span>Saved on this browser. Sign in to publish and sync.</span>
-            </div>
-          ) : null}
+      <div className="builder-head">
+        <button className="back-button" onClick={onCancel}>← Back to cards</button>
+        <h1>{draft.id > 0 ? "Edit card" : "New card"}</h1>
+        {!isAuthenticated ? (
+          <div className="guest-builder-banner">
+            <span className="status-dot" />
+            <span>Saved on this browser. Sign in to publish and sync.</span>
+          </div>
+        ) : (
+          <p className="field-hint">{draft.published ? "This card is public. Saving updates the live page." : "Save draft keeps this card private. Publish makes it public and copies its link."}</p>
+        )}
+      </div>
+
+      <div className="builder-toolbar">
+        <div className="builder-tabs" role="tablist" aria-label="Card builder">
+          {BUILDER_TABS.map((item) => (
+            <button
+              key={item.id}
+              ref={(node) => { tabRefs.current[item.id] = node; }}
+              type="button"
+              role="tab"
+              id={`builder-tab-${item.id}`}
+              aria-selected={selected === item.id}
+              aria-controls={`builder-panel-${item.id}`}
+              tabIndex={selected === item.id ? 0 : -1}
+              className="builder-tab"
+              onClick={() => openTab(item.id)}
+              onKeyDown={(event) => onTabKey(event, item.id)}
+            >
+              <item.icon size={15} aria-hidden="true" />
+              {item.label}
+              {(item.fields as readonly string[]).some((key) => fieldErrors[key] || (LIVE_CHECKED.includes(key) && liveErrors[key])) ? <span className="builder-tab-alert" role="img" aria-label="needs a fix" /> : null}
+            </button>
+          ))}
+          <button
+            ref={(node) => { tabRefs.current.preview = node; }}
+            type="button"
+            role="tab"
+            id="builder-tab-preview"
+            aria-selected={selected === "preview"}
+            aria-controls="builder-preview-panel"
+            tabIndex={selected === "preview" ? 0 : -1}
+            className="builder-tab is-preview"
+            onClick={() => openTab("preview")}
+            onKeyDown={(event) => onTabKey(event, "preview")}
+          >
+            <Eye size={15} aria-hidden="true" />
+            Preview
+          </button>
         </div>
         <div className="builder-save-actions">
-          {!isDirty ? (
+          {isDirty ? (
+            <button className="text-button" onClick={onCancel}>Discard changes</button>
+          ) : (
             <span className="save-status-indicator" title={isAuthenticated ? "All changes saved to your account" : "All changes saved in this browser"}>
               <Check size={14} /> Saved
             </span>
-          ) : null}
-          <button className="text-button" onClick={onCancel}>Discard changes</button>
+          )}
           <button className="publish-copy-button" onClick={onPublishAndCopy} disabled={saving}>
             {!isAuthenticated ? (
-              <><LogIn size={15} /> Sign in to publish</>
+              <><LogIn size={15} /> <span className="label-long">Sign in to publish</span><span className="label-short">Sign in</span></>
+            ) : saving ? (
+              <><Share2 size={15} /> Publishing…</>
+            ) : draft.published ? (
+              <><Share2 size={15} /> <span className="label-long">Save & copy public link</span><span className="label-short">Copy link</span></>
             ) : (
-              <><Share2 size={15} /> {saving ? "Publishing…" : (draft.published ? "Save & copy public link" : "Publish & copy link")}</>
+              <><Share2 size={15} /> <span className="label-long">Publish & copy link</span><span className="label-short">Publish</span></>
             )}
           </button>
           <GlassButton onClick={onSave} disabled={saving}>
-            {saving ? "Saving…" : <><Check size={16} /> {draft.published ? "Save live changes" : "Save draft"}</>}
+            {saving ? "Saving…" : <><Check size={16} /> <span className="label-long">{draft.published ? "Save live changes" : "Save draft"}</span><span className="label-short">Save</span></>}
           </GlassButton>
         </div>
       </div>
 
-      <p className="field-hint">{draft.published ? "This card is public. Saving updates the live page." : "Save draft keeps this card private. Publish makes it public and copies its link."}</p>
-      <div className="mobile-builder-tabs" role="tablist" aria-label="Builder view">
-        <button
-          type="button"
-          role="tab"
-          id="mobile-tab-edit"
-          aria-selected={mobileTab === "edit"}
-          aria-controls="builder-form-panel"
-          className={`mobile-tab-btn ${mobileTab === "edit" ? "is-active" : ""}`}
-          onClick={() => setMobileTab("edit")}
-        >
-          <PenLine size={15} /> Edit
-        </button>
-        <button
-          type="button"
-          role="tab"
-          id="mobile-tab-preview"
-          aria-selected={mobileTab === "preview"}
-          aria-controls="builder-preview-panel"
-          className={`mobile-tab-btn ${mobileTab === "preview" ? "is-active" : ""}`}
-          onClick={() => setMobileTab("preview")}
-        >
-          <Eye size={15} /> Preview
-        </button>
-      </div>
-
-      <div className={`builder-layout mobile-view-${mobileTab}`}>
+      <div ref={layoutRef} className={`builder-layout mobile-view-${mobilePreview ? "preview" : "edit"}`}>
         <PageDesigner value={draft.page} onChange={(value) => update("page", value)} themeAccent={themeAccent(draft.theme)} onPendingChange={onPagePending} avatarUrl={draft.avatarUrl} initials={getInitials(draft.displayName || "")} canRemoveBranding={canRemoveBranding} onLockedBranding={onLockedBranding} onUploadImage={onUpload}>
         {(panels) => (
-        <div id="builder-form-panel" className="builder-form glass-panel" role="tabpanel" aria-labelledby="mobile-tab-edit">
-          <div className="form-section">
-            <div className="form-section-heading">
-              <span>01</span>
-              <div>
-                <h2>Template & layout</h2>
-                <p>Pick how your page reads, then choose which sections show and in what order.</p>
+        <div id="builder-form-panel" className="builder-form glass-panel">
+          <section {...panelProps("profile")}>
+            <div className="builder-panel-head">
+              <h2>Profile</h2>
+              <p>Who you are: photo, name and a short introduction.</p>
+            </div>
+            <div className="builder-panel-body">
+              <div className="form-section">
+                <div className="media-picker-row">
+                  <ImagePicker label="Profile photo" hint="Square works best" shape="round" value={draft.avatarUrl} onChange={(value) => update("avatarUrl", value)} onUpload={onUpload} />
+                  <ImagePicker label="Cover" hint="Wide image, or a muted video loop up to 3MB" shape="wide" allowVideo value={draft.coverUrl} onChange={(value) => update("coverUrl", value)} onUpload={onUpload} />
+                </div>
+                <div className="field-grid">
+                  <Field id="field-displayName" label="Your name" value={draft.displayName} onChange={(value: string) => { update("displayName", value); onClearError?.("displayName"); }} error={fieldErrors.displayName} placeholder="Alex Morgan" required hint={(draft as any).id > 0 ? "Your card link stays the same when you change your name." : undefined} />
+                  <Field id="field-title" label="Role / title" value={draft.title} onChange={(value: string) => { update("title", value); onClearError?.("title"); }} error={fieldErrors.title} placeholder="Creative director" />
+                  <Field id="field-company" label="Company" value={draft.company} onChange={(value: string) => { update("company", value); onClearError?.("company"); }} error={fieldErrors.company} placeholder="Studio North" />
+                  <Field id="field-location" label="Address or service area" value={panels.address || draft.location} onChange={(value: string) => { panels.setAddress(value); update("location", value); onClearError?.("location"); }} error={fieldErrors.location} placeholder="Street address, city, or service area" hint="Used on your page, directions, and contact card. Maximum 160 characters." />
+                  {page.address && draft.location && page.address !== draft.location ? <p className="field-hint">Previous location: {draft.location}. Edit the address to use one value everywhere.</p> : null}
+                </div>
+                <label className="field-label">
+                  <span>About you</span>
+                  <textarea id="field-bio" value={draft.bio} onChange={(event) => update("bio", event.target.value)} placeholder="What do you want people to remember about you?" />
+                </label>
               </div>
             </div>
-            {panels.layout}
-            {panels.content}
-          </div>
+            {stepNav("profile")}
+          </section>
 
-          <div className="form-section">
-            <div className="form-section-heading">
-              <span>02</span>
-              <div>
-                <h2>Essentials</h2>
-                <p>Enough context to make the hello feel natural.</p>
+          <section {...panelProps("contact")}>
+            <div className="builder-panel-head">
+              <h2>Contact</h2>
+              <p>How people reach you. To hide or reorder these on your page, use Sections in the Page tab.</p>
+            </div>
+            <div className="builder-panel-body">
+              <div className="form-section">
+                <div className="field-grid">
+                  <Field id="field-email" label="Email" value={draft.email} onChange={(value: string) => { update("email", value); onClearError?.("email"); }} error={fieldErrors.email || liveErrors.email} placeholder="hello@you.co" type="email" />
+                  <Field id="field-phone" label="Phone" value={draft.phone} onChange={(value: string) => { update("phone", value); onClearError?.("phone"); }} error={fieldErrors.phone || liveErrors.phone} placeholder="+1 415 555 0183" />
+                </div>
+                <label className="field-label" htmlFor="field-links">
+                  <span>Links</span>
+                  <input
+                    id="field-links"
+                    value={parseLinks(draft.links).join(", ")}
+                    onChange={(event) => { update("links", JSON.stringify(event.target.value.split(",").map((item) => item.trim()).filter(Boolean))); onClearError?.("links"); }}
+                    aria-invalid={Boolean(fieldErrors.links || liveErrors.links)}
+                    aria-describedby={(fieldErrors.links || liveErrors.links) ? "field-links-error" : undefined}
+                    className={(fieldErrors.links || liveErrors.links) ? "has-error" : undefined}
+                    placeholder="yourwebsite.com, linkedin.com/in/you"
+                  />
+                  {(fieldErrors.links || liveErrors.links) ? <span id="field-links-error" className="field-error-text" role="alert">{fieldErrors.links || liveErrors.links}</span> : null}
+                </label>
+              </div>
+
+              <div className="form-section">
+                <div className="pd-block-head">
+                  <h3>Social &amp; messaging channels</h3>
+                </div>
+                <Field id="field-contactHeading" label="Contact heading" value={draft.contactHeading || ""} onChange={(value: string) => update("contactHeading", value)} placeholder="Pick the easiest way in." />
+                {fieldErrors.channels ? <span id="field-channels" tabIndex={-1} className="field-error-text" role="alert">{fieldErrors.channels}</span> : null}
+                <ChannelsEditor raw={draft.channels} onChange={(value: string) => { update("channels", value); onClearError?.("channels"); }} />
+              </div>
+
+              <div className="form-section">
+                {panels.contact}
               </div>
             </div>
-            <div className="media-picker-row">
-              <ImagePicker label="Profile photo" hint="Square works best" shape="round" value={draft.avatarUrl} onChange={(value) => update("avatarUrl", value)} onUpload={onUpload} />
-              <ImagePicker label="Cover" hint="Wide image, or a muted video loop up to 3MB" shape="wide" allowVideo value={draft.coverUrl} onChange={(value) => update("coverUrl", value)} onUpload={onUpload} />
-            </div>
-            <div className="field-grid">
-              <Field id="field-displayName" label="Your name" value={draft.displayName} onChange={(value: string) => { update("displayName", value); onClearError?.("displayName"); }} error={fieldErrors.displayName} placeholder="Alex Morgan" required hint={(draft as any).id > 0 ? "Your card link stays the same when you change your name." : undefined} />
-              <Field id="field-title" label="Role / title" value={draft.title} onChange={(value: string) => { update("title", value); onClearError?.("title"); }} error={fieldErrors.title} placeholder="Creative director" />
-              <Field id="field-company" label="Company" value={draft.company} onChange={(value: string) => { update("company", value); onClearError?.("company"); }} error={fieldErrors.company} placeholder="Studio North" />
-              <Field id="field-location" label="Address or service area" value={panels.address || draft.location} onChange={(value: string) => { panels.setAddress(value); update("location", value); onClearError?.("location"); }} error={fieldErrors.location} placeholder="Street address, city, or service area" hint="Used on your page, directions, and contact card. Maximum 160 characters." />
-              {page.address && draft.location && page.address !== draft.location ? <p className="field-hint">Previous location: {draft.location}. Edit the address to use one value everywhere.</p> : null}
-            </div>
-            <label className="field-label">
-              <span>About you</span>
-              <textarea id="field-bio" value={draft.bio} onChange={(event) => update("bio", event.target.value)} placeholder="What do you want people to remember about you?" />
-            </label>
-          </div>
+            {stepNav("contact")}
+          </section>
 
-          <div className="form-section">
-            <div className="form-section-heading">
-              <span>03</span>
-              <div>
-                <h2>Contact &amp; links</h2>
-                <p>Email, phone, websites, and social channels. The Contact & links toggle controls these details.</p>
+          <section {...panelProps("page")}>
+            <div className="builder-panel-head">
+              <h2>Page</h2>
+              <p>What your page shows, and in what order.</p>
+            </div>
+            <div className="builder-panel-body">
+              <div className="form-section">
+                <div className="pd-block-head">
+                  <h3>Template</h3>
+                  <p>Pick how your page reads.</p>
+                </div>
+                {panels.template}
               </div>
-            </div>
-            <div className="field-grid">
-              <Field id="field-email" label="Email" value={draft.email} onChange={(value: string) => { update("email", value); onClearError?.("email"); }} error={fieldErrors.email || liveErrors.email} placeholder="hello@you.co" type="email" />
-              <Field id="field-phone" label="Phone" value={draft.phone} onChange={(value: string) => { update("phone", value); onClearError?.("phone"); }} error={fieldErrors.phone || liveErrors.phone} placeholder="+1 415 555 0183" />
-            </div>
-            <label className="field-label" htmlFor="field-links">
-              <span>Links</span>
-              <input
-                id="field-links"
-                value={parseLinks(draft.links).join(", ")}
-                onChange={(event) => { update("links", JSON.stringify(event.target.value.split(",").map((item) => item.trim()).filter(Boolean))); onClearError?.("links"); }}
-                aria-invalid={Boolean(fieldErrors.links || liveErrors.links)}
-                aria-describedby={(fieldErrors.links || liveErrors.links) ? "field-links-error" : undefined}
-                className={(fieldErrors.links || liveErrors.links) ? "has-error" : undefined}
-                placeholder="yourwebsite.com, linkedin.com/in/you"
-              />
-              {(fieldErrors.links || liveErrors.links) ? <span id="field-links-error" className="field-error-text" role="alert">{fieldErrors.links || liveErrors.links}</span> : null}
-            </label>
-            <Field id="field-contactHeading" label="Contact heading" value={draft.contactHeading || ""} onChange={(value: string) => update("contactHeading", value)} placeholder="Pick the easiest way in." />
-            {fieldErrors.channels ? <span id="field-channels" tabIndex={-1} className="field-error-text" role="alert">{fieldErrors.channels}</span> : null}
-            <ChannelsEditor raw={draft.channels} onChange={(value: string) => { update("channels", value); onClearError?.("channels"); }} />
-            {panels.contact}
-          </div>
 
-          <OptionalEditor optional={page.template === "services" && !parsePortfolio(draft.portfolio).length} label="Portfolio">
-          <div className="form-section">
-            <div className="form-section-heading">
-              <span>04</span>
-              <div>
-                <h2>Portfolio</h2>
-                <p>Add images, videos, files, or a project link. Uploads are served from secure storage.</p>
+              <div className="form-section">
+                {panels.sections}
               </div>
-            </div>
-            {fieldErrors.portfolio ? <span id="field-portfolio" tabIndex={-1} className="field-error-text" role="alert">{fieldErrors.portfolio}</span> : null}
-            <PortfolioEditor
-              raw={draft.portfolio}
-              galleryHeading={draft.galleryHeading || ""}
-              portfolioHeading={draft.portfolioHeading || ""}
-              onUpdateHeading={(field, val) => update(field, val)}
-              onChange={(value: string) => { update("portfolio", value); onClearError?.("portfolio"); }}
-              onUpload={onUpload}
-            />
-          </div>
 
-          </OptionalEditor>
-
-          <OptionalEditor optional={page.template === "services" && !(previewReferences.data?.length)} label="Client references">
-          <div className="form-section">
-            <div className="form-section-heading">
-              <span>05</span>
-              <div>
-                <h2>Client references</h2>
-                <p>Show the thoughtful words people remember after the work is done.</p>
+              <div className="form-section">
+                <div className="pd-block-head">
+                  <h3>Section content</h3>
+                  <p>Open a section to add or edit what it shows.</p>
+                </div>
+                <div className="fold-list">
+                  {panels.content}
+                  <Fold
+                    title="Portfolio"
+                    meta={`${portfolioCount} of ${MAX_PORTFOLIO_ITEMS}`}
+                    hint="Add images, videos, files, or a project link. Uploads are served from secure storage."
+                    forceOpen={Boolean(fieldErrors.portfolio || fieldErrors.galleryHeading || fieldErrors.portfolioHeading)}
+                  >
+                    {fieldErrors.portfolio ? <span id="field-portfolio" tabIndex={-1} className="field-error-text" role="alert">{fieldErrors.portfolio}</span> : null}
+                    <PortfolioEditor
+                      raw={draft.portfolio}
+                      galleryHeading={draft.galleryHeading || ""}
+                      portfolioHeading={draft.portfolioHeading || ""}
+                      onUpdateHeading={(field, val) => update(field, val)}
+                      onChange={(value: string) => { update("portfolio", value); onClearError?.("portfolio"); }}
+                      onUpload={onUpload}
+                    />
+                  </Fold>
+                  <Fold
+                    title={page.template === "professional" ? "Client references" : "Client reviews"}
+                    meta={waitingReviews ? `${waitingReviews} to approve` : referenceCount ? `${referenceCount} added` : undefined}
+                    attention={waitingReviews > 0}
+                    attentionLabel="New"
+                    hint={page.template === "professional" ? "Show the thoughtful words people remember after the work is done." : "Visitors leave reviews on your card page. Approve one to show it. You can also add one yourself."}
+                  >
+                    <ReferencesEditor cardId={draft.id} onAddReference={onAddReference} onDeleteReference={onDeleteReference} isAuthenticated={isAuthenticated} reviews={page.template !== "professional"} />
+                  </Fold>
+                </div>
               </div>
-            </div>
-            <ReferencesEditor cardId={draft.id} onAddReference={onAddReference} onDeleteReference={onDeleteReference} isAuthenticated={isAuthenticated} />
-          </div>
 
-          </OptionalEditor>
-
-          <div className="form-section">
-            <div className="form-section-heading">
-              <span>★</span>
-              <div>
-                <h2>Reviews</h2>
-                <p>Name the reviews section, and connect your Google business to show your rating and a review button on this card.</p>
+              {page.template === "professional" ? null : (
+              <div className="form-section">
+                <div className="pd-block-head">
+                  <h3>Google Reviews</h3>
+                  <p>Connect your Google business to show your rating and a review button on this card.</p>
+                </div>
+                <Field id="field-referencesHeading" label="Section heading" value={panels.referencesHeading} onChange={(value: string) => panels.setReferencesHeading(value.slice(0, 60))} placeholder="Kind words" hint="Title shown above your client references and Google reviews." />
+                {draft.id > 0 && isAuthenticated && !isDirty ? (
+                  <a className="outline-button builder-google" href={`/app/google-reviews?card=${draft.id}`}><Star size={14} /> Set up Google Reviews</a>
+                ) : (
+                  <>
+                    {/* The setup page works on a saved card in an account, so the button first gets the owner there. */}
+                    <button type="button" className="outline-button builder-google" disabled={saving} onClick={isAuthenticated ? onSetupGoogle : onPublishAndCopy}>
+                      <Star size={14} /> {!isAuthenticated ? "Sign in to set up Google Reviews" : draft.id > 0 ? "Save and set up Google Reviews" : "Save card to set up Google Reviews"}
+                    </button>
+                    <p className="fold-hint builder-google-note">{isAuthenticated ? "Saves this card, then opens Google Reviews setup for it." : "Google Reviews connects to a saved card in your account."}</p>
+                  </>
+                )}
               </div>
+              )}
             </div>
-            <Field id="field-referencesHeading" label="Section heading" value={panels.referencesHeading} onChange={(value: string) => panels.setReferencesHeading(value.slice(0, 60))} placeholder="Kind words" hint="Title shown above your client references and Google reviews." />
-            {draft.id > 0 && isAuthenticated
-              ? <a className="outline-button" href={`/app/google-reviews?card=${draft.id}`}><Star size={14} /> Set up Google Reviews</a>
-              : <p className="editor-empty">Save this card first, then connect your Google business.</p>}
-          </div>
+            {stepNav("page")}
+          </section>
 
-          <div className="form-section">
-            <div className="form-section-heading">
-              <span>06</span>
-              <div>
-                <h2>Appearance</h2>
-                <p>Choose a palette and page background that fits your style.</p>
-              </div>
+          <section {...panelProps("design")}>
+            <div className="builder-panel-head">
+              <h2>Design</h2>
+              <p>Theme, colors, type and motion for your page.</p>
             </div>
-            {panels.appearance}
-            <div className="theme-picker">
-              {themeOptions.map((theme) => (
-                <button
-                  type="button"
-                  key={theme.id}
-                  onClick={() => update("theme", theme.id)}
-                  className={`theme-swatch theme-${theme.id} ${draft.theme === theme.id ? "is-selected" : ""}`}
-                >
-                  <span className="swatch-colors">
-                    <i style={{ background: theme.colors[0] }} />
-                    <i style={{ background: theme.colors[1] }} />
-                    <i style={{ background: theme.colors[2] }} />
-                  </span>
-                  <span>{theme.label}</span>
-                  {draft.theme === theme.id ? <Check size={14} /> : null}
-                </button>
-              ))}
+            <div className="builder-panel-body">
+              {panels.design(
+                <>
+                  <Fold title="Background photo">
+                    <div className="media-picker-row">
+                      <ImagePicker label="Page background" hint="Fills your page behind everything. Image up to 3MB" shape="wide" value={draft.backgroundUrl} onChange={(value) => update("backgroundUrl", value)} onUpload={onUpload} />
+                    </div>
+                  </Fold>
+                  <Fold title="Palette & accent">
+                    <div className="theme-picker">
+                      {themeOptions.map((theme) => (
+                        <button
+                          type="button"
+                          key={theme.id}
+                          onClick={() => update("theme", theme.id)}
+                          className={`theme-swatch theme-${theme.id} ${draft.theme === theme.id ? "is-selected" : ""}`}
+                        >
+                          <span className="swatch-colors">
+                            <i style={{ background: theme.colors[0] }} />
+                            <i style={{ background: theme.colors[1] }} />
+                            <i style={{ background: theme.colors[2] }} />
+                          </span>
+                          <span>{theme.label}</span>
+                          {draft.theme === theme.id ? <Check size={14} /> : null}
+                        </button>
+                      ))}
+                    </div>
+                    {panels.accent}
+                  </Fold>
+                </>
+              )}
             </div>
-            <div className="media-picker-row">
-              <ImagePicker label="Page background" hint="Fills your page behind everything. Image up to 3MB" shape="wide" value={draft.backgroundUrl} onChange={(value) => update("backgroundUrl", value)} onUpload={onUpload} />
-            </div>
-          </div>
+            {stepNav("design")}
+          </section>
         </div>
 
         )}
         </PageDesigner>
 
-        <div id="builder-preview-panel" className="builder-preview-column" role="tabpanel" aria-labelledby="mobile-tab-preview">
+        <div id="builder-preview-panel" className="builder-preview-column" role="tabpanel" aria-labelledby="builder-tab-preview">
           <div className={`preview-sticky${draft.backgroundUrl ? " has-page-bg" : ""}`}>
             {draft.backgroundUrl ? (
               <div className="preview-page-bg" aria-hidden="true">
@@ -1535,7 +1685,7 @@ function BuilderView({
               <span>Live preview</span>
               <span><span className="status-dot" /> updates as you type</span>
             </div>
-            <LandingPreview card={{ ...draft, displayName: draft.displayName || "Your name", title: draft.title || "Your title" }} references={(previewReferences.data as ReferenceRow[] | undefined) ?? []} />
+            <LandingPreview card={{ ...draft, displayName: draft.displayName || "Your name", title: draft.title || "Your title" }} references={((previewReferences.data as ReferenceRow[] | undefined) ?? []).filter((reference) => reference.approved !== false)} />
             <div className="preview-tip">
               <Sparkles size={15} />
               <span>Keep it light. Your card can do the talking.</span>
@@ -1999,7 +2149,10 @@ function ReferencesEditor({
   onAddReference,
   onDeleteReference,
   isAuthenticated,
+  reviews = false,
 }: {
+  /** Business and Services cards: visitors leave these, and the owner approves them here. */
+  reviews?: boolean;
   cardId: number;
   onAddReference: (reference: Omit<ReferenceRow, "id">) => Promise<void>;
   onDeleteReference?: (id: number) => Promise<void>;
@@ -2054,6 +2207,17 @@ function ReferencesEditor({
     }
   };
 
+  const setApproved = trpc.references.setApproved.useMutation();
+  const approve = async (id: number, approved: boolean) => {
+    try {
+      await setApproved.mutateAsync({ id, approved });
+      await referencesQuery.refetch();
+      toast.success(approved ? "Review is now on your card." : "Review hidden from your card.");
+    } catch {
+      toast.error("Could not update that review. Try again.");
+    }
+  };
+
   const remove = async (id: number) => {
     if (onDeleteReference && isAuthenticated && cardId > 0) {
       await onDeleteReference(id);
@@ -2086,26 +2250,33 @@ function ReferencesEditor({
           onClick={() => void add()}
           disabled={submitting || cardId <= 0}
         >
-          <Quote size={14} /> {submitting ? "Adding…" : "Add reference"}
+          <Quote size={14} /> {submitting ? "Adding…" : reviews ? "Add review" : "Add reference"}
         </button>
         {cardId <= 0 && <small style={{ color: "var(--muted-foreground, #888)", display: "block", marginTop: "4px" }}>Save card first to attach references.</small>}
       </div>
       <div className="reference-mini-list">
-        {references.slice(0, 5).map((reference) => (
-          <div className="reference-mini" key={reference.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        {/* Reviews waiting for approval come first, and all of them show, so none is missed. */}
+        {[...references.filter((reference) => reference.approved === false), ...references.filter((reference) => reference.approved !== false).slice(0, 5)].map((reference) => (
+          <div className={`reference-mini${reference.approved === false ? " is-waiting" : ""}`} key={reference.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div style={{ display: "flex", gap: "10px" }}>
               <Quote size={14} />
               <div>
+                {reference.rating ? <span className="reference-stars" role="img" aria-label={`${reference.rating} out of 5 stars`}>{"★".repeat(reference.rating)}{"☆".repeat(5 - reference.rating)}</span> : null}
                 <p>“{reference.quote}”</p>
-                <span>{reference.clientName}{reference.company ? ` · ${reference.company}` : ""}</span>
+                <span>{reference.clientName}{reference.company ? ` · ${reference.company}` : ""}{reference.fromVisitor ? (reference.approved === false ? " · waiting for your approval" : " · from a visitor") : ""}</span>
               </div>
             </div>
+            {reference.fromVisitor ? (
+              <button className="outline-button reference-approve" type="button" disabled={setApproved.isPending} onClick={() => void approve(reference.id, reference.approved === false)}>
+                {reference.approved === false ? "Approve" : "Hide"}
+              </button>
+            ) : null}
             <button className="icon-button" type="button" onClick={() => void remove(reference.id)} title="Delete reference" aria-label={`Delete reference from ${reference.clientName}`}>
               <Trash2 size={13} />
             </button>
           </div>
         ))}
-        {references.length === 0 && <p className="editor-empty">No references added yet.</p>}
+        {references.length === 0 && <p className="editor-empty">{reviews ? "No reviews yet. Share your card and visitors can leave one." : "No references added yet."}</p>}
       </div>
     </div>
   );

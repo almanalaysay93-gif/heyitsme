@@ -15,6 +15,7 @@ import {
 import type { PageConfig } from "@shared/pageConfig";
 import { useBilling, useUpgrade } from "@/lib/billing";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Fold } from "./Fold";
 import { QrPreview } from "./QrPreview";
 import "./proDesign.css";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -65,11 +66,17 @@ export function DesignControls({
   config,
   onChange,
   onUpload,
+  children,
+  proExtras,
 }: {
   config: PageConfig;
   onChange: (config: PageConfig) => void;
   /** Stores an image and returns its link. Without it, the QR logo upload is not offered. */
   onUpload?: (file: File) => Promise<string>;
+  /** More look controls from the builder, listed after the groups anyone can use. */
+  children?: ReactNode;
+  /** More Pro-only controls, listed with the Pro groups. */
+  proExtras?: ReactNode;
 }) {
   const { isAuthenticated } = useAuth();
   const billing = useBilling(isAuthenticated);
@@ -135,6 +142,37 @@ export function DesignControls({
       setUploadingLogo(false);
     }
   };
+  /**
+   * Free choices first. Without Pro, the paid ones follow under a "More with Pro" label,
+   * each with its PRO badge. With Pro, it is one plain grid.
+   */
+  const tiers = <T,>(
+    items: readonly T[],
+    isPaid: (item: T, index: number) => boolean,
+    tile: (item: T, index: number, badge: ReactNode) => ReactNode
+  ) => {
+    const all = items.map((item, index) => ({ item, index }));
+    const paid = pro ? [] : all.filter(({ item, index }) => isPaid(item, index));
+    const free = pro ? all : all.filter(({ item, index }) => !isPaid(item, index));
+    return (
+      <>
+        {free.length ? (
+          <div className="design-grid">
+            {free.map(({ item, index }) => tile(item, index, null))}
+          </div>
+        ) : null}
+        {paid.length ? (
+          <>
+            <p className="design-more">More with Pro</p>
+            <div className="design-grid">
+              {paid.map(({ item, index }) => tile(item, index, <small className="plan-chip plan-chip-pro">PRO</small>))}
+            </div>
+          </>
+        ) : null}
+      </>
+    );
+  };
+  const proBadge = pro ? null : <small className="plan-chip plan-chip-pro">PRO</small>;
   const options = (
     label: string,
     items: readonly string[],
@@ -144,10 +182,11 @@ export function DesignControls({
     inOwnFont = false,
     extra?: ReactNode
   ) => (
-    <details className="design-section">
-      <summary>{label}</summary>
-      <div className="design-grid">
-        {items.map((item, i) => (
+    <Fold title={label}>
+      {tiers(
+        items,
+        (_, i) => i >= freeCount,
+        (item, i, badge) => (
           <button
             type="button"
             key={item}
@@ -160,260 +199,253 @@ export function DesignControls({
             ) : (
               item.replaceAll("-", " ")
             )}
-            {i >= freeCount ? (
-              <small className="plan-chip plan-chip-pro">PRO</small>
-            ) : null}
+            {badge}
           </button>
-        ))}
-      </div>
+        )
+      )}
       {extra}
-    </details>
+    </Fold>
   );
   return (
-    <div className="pro-design">
-      <h2>Design</h2>
-      <p>Free choices preview instantly. Choices marked PRO need a Pro plan.</p>
-      <details className="design-section" open>
-        <summary>Theme</summary>
-        <div className="design-grid">
-          {THEMES.map(t => (
-            <button
-              type="button"
-              key={t.name}
-              aria-pressed={d.theme === t.design.theme}
-              onClick={() => choose(t.design, t.pro)}
-            >
-              <span
-                className="design-swatch"
-                style={{
-                  background: gradientCss(t.design),
-                  color: t.design.text,
-                }}
+    <div className="fold-list">
+      <div className="pro-design">
+        <Fold title="Theme" defaultOpen>
+          {tiers(
+            THEMES,
+            t => t.pro,
+            (t, _, badge) => (
+              <button
+                type="button"
+                key={t.name}
+                aria-pressed={d.theme === t.design.theme}
+                onClick={() => choose(t.design, t.pro)}
               >
-                Aa
-              </span>
-              {t.name}
-              {t.pro ? (
-                <small className="plan-chip plan-chip-pro">PRO</small>
-              ) : null}
-            </button>
-          ))}
-        </div>
-      </details>
-      <details className="design-section">
-        <summary>Color</summary>
-        <div className="design-grid">
-          {COLORS.map(([name, color, text], i) => (
-            <button
-              type="button"
-              key={name}
-              aria-pressed={d.colors[0] === color}
-              onClick={() =>
-                choose(
-                  { colors: [color], text, backgroundType: "solid" },
-                  i > 5
-                )
-              }
-            >
-              <span
-                className="design-swatch"
-                style={{ background: color, color: text }}
+                <span
+                  className="design-swatch"
+                  style={{
+                    background: gradientCss(t.design),
+                    color: t.design.text,
+                  }}
+                >
+                  Aa
+                </span>
+                {t.name}
+                {badge}
+              </button>
+            )
+          )}
+        </Fold>
+        <Fold title="Color">
+          {tiers(
+            COLORS,
+            (_, i) => i > 5,
+            ([name, color, text], i, badge) => (
+              <button
+                type="button"
+                key={name}
+                aria-pressed={d.colors[0] === color}
+                onClick={() =>
+                  choose(
+                    { colors: [color], text, backgroundType: "solid" },
+                    i > 5
+                  )
+                }
               >
-                Aa
-              </span>
-              {name}
-              {i > 5 ? (
-                <small className="plan-chip plan-chip-pro">PRO</small>
-              ) : null}
-            </button>
-          ))}
-        </div>
-      </details>
-      <details className="design-section">
-        <summary>
-          Gradients <small className="plan-chip plan-chip-pro">PRO</small>
-        </summary>
-        <div className="design-grid">
-          {GRADIENTS.map(([name, colors]) => (
-            <button
-              type="button"
-              key={name}
-              onClick={() =>
-                choose(
-                  {
-                    colors: [...colors],
-                    text: name === "Arctic" ? "#111111" : "#FFFFFF",
-                    backgroundType: "gradient",
-                  },
-                  true
-                )
-              }
-            >
-              <span
-                className="design-swatch"
-                style={{
-                  background: gradientCss({
-                    colors: [...colors],
-                    direction: d.direction,
-                  }),
-                }}
-              />
-              {name}
-            </button>
-          ))}
-        </div>
-        <label>
-          Direction
-          <select
-            value={d.direction}
-            disabled={d.colors.length < 2}
-            title={d.colors.length < 2 ? "Pick a gradient first" : undefined}
-            onChange={e =>
-              choose(
-                { direction: e.target.value as CardDesign["direction"] },
-                true
-              )
-            }
-          >
-            {["bottom", "right", "diagonal", "radial"].map(v => (
-              <option key={v}>{v}</option>
+                <span
+                  className="design-swatch"
+                  style={{ background: color, color: text }}
+                >
+                  Aa
+                </span>
+                {name}
+                {badge}
+              </button>
+            )
+          )}
+        </Fold>
+        {options(
+          "Typography",
+          FONTS,
+          d.font,
+          (font, i) => choose({ font }, i > 2),
+          3,
+          true,
+          <>
+            <p className="design-more">Quick picks by style</p>
+            <div className="design-grid">
+              {FONT_PRESETS.map(([name, font], i) => (
+                <button
+                  type="button"
+                  key={name}
+                  onClick={() => choose({ font }, i === 2 || i > 3)}
+                >
+                  <span style={{ fontFamily: fontStack(font) }}>{name}</span>
+                  {!pro && (i === 2 || i > 3) ? (
+                    <small className="plan-chip plan-chip-pro">PRO</small>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+        {options(
+          "Button style",
+          ["solid", "outline", "glass"],
+          d.buttonStyle,
+          (buttonStyle, i) => choose({ buttonStyle }, i > 0),
+          1
+        )}
+        {options(
+          "Background",
+          BACKGROUNDS,
+          d.backgroundType,
+          (backgroundType, i) => choose({ backgroundType }, i > 0),
+          1
+        )}
+        {options(
+          "Animation",
+          ANIMATIONS,
+          d.animation.preset,
+          (preset, i) => choose({ animation: { ...d.animation, preset } }, i > 1),
+          2,
+          false,
+          <div className="animation-extras">
+            <label>
+              Intensity
+              <select
+                value={d.animation.intensity}
+                disabled={d.animation.preset === "none"}
+                title={d.animation.preset === "none" ? "Pick an animation first" : undefined}
+                onChange={e =>
+                  choose(
+                    {
+                      animation: { ...d.animation, intensity: e.target.value as any },
+                    },
+                    true
+                  )
+                }
+              >
+                {["off", "subtle", "normal"].map(v => (
+                  <option key={v}>{v}</option>
+                ))}
+              </select>
+            </label>
+            {/* Only an entrance plays once, so only an entrance has something to replay. */}
+            {ENTRANCES.includes(d.animation.preset) ? (
+              <button
+                type="button"
+                className="outline-button"
+                disabled={d.animation.intensity === "off"}
+                onClick={() => window.dispatchEvent(new Event("replay-card-animation"))}
+              >
+                Replay animation
+              </button>
+            ) : d.animation.preset !== "none" ? (
+              <small>
+                {POINTER_DRIVEN.includes(d.animation.preset)
+                  ? "Move the mouse over the preview to see this one."
+                  : "This one keeps moving by itself. Look at the preview."}
+              </small>
+            ) : null}
+          </div>
+        )}
+        {options(
+          "Layout corners",
+          ["small", "medium", "large"],
+          d.radius,
+          radius => choose({ radius }),
+          3
+        )}
+      </div>
+      {children}
+      {pro ? null : <p className="design-more design-more-groups">More with Pro</p>}
+      <div className="pro-design">
+        <Fold title="Gradients" meta={proBadge}>
+          <div className="design-grid">
+            {GRADIENTS.map(([name, colors]) => (
+              <button
+                type="button"
+                key={name}
+                onClick={() =>
+                  choose(
+                    {
+                      colors: [...colors],
+                      text: name === "Arctic" ? "#111111" : "#FFFFFF",
+                      backgroundType: "gradient",
+                    },
+                    true
+                  )
+                }
+              >
+                <span
+                  className="design-swatch"
+                  style={{
+                    background: gradientCss({
+                      colors: [...colors],
+                      direction: d.direction,
+                    }),
+                  }}
+                />
+                {name}
+              </button>
             ))}
-          </select>
-        </label>
-      </details>
-      {options(
-        "Typography",
-        FONTS,
-        d.font,
-        (font, i) => choose({ font }, i > 2),
-        3,
-        true,
-        <div className="design-grid">
-          {FONT_PRESETS.map(([name, font], i) => (
-            <button
-              type="button"
-              key={name}
-              onClick={() => choose({ font }, i === 2 || i > 3)}
-            >
-              <span style={{ fontFamily: fontStack(font) }}>{name}</span>
-              {i === 2 || i > 3 ? (
-                <small className="plan-chip plan-chip-pro">PRO</small>
-              ) : null}
-            </button>
-          ))}
-        </div>
-      )}
-      {options(
-        "Button style",
-        ["solid", "outline", "glass"],
-        d.buttonStyle,
-        (buttonStyle, i) => choose({ buttonStyle }, i > 0),
-        1
-      )}
-      {options(
-        "Background",
-        BACKGROUNDS,
-        d.backgroundType,
-        (backgroundType, i) => choose({ backgroundType }, i > 0),
-        1
-      )}
-      {options(
-        "Animation",
-        ANIMATIONS,
-        d.animation.preset,
-        (preset, i) => choose({ animation: { ...d.animation, preset } }, i > 1),
-        2,
-        false,
-        <div className="animation-extras">
+          </div>
           <label>
-            Intensity
+            Direction
             <select
-              value={d.animation.intensity}
-              disabled={d.animation.preset === "none"}
-              title={d.animation.preset === "none" ? "Pick an animation first" : undefined}
+              value={d.direction}
+              disabled={d.colors.length < 2}
+              title={d.colors.length < 2 ? "Pick a gradient first" : undefined}
               onChange={e =>
                 choose(
-                  {
-                    animation: { ...d.animation, intensity: e.target.value as any },
-                  },
+                  { direction: e.target.value as CardDesign["direction"] },
                   true
                 )
               }
             >
-              {["off", "subtle", "normal"].map(v => (
+              {["bottom", "right", "diagonal", "radial"].map(v => (
                 <option key={v}>{v}</option>
               ))}
             </select>
           </label>
-          {/* Only an entrance plays once, so only an entrance has something to replay. */}
-          {ENTRANCES.includes(d.animation.preset) ? (
-            <button
-              type="button"
-              className="outline-button"
-              disabled={d.animation.intensity === "off"}
-              onClick={() => window.dispatchEvent(new Event("replay-card-animation"))}
-            >
-              Replay animation
-            </button>
-          ) : d.animation.preset !== "none" ? (
-            <small>
-              {POINTER_DRIVEN.includes(d.animation.preset)
-                ? "Move the mouse over the preview to see this one."
-                : "This one keeps moving by itself. Look at the preview."}
-            </small>
-          ) : null}
-        </div>
-      )}
-      <details className="design-section">
-        <summary>
-          Custom colors <small className="plan-chip plan-chip-pro">PRO</small>
-        </summary>
-        {(
-          ["background", "accent", "text", "button", "buttonText"] as const
-        ).map(key => (
-          <label key={key}>
-            {key.replace("buttonText", "Button text")}
-            <input
-              aria-label={`${key} picker`}
-              type="color"
-              value={key === "background" ? d.colors[0] : d[key]}
-              onChange={e =>
-                choose(
-                  key === "background"
-                    ? { colors: [e.target.value] }
-                    : { [key]: e.target.value },
-                  true
-                )
-              }
-            />
-            <HexField
-              label={key}
-              value={key === "background" ? d.colors[0] : d[key]}
-              onChange={color =>
-                choose(
-                  key === "background" ? { colors: [color] } : { [key]: color },
-                  true
-                )
-              }
-            />
-          </label>
-        ))}
-        <button type="button" onClick={() => choose(designSchema.parse({}))}>
-          Reset colors
-        </button>
-      </details>
-      {options(
-        "Layout corners",
-        ["small", "medium", "large"],
-        d.radius,
-        radius => choose({ radius }),
-        3
-      )}
-      <details className="design-section">
-        <summary>
-          Advanced QR <small className="plan-chip plan-chip-pro">PRO</small>
-        </summary>
-        <div className="qr-editor">
+        </Fold>
+        <Fold title="Custom colors" meta={proBadge}>
+          {(
+            ["background", "accent", "text", "button", "buttonText"] as const
+          ).map(key => (
+            <label key={key}>
+              {key.replace("buttonText", "Button text")}
+              <input
+                aria-label={`${key} picker`}
+                type="color"
+                value={key === "background" ? d.colors[0] : d[key]}
+                onChange={e =>
+                  choose(
+                    key === "background"
+                      ? { colors: [e.target.value] }
+                      : { [key]: e.target.value },
+                    true
+                  )
+                }
+              />
+              <HexField
+                label={key}
+                value={key === "background" ? d.colors[0] : d[key]}
+                onChange={color =>
+                  choose(
+                    key === "background" ? { colors: [color] } : { [key]: color },
+                    true
+                  )
+                }
+              />
+            </label>
+          ))}
+          <button type="button" onClick={() => choose(designSchema.parse({}))}>
+            Reset colors
+          </button>
+        </Fold>
+        <Fold title="Advanced QR" meta={proBadge}>
+          <div className="qr-editor">
           <div className="qr-editor-preview">
             <QrPreview value="https://heyitsme.fyi/c/demo" design={qr} />
           </div>
@@ -532,9 +564,11 @@ export function DesignControls({
               </label>
             </div>
           </div>
-        </div>
-      </details>
-      {warning ? <p role="alert">{warning}</p> : null}
+          </div>
+        </Fold>
+      </div>
+      {proExtras}
+      {warning ? <p className="pd-warn" role="alert">{warning}</p> : null}
     </div>
   );
 }
