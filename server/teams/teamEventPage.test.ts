@@ -228,6 +228,35 @@ describe("team event page", () => {
     expect(storageDelete).toHaveBeenCalledWith([photo.url.slice("/storage/".length)]);
   });
 
+  it("keeps a QR logo uploaded for this event and deletes it when removed", async () => {
+    const team = await makeTeam();
+    const event = await makeEvent(team, true);
+    const other = await makeEvent(team);
+    const logo = await upload(team, event.target);
+    const foreign = await upload(team, other.target);
+
+    await expect(team.asOwner.teamEvents.savePage({ ...event.target, page: { qr: { logoUrl: foreign.url } } })).rejects.toThrow("Upload the image again.");
+    await expect(team.asOwner.teamEvents.savePage({ ...event.target, page: { qr: { logoUrl: "https://evil.test/a.png" } } })).rejects.toThrow("Upload the image again.");
+
+    const saved = await team.asOwner.teamEvents.savePage({ ...event.target, page: { qr: { logoUrl: logo.url, rounded: true } } });
+    expect(saved.page.qr).toMatchObject({ logoUrl: logo.url, rounded: true });
+    expect((await team.asOwner.teamEvents.get(event.target)).page.qr.logoUrl).toBe(logo.url);
+    expect(storageDelete).not.toHaveBeenCalled();
+
+    // A new logo is part of the QR look, so it is refused while event styling is off; the saved one stays.
+    const second = await upload(team, event.target);
+    ENV.teamEventStylingEnabled = false;
+    try {
+      await expect(team.asOwner.teamEvents.savePage({ ...event.target, page: { qr: { logoUrl: second.url, rounded: true } } })).rejects.toMatchObject({ code: "FORBIDDEN" });
+      expect((await team.asOwner.teamEvents.get(event.target)).page.qr.logoUrl).toBe(logo.url);
+    } finally {
+      ENV.teamEventStylingEnabled = true;
+    }
+
+    expect((await team.asOwner.teamEvents.savePage({ ...event.target, page: { qr: { rounded: true } } })).page.qr.logoUrl).toBe("");
+    expect(storageDelete).toHaveBeenCalledWith([logo.url.slice("/storage/".length)]);
+  });
+
   it("saves the page style, animation, colors and QR look, and shows them to visitors", async () => {
     const team = await makeTeam();
     const event = await makeEvent(team, true);

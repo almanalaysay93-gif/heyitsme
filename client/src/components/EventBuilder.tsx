@@ -285,15 +285,23 @@ function Builder({ workspaceId, initial, company, zone, canStyle, onClose }: { w
     }
   };
   /** The page background is part of the page, so it goes out with the next save, unlike the banner. */
-  const pickBackground = async (file: File | undefined) => {
-    if (!file || !target) return;
-    if (file.size > MAX_IMAGE_BYTES) { toast.error("Image is larger than 3MB. Upload a smaller one."); return; }
+  const storeImage = async (file: File | undefined) => {
+    if (!file || !target) return null;
+    if (file.size > MAX_IMAGE_BYTES) { toast.error("Image is larger than 3MB. Upload a smaller one."); return null; }
     try {
-      const stored = await uploadImage.mutateAsync({ ...target, fileName: file.name, contentType: file.type || "image/png", dataBase64: await readBase64(file) });
-      changePage(current => ({ ...current, backgroundUrl: stored.url }));
+      return (await uploadImage.mutateAsync({ ...target, fileName: file.name, contentType: file.type || "image/png", dataBase64: await readBase64(file) })).url;
     } catch (error) {
       failed(error);
+      return null;
     }
+  };
+  const pickBackground = async (file: File | undefined) => {
+    const url = await storeImage(file);
+    if (url) changePage(current => ({ ...current, backgroundUrl: url }));
+  };
+  const pickQrLogo = async (file: File | undefined) => {
+    const url = await storeImage(file);
+    if (url) changePage(current => ({ ...current, qr: { ...current.qr, logoUrl: url } }));
   };
   const clearCover = async () => {
     if (!target) return;
@@ -476,7 +484,7 @@ function Builder({ workspaceId, initial, company, zone, canStyle, onClose }: { w
           <section {...panelProps("design")}>
             <div className="builder-panel-head"><h2>Design</h2><p>The page uses the same layout as a Business card page. Pick a theme, a font and an accent color.</p></div>
             <div className="builder-panel-body">
-              <EventPageLook page={draft.page} brandColor={company.colors?.primary} canStyle={canStyle} url={`${window.location.origin}/event/${meta.slug || "your-event"}?source=qr`} onChange={changePage} />
+              <EventPageLook page={draft.page} brandColor={company.colors?.primary} companyLogoUrl={company.logoUrl} canStyle={canStyle} canUpload={Boolean(target)} logoBusy={uploadImage.isPending} onPickLogo={file => void pickQrLogo(file)} url={`${window.location.origin}/event/${meta.slug || "your-event"}?source=qr`} onChange={changePage} />
             </div>
             {stepNav("design")}
           </section>
