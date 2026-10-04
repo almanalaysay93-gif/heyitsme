@@ -204,3 +204,28 @@ Admins edit it in a new "Page" tab under Team > Events.
 - Anti-slop: no banned words, no gradient text, no glass inside glass (rows inside panels are flat fills), reduced motion covered.
 - Not done: real uploads were not exercised in the browser (the harness has no storage; covered by server tests with storage mocked). Post-launch monitor not run (nothing deployed). Not committed.
 - Known gap: an image uploaded in the editor but never saved stays in storage; no sweep covers event files yet.
+
+## 2026-10-04 — Buildme run: event page phase 2
+
+### Design Read
+Same page, same `lx-` system. Three additions the owner deferred from v1: a schedule split by day, sponsors split by tier, and the speakers on each schedule row.
+
+### Decisions
+- D1: Days and tiers are lists of names on the page; a row holds the position of its name. No new table, no migration.
+- D2: Speakers get a short random id so a schedule row can name them. The server assigns and repairs ids; the browser is not trusted.
+- D3: Removing a day or tier moves its rows to the first one left. Nothing is deleted.
+- D4: A day name is an h3 set larger than a row title; rows under it step down to h4. A tier name is a small label.
+- D5: Only the first tier in the admin's list gets larger tiles.
+- D6: The Day and Tier pickers appear on a row only when there are two or more to choose from.
+
+### Work units
+- Schema and helpers: `shared/eventPage.ts`.
+- API: `savePage` in `server/teams/eventsRouter.ts` runs `normalizeEventPage`.
+- UI: `EventLanding.tsx`, `eventLanding.css`, `EventPageEditor.tsx`, `team.css`.
+
+### Result (2026-10-04)
+- Gates: `pnpm check` clean, `pnpm test` 502 passed (52 files), `pnpm build` clean. 6 new tests.
+- Browser pass on a throwaway in-process PGlite harness (deleted after), Tide theme, 1280 and 390 wide: day headings, row speakers, tiers, editor (remove a day, add a day, move a day, take a speaker off a row, add one, save), then the public page again. No console errors, no sideways scroll, no control under 44px.
+- Bug hunt found and fixed: B1 the row-speaker list and group names lost their spacing to the `.lx ul` and `.lx h3` resets; B2 `.ev-agenda li` rules reached the nested speaker list.
+- Anti-slop: no banned words, no gradient text, no glass inside glass.
+- Not done: Sunset and Midnight not looked at for the new blocks; sponsor logos inside tiers not seen in a browser. Not committed.

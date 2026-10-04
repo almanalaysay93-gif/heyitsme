@@ -96,18 +96,28 @@
 
 /* ============ Schedule ============ */
 .ev-agenda { display: grid; margin: 0; padding: 0; list-style: none; }
-.ev-agenda li { display: grid; gap: 4px; padding: 16px 0; border-top: 1px solid var(--line); }
-.ev-agenda li:first-child { border-top: 0; padding-top: 0; }
-.ev-agenda li:last-child { padding-bottom: 0; }
+.ev-agenda > li { display: grid; gap: 4px; padding: 16px 0; border-top: 1px solid var(--line); }
+.ev-agenda > li:first-child { border-top: 0; padding-top: 0; }
+.ev-agenda > li:last-child { padding-bottom: 0; }
 .ev-agenda-time { color: var(--accent-ink); font-weight: 700; font-variant-numeric: tabular-nums; }
-.ev-agenda h3 { margin: 0; font-size: 18px; font-weight: 700; line-height: 1.3; }
+.ev-agenda :is(h3, h4) { margin: 0; font-size: 18px; font-weight: 700; line-height: 1.3; }
 .ev-agenda p { margin: 4px 0 0; color: var(--muted); }
+/* Who is on a row: a small face and a name each, wrapping on narrow screens. */
+.lx-event .ev-agenda-who { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 10px 0 0; padding: 0; list-style: none; }
+.ev-agenda-who li { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+
+/* A day in the schedule, or a tier of sponsors: a named group, ruled off from the one before. */
+.lx-event .ev-group-name { margin: 0 0 14px; font-size: 13px; font-weight: 800; line-height: 1.3; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+/* A day outranks the rows under it, so it is set larger than a row title. */
+.lx-event .ev-day .ev-group-name { margin-bottom: 18px; font-size: clamp(20px, 3.4cqi, 24px); letter-spacing: -.01em; text-transform: none; color: var(--ink); }
+:is(.ev-day, .ev-tier) + :is(.ev-day, .ev-tier) { margin-top: clamp(24px, 4cqi, 36px); padding-top: clamp(20px, 4cqi, 32px); border-top: 1px solid var(--line-strong); }
 
 /* ============ Speakers ============ */
 .ev-face { display: block; flex: none; object-fit: cover; background: var(--placeholder); }
 .ev-face-initials { display: grid; place-items: center; background: var(--accent); color: var(--on-accent); font-weight: 800; letter-spacing: .02em; }
 .ev-face-large { width: 100%; max-width: 320px; aspect-ratio: 4 / 5; border-radius: var(--radius-media); font-size: 56px; }
 .ev-face-small { width: 88px; height: 88px; border-radius: 50%; font-size: 28px; }
+.ev-face-tiny { width: 28px; height: 28px; border-radius: 50%; font-size: 11px; }
 .ev-role { margin: 2px 0 0; color: var(--muted); font-weight: 600; }
 .ev-bio { margin: 12px 0 0; max-width: 60ch; white-space: pre-line; line-height: 1.65; }
 
@@ -147,6 +157,9 @@
 .ev-sponsors a:hover { transform: translateY(-2px); }
 .ev-sponsors img { max-width: 100%; max-height: 64px; object-fit: contain; }
 .ev-sponsors strong { font-weight: 700; line-height: 1.3; }
+.ev-sponsors-top :is(a, span) { min-height: 132px; padding: 22px; }
+.ev-sponsors-top img { max-height: 92px; }
+.ev-sponsors-top strong { font-size: 20px; }
 
 /* ============ FAQ ============ */
 .ev-faq details { border-top: 1px solid var(--line); }
@@ -193,12 +206,13 @@
 /* ============ Wider pages ============ */
 @container (min-width: 720px) {
   .ev-facts { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
-  .ev-agenda li { grid-template-columns: 170px 1fr; gap: 24px; }
+  .ev-agenda > li { grid-template-columns: 170px 1fr; gap: 24px; }
   .ev-featured li { grid-template-columns: minmax(0, 280px) 1fr; gap: clamp(24px, 4cqi, 48px); }
   .ev-featured li:nth-child(even) { grid-template-columns: 1fr minmax(0, 280px); }
   .ev-featured li:nth-child(even) .ev-face { order: 2; justify-self: end; }
   .ev-gallery { grid-template-columns: repeat(4, 1fr); gap: 12px; }
   .ev-sponsors { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+  .ev-sponsors-top { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

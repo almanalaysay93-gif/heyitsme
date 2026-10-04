@@ -32,7 +32,7 @@ export const EVENT_SECTION_LABELS: Record<EventSectionId, string> = {
   links: "Resource links",
 };
 
-export const EVENT_PAGE_LIMITS = { agenda: 30, speakers: 12, featured: 3, gallery: 12, sponsors: 12, faq: 20, links: 12, pageJson: 40000 } as const;
+export const EVENT_PAGE_LIMITS = { agenda: 30, agendaDays: 7, rowSpeakers: 6, speakers: 12, featured: 3, gallery: 12, sponsors: 12, sponsorTiers: 5, faq: 20, links: 12, pageJson: 40000 } as const;
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const text = (max: number) => z.string().trim().max(max);
@@ -54,7 +54,14 @@ const image = z
   .optional()
   .default("");
 
+/** Day and tier labels, in display order. A row points at one by its position in the list. */
+const labels = (max: number, what: string) => z.array(text(40).min(1)).max(max, `Up to ${max} ${what}.`).optional().default([]);
+const position = (max: number) => z.number().int().min(0).max(max - 1).optional().default(0);
+const speakerId = z.string().max(16).regex(/^[a-z0-9]*$/);
+
 export const eventSpeakerSchema = z.object({
+  /** Lets a schedule row name this speaker. Set by normalizeEventPage; empty on pages saved before rows had speakers. */
+  id: speakerId.optional().default(""),
   name: text(80).min(1),
   role: optionalText(80),
   bio: optionalText(400),
@@ -76,8 +83,18 @@ export const eventPageSchema = z.object({
     .array(z.object({ id: z.enum(EVENT_SECTION_IDS), hidden: z.boolean().optional().default(false) }))
     .max(EVENT_SECTION_IDS.length)
     .optional(),
+  /** Empty for a one-day event: the schedule is then one list with no day headings. */
+  agendaDays: labels(EVENT_PAGE_LIMITS.agendaDays, "days"),
   agenda: z
-    .array(z.object({ time: optionalText(40), title: text(120).min(1), note: optionalText(300) }))
+    .array(
+      z.object({
+        time: optionalText(40),
+        title: text(120).min(1),
+        note: optionalText(300),
+        day: position(EVENT_PAGE_LIMITS.agendaDays),
+        speakerIds: z.array(speakerId).max(EVENT_PAGE_LIMITS.rowSpeakers, `Up to ${EVENT_PAGE_LIMITS.rowSpeakers} speakers on one row.`).optional().default([]),
+      }),
+    )
     .max(EVENT_PAGE_LIMITS.agenda)
     .optional()
     .default([]),
@@ -95,8 +112,10 @@ export const eventPageSchema = z.object({
     .max(EVENT_PAGE_LIMITS.gallery, `Up to ${EVENT_PAGE_LIMITS.gallery} photos.`)
     .optional()
     .default([]),
+  /** Empty means one flat list of sponsors. The first tier is shown largest. */
+  sponsorTiers: labels(EVENT_PAGE_LIMITS.sponsorTiers, "sponsor tiers"),
   sponsors: z
-    .array(z.object({ name: text(80).min(1), logoUrl: image, url: safeUrl }))
+    .array(z.object({ name: text(80).min(1), logoUrl: image, url: safeUrl, tier: position(EVENT_PAGE_LIMITS.sponsorTiers) }))
     .max(EVENT_PAGE_LIMITS.sponsors, `Up to ${EVENT_PAGE_LIMITS.sponsors} sponsors.`)
     .optional()
     .default([]),
@@ -155,6 +174,54 @@ export function eventAccent(page: Pick<EventPage, "theme" | "accent">, brandColo
 /** Featured speakers first, each group in the order the admin set. */
 export function orderSpeakers(speakers: EventSpeaker[]): { featured: EventSpeaker[]; rest: EventSpeaker[] } {
   return { featured: speakers.filter((speaker) => speaker.featured), rest: speakers.filter((speaker) => !speaker.featured) };
+}
+
+export const newSpeakerId = () => Math.random().toString(36).slice(2, 10).padEnd(8, "0");
+
+/**
+ * Makes the cross-references inside a page hold: every speaker has its own id, a schedule row only names speakers
+ * that exist, and a row or sponsor never points past the last day or tier. Run on every save and when the editor opens.
+ */
+export function normalizeEventPage(page: EventPage, makeId: () => string = newSpeakerId): EventPage {
+  const ids = new Set<string>();
+  const speakers = page.speakers.map((speaker) => {
+    let id = speaker.id;
+    while (!id || ids.has(id)) id = makeId();
+    ids.add(id);
+    return id === speaker.id ? speaker : { ...speaker, id };
+  });
+  const within = (at: number, count: number) => (at > 0 && at < count ? at : 0);
+  const agenda = page.agenda.map((row) => ({
+    ...row,
+    day: within(row.day, page.agendaDays.length),
+    speakerIds: Array.from(new Set(row.speakerIds)).filter((id) => ids.has(id)),
+  }));
+  const sponsors = page.sponsors.map((sponsor) => ({ ...sponsor, tier: within(sponsor.tier, page.sponsorTiers.length) }));
+  return { ...page, speakers, agenda, sponsors };
+}
+
+/** `top` marks the first name in the admin's list (the first day, the highest tier), even when later groups are empty. */
+type Grouped<T> = { label: string; top: boolean; items: T[] };
+function grouped<T>(items: T[], names: string[], at: (item: T) => number): Grouped<T>[] {
+  if (names.length === 0) return items.length > 0 ? [{ label: "", top: false, items }] : [];
+  return names
+    .map((label, index) => ({ label, top: index === 0, items: items.filter((item) => (at(item) < names.length ? at(item) : 0) === index) }))
+    .filter((group) => group.items.length > 0);
+}
+
+/** The schedule split by day, in day order. One group with no label when the event has no days. Empty days are left out. */
+export function agendaByDay(page: Pick<EventPage, "agenda" | "agendaDays">): Grouped<EventPage["agenda"][number]>[] {
+  return grouped(page.agenda, page.agendaDays, (row) => row.day);
+}
+
+/** Sponsors split by tier, in tier order. One group with no label when the event has no tiers. */
+export function sponsorsByTier(page: Pick<EventPage, "sponsors" | "sponsorTiers">): Grouped<EventPage["sponsors"][number]>[] {
+  return grouped(page.sponsors, page.sponsorTiers, (sponsor) => sponsor.tier);
+}
+
+/** The speakers a schedule row names, in the order the row lists them. */
+export function rowSpeakers(page: Pick<EventPage, "speakers">, row: Pick<EventPage["agenda"][number], "speakerIds">): EventSpeaker[] {
+  return row.speakerIds.flatMap((id) => page.speakers.filter((speaker) => speaker.id === id).slice(0, 1));
 }
 
 /** Every stored file the page shows, so the server can tell which ones a save dropped. */

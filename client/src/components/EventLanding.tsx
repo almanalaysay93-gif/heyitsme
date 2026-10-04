@@ -5,12 +5,15 @@ import { copyToClipboard, getInitials, safeFileName } from "@/lib/cardKit";
 import { save } from "@/lib/teamFiles";
 import {
   EVENT_PALETTES,
+  agendaByDay,
   eventAccent,
   eventCountdown,
   eventIcs,
   googleCalendarLink,
   orderSpeakers,
   resolveEventSections,
+  rowSpeakers,
+  sponsorsByTier,
   type CalendarEvent,
   type EventSectionId,
   type EventSpeaker,
@@ -72,7 +75,7 @@ function Countdown({ startAt, endAt }: { startAt: Date | string | null; endAt: D
   );
 }
 
-function SpeakerPhoto({ speaker, size }: { speaker: EventSpeaker; size: "large" | "small" }) {
+function SpeakerPhoto({ speaker, size }: { speaker: EventSpeaker; size: "large" | "small" | "tiny" }) {
   const photo = safeImage(speaker.photoUrl);
   return photo ? (
     <img className={`ev-face ev-face-${size}`} src={photo} alt="" loading="lazy" decoding="async" />
@@ -188,14 +191,36 @@ export function EventLanding({ event, pageUrl, preview = false, children }: Prop
         return (
           <>
             {heading("Schedule")}
-            <ol className="ev-agenda">
-              {page.agenda.map((item, index) => (
-                <li key={index}>
-                  <span className="ev-agenda-time">{item.time}</span>
-                  <div><h3>{item.title}</h3>{item.note ? <p>{item.note}</p> : null}</div>
-                </li>
-              ))}
-            </ol>
+            {agendaByDay(page).map((day, at) => {
+              // A day name takes the h3, so the rows under it step down to h4.
+              const Title = day.label ? "h4" : "h3";
+              return (
+                <div key={at} className="ev-day">
+                  {day.label ? <h3 className="ev-group-name">{day.label}</h3> : null}
+                  <ol className="ev-agenda">
+                    {day.items.map((item, index) => {
+                      const who = rowSpeakers(page, item);
+                      return (
+                        <li key={index}>
+                          <span className="ev-agenda-time">{item.time}</span>
+                          <div>
+                            <Title>{item.title}</Title>
+                            {item.note ? <p>{item.note}</p> : null}
+                            {who.length > 0 ? (
+                              <ul className="ev-agenda-who" aria-label={who.length === 1 ? "Speaker" : "Speakers"}>
+                                {who.map((speaker) => (
+                                  <li key={speaker.id}><SpeakerPhoto speaker={speaker} size="tiny" /><span>{speaker.name}</span></li>
+                                ))}
+                              </ul>
+                            ) : null}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </div>
+              );
+            })}
           </>
         );
       case "speakers":
@@ -250,17 +275,23 @@ export function EventLanding({ event, pageUrl, preview = false, children }: Prop
         return (
           <>
             {heading(page.sponsors.length === 1 ? "Sponsor" : "Sponsors")}
-            <ul className="ev-sponsors">
-              {page.sponsors.map((sponsor, index) => {
-                const mark = safeImage(sponsor.logoUrl);
-                const body = mark ? <img src={mark} alt={sponsor.name} loading="lazy" decoding="async" /> : <strong>{sponsor.name}</strong>;
-                return (
-                  <li key={index}>
-                    {sponsor.url ? <a href={sponsor.url} {...external(sponsor.url)} aria-label={mark ? undefined : sponsor.name}>{body}</a> : <span>{body}</span>}
-                  </li>
-                );
-              })}
-            </ul>
+            {sponsorsByTier(page).map((tier, at) => (
+              <div key={at} className="ev-tier">
+                {tier.label ? <h3 className="ev-group-name">{tier.label}</h3> : null}
+                {/* The first tier the admin listed is the top one, so its tiles are larger. */}
+                <ul className={tier.top ? "ev-sponsors ev-sponsors-top" : "ev-sponsors"}>
+                  {tier.items.map((sponsor, index) => {
+                    const mark = safeImage(sponsor.logoUrl);
+                    const body = mark ? <img src={mark} alt={sponsor.name} loading="lazy" decoding="async" /> : <strong>{sponsor.name}</strong>;
+                    return (
+                      <li key={index}>
+                        {sponsor.url ? <a href={sponsor.url} {...external(sponsor.url)} aria-label={mark ? undefined : sponsor.name}>{body}</a> : <span>{body}</span>}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
           </>
         );
       case "faq":

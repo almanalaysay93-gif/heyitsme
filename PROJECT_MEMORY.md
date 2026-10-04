@@ -334,7 +334,7 @@ Seats and per-team entitlements. No Teams price, no checkout: the owner has not 
 - Client reviews (owner decision): on Business and Services cards visitors leave a star rating and review on the public card (`publicCard.review`, 3 per hour per IP, honeypot, max 30 waiting per card). Stored in `references` with new columns `rating`, `fromVisitor` (migration `0021_client_reviews.sql`, also in `ensureSchema`), unapproved until the owner approves in the builder (`references.setApproved`). Professional cards keep owner-typed "Client references".
 - Tests: `server/clientReviews.test.ts` (6). Total 467 pass. Local signed-in harness: `.harness/builder-harness.ts` (git-ignored).
 
-## 2026-10-04 — Event landing page (Claude, branch `feat/event-landing`, NOT committed, NOT merged)
+## 2026-10-04 — Event landing page (Claude, branch `feat/event-landing`, merged to `main` and live)
 - `/event/:slug` is now a landing page in the Business card look: hero (date, place, countdown, RSVP, Add to calendar, Directions, Share), then Details, Schedule, Speakers, Gallery, Sponsors, Questions and answers, Resource links, then RSVP (always last). Themes Tide / Sunset / Midnight plus one accent. `CardLanding.tsx` untouched.
 - **Migration `drizzle/0022_event_page.sql`**: one column, `workspaceEvents.page jsonb`. `ensureSchema` applies it once (bootstrap version `0022_event_page`). Run by hand in Supabase project `gomtjpaotoqnwskjqpgk`. The old `design` column stays; its button color becomes the accent, its font is kept, its background is ignored.
 - **Shared**: `shared/eventPage.ts` (schema, limits: 30 agenda rows, 12 speakers with up to 3 featured, 12 photos, 12 sponsors, 20 questions, 12 links, 40,000 characters of JSON; `parseEventPage` always returns a working page; `.ics` and Google Calendar helpers; countdown).
@@ -342,3 +342,15 @@ Seats and per-team entitlements. No Teams price, no checkout: the owner has not 
 - **Client**: `client/src/components/EventLanding.tsx` + `eventLanding.css`, `EventPageEditor.tsx` (new "Page" tab in `TeamEvents.tsx`; the old design fields left the Details form), `PublicEvent.tsx` (preview via `?preview=<workspaceId>-<eventId>`, replies off in preview).
 - **Checks**: `pnpm check` clean, 496 tests pass (18 new), build clean, browser pass on a local PGlite harness in all themes at 1280 and 390 wide. Real image upload not browser-tested.
 - **Open**: unsaved editor uploads are never swept. Phase 2 (owner approved as later work): multi-day agenda, sponsor tiers, several speakers per agenda row.
+
+## 2026-10-04 — Event page phase 2 (Claude, branch `feat/event-phase2`, NOT committed, NOT merged)
+The three items the owner deferred from v1: multi-day schedule, sponsor tiers, speakers on schedule rows.
+- Data: all in `workspaceEvents.page` JSON, every new field optional with a default. No migration; pages saved by v1 read as before.
+  - `agendaDays: string[]` (up to 7) and `agenda[].day` (position in that list). Empty list means a one-day schedule.
+  - `sponsorTiers: string[]` (up to 5) and `sponsors[].tier`. The first tier is shown largest. Empty list means one flat list.
+  - `speakers[].id` and `agenda[].speakerIds` (up to 6 per row).
+- `normalizeEventPage` in `shared/eventPage.ts` gives each speaker its own id, drops row speakers that do not exist, and pulls a row or sponsor back to the first day or tier when its own is gone. `savePage` runs it on every save; the editor runs it when it opens.
+- Removing a day or tier in the editor never deletes rows: they move to the first one left.
+- Public page: `agendaByDay`, `sponsorsByTier`, `rowSpeakers`. Empty days and tiers are not shown.
+- Gates: `pnpm check` clean, `pnpm test` 502 passed (52 files), `pnpm build` clean. Browser pass on the throwaway PGlite harness at 1280 and 390 wide, Tide theme only.
+- Not checked in a browser: Sunset and Midnight themes for the new blocks, and sponsor logos in tiers (harness has no storage, so tiles showed names).

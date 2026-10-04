@@ -27,7 +27,7 @@ import {
   type EventStatus,
   type RsvpStatus,
 } from "@shared/events";
-import { EVENT_PAGE_LIMITS, eventPageImages, eventPageSchema, parseEventPage } from "@shared/eventPage";
+import { EVENT_PAGE_LIMITS, eventPageImages, eventPageSchema, normalizeEventPage, parseEventPage } from "@shared/eventPage";
 import { isAdminRole } from "@shared/teams";
 import { cards, workspaceEventFields, workspaceEventRsvpAnswers, workspaceEventRsvps, workspaceEvents, workspaces } from "../../drizzle/schema";
 import { ENV } from "../_core/env";
@@ -529,7 +529,8 @@ export const teamEventsRouter = router({
   savePage: eventProcedure.input(z.object({ workspaceId: id, eventId: id, page: eventPageSchema })).mutation(async ({ ctx, input }) => {
     const db = await requireDb();
     const { event } = await managedEvent(db, ctx.user.id, input.workspaceId, input.eventId);
-    const { page } = input;
+    // Speaker ids, and the day, tier and speaker each row points at, are settled here, never trusted from the browser.
+    const page = normalizeEventPage(input.page);
     if (JSON.stringify(page).length > EVENT_PAGE_LIMITS.pageJson) throw bad("This page holds too much text. Shorten a section and save again.");
     const prefix = eventFilePrefix(event.workspaceId, event.id);
     if (eventPageImages(page).some(url => !url.startsWith(prefix))) throw bad("Upload the image again.");
