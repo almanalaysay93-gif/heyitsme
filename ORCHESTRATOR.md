@@ -202,7 +202,7 @@ Admins edit it in a new "Page" tab under Team > Events.
 - Browser pass on a throwaway in-process PGlite harness (deleted after): public page in all three themes at 1280 and 390 wide, calendar menu, gallery lightbox, FAQ, RSVP submit, mobile dock, draft preview, editor (open section, change theme, save). No console errors, no sideways scroll, no control under 44px in the new UI.
 - Bug hunt found and fixed: B1 image path could contain `..` and climb out of the event folder (a later save could then delete another team's file); B2 the required mark on RSVP questions dropped to its own line; B3 link error text named https only while http is also accepted.
 - Anti-slop: no banned words, no gradient text, no glass inside glass (rows inside panels are flat fills), reduced motion covered.
-- Not done: real uploads were not exercised in the browser (the harness has no storage; covered by server tests with storage mocked). Post-launch monitor not run (nothing deployed). Not committed.
+- Not done: real uploads were not exercised in the browser (the harness has no storage; covered by server tests with storage mocked). Post-launch monitor not run (nothing deployed).
 - Known gap: an image uploaded in the editor but never saved stays in storage; no sweep covers event files yet.
 
 ## 2026-10-04 — Buildme run: event page phase 2
@@ -228,7 +228,7 @@ Same page, same `lx-` system. Three additions the owner deferred from v1: a sche
 - Browser pass on a throwaway in-process PGlite harness (deleted after), Tide theme, 1280 and 390 wide: day headings, row speakers, tiers, editor (remove a day, add a day, move a day, take a speaker off a row, add one, save), then the public page again. No console errors, no sideways scroll, no control under 44px.
 - Bug hunt found and fixed: B1 the row-speaker list and group names lost their spacing to the `.lx ul` and `.lx h3` resets; B2 `.ev-agenda li` rules reached the nested speaker list.
 - Anti-slop: no banned words, no gradient text, no glass inside glass.
-- Not done: Sunset and Midnight not looked at for the new blocks; sponsor logos inside tiers not seen in a browser. Not committed.
+- Not done: Sunset and Midnight not looked at for the new blocks; sponsor logos inside tiers not seen in a browser.
 
 ## 2026-10-04 — Buildme run: event builder
 
@@ -247,4 +247,36 @@ Owner: "i want it like the card builder interface when making the event". Same f
 - Gates: `pnpm check` clean, `pnpm test` 502 passed (52 files), `pnpm build` clean. No new tests (client components are outside the vitest include).
 - Browser pass on a throwaway PGlite harness (deleted after), 1280 and 390 wide. No console errors, no sideways scroll, no control under 44px.
 - Bug hunt found and fixed: B1 publishing with no start date saved, then failed on the server with a 400; now stopped in the builder first. B2 tabs 40px and primary button 42px tall; now 44px.
-- Not done: real image upload, Discard changes and the leave prompt not exercised in a browser. Not committed.
+- Not done: real image upload, Discard changes and the leave prompt not exercised in a browser. Committed `2d77a43`, merged to `main` as `aff0ec2` and pushed.
+
+## 2026-10-04 — Buildme run: drag to reorder in the event builder
+
+### Design Read
+Owner: "i want this to be a drag and drop no arrow up and arrow down", with screenshots of the Page section tools and the RSVP question rows.
+
+### Decisions
+- D1: Every reorder in the event builder is a drag, not only the two in the screenshots. Owner did not confirm this scope.
+- D2: Own small `SortList` on pointer events instead of framer-motion `Reorder`: section rows are keyed by position and re-made on every edit, and folds change height, which `Reorder` handles badly.
+- D3: The grip is the keyboard alternative: up and down arrow keys, with a spoken position.
+
+### Result (2026-10-04)
+- Gates: `pnpm check` clean, `pnpm test` 502 passed (52 files), `pnpm build` clean. No new tests (client components are outside the vitest include).
+- Browser pass on a throwaway PGlite harness (deleted after), 1280 and 390 wide. No console errors, no sideways scroll, no control under 44px, no arrow buttons left.
+- Bug hunt found and fixed: B1 on phones the grip sat alone on a line above its row. B2 day name boxes squeezed on phones; Remove now wraps under.
+- Not done: real finger drag on a phone not exercised.
+
+## 2026-10-04 — Buildme run: card builder design parity in the event builder
+
+### Design Read
+Owner: "analyze whats missing in the design in the events builder thats present in the card builder then add it to the events builder". Compared `Home.tsx` `BuilderView` and `PageDesigner.tsx` with `EventBuilder.tsx` and `EventPageEditor.tsx`.
+
+### Decisions
+- D1: Only gaps the event page schema already supports are built. No server or schema change.
+- D2: Reuse the card builder's global classes (`image-picker`, `pd-block-head`, `pd-accent`, `pd-swatch`, `icon-button`, `publish-copy-button`) with 44px overrides scoped to `.event-builder`. `Home.tsx` untouched; its `ImagePicker` is not exported, so the event builder has its own `EventImagePicker` with the same markup.
+- D3: The copy-link button stays after publish, as on the card builder.
+
+### Result (2026-10-04)
+- Gates: `pnpm check` clean, `pnpm test` 504 passed (53 files), `pnpm build` clean. No new tests (client components are outside the vitest include).
+- Browser pass on a throwaway PGlite harness (deleted after), 1280 and 390 wide. No console errors, no sideways scroll, no control under 44px.
+- Bug hunt found and fixed: B1 an empty heading block left a double divider in Details; removed. B2 on phones the picture tile squeezed its text into a thin column; the text now wraps under a wide tile.
+- Not done: template picker, photo shape, background photo, gradients, custom colors, QR styling, Google Reviews, branding toggle. Real upload into the tiles, publish from draft through the new button, and the live tab dot not exercised in a browser.
