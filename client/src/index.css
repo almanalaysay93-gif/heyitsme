@@ -41,6 +41,9 @@
 * { box-sizing: border-box; }
 html { min-width: 320px; background: var(--paper); }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--paper); color: var(--ink); }
+/* Clicking plain text never shows a typing cursor, anywhere in the app. Real fields keep theirs. */
+body { caret-color: transparent; }
+input, textarea, select, [contenteditable="true"] { caret-color: auto; }
 button, input, textarea { font: inherit; }
 button { border: 0; }
 a { color: inherit; text-decoration: none; }
@@ -1545,7 +1548,7 @@ main[tabindex="-1"]:focus { outline: 0; }
 .builder-page { --builder-pin: 96px; }
 /* Labels and titles are not editable, so clicking them shows no typing cursor. Real fields keep theirs. */
 .builder-page { caret-color: transparent; }
-.builder-page input, .builder-page textarea, .builder-page select, .builder-page [contenteditable="true"] { caret-color: var(--ink); }
+
 .builder-head { display: grid; justify-items: start; gap: 10px; }
 .builder-head h1 { margin: 0; font-size: 30px; line-height: 1.05; letter-spacing: -.045em; }
 .builder-head .guest-builder-banner { margin-top: 0; }
