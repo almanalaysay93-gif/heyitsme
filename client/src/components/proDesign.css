@@ -43,6 +43,33 @@
   background: transparent;
   color: inherit;
 }
+.design-grid button {
+  cursor: pointer;
+  transition: transform 0.16s cubic-bezier(0.23, 1, 0.32, 1), border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+.design-grid button:active {
+  transform: scale(0.96);
+}
+@media (hover: hover) {
+  .design-grid button:hover {
+    transform: translateY(-2px);
+    border-color: #6b5cff;
+    background: rgba(255, 255, 255, 0.85);
+    box-shadow: 0 8px 18px rgba(48, 44, 115, 0.12);
+  }
+  .design-grid button:hover:active {
+    transform: scale(0.96);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .design-grid button {
+    transition: none;
+  }
+  .design-grid button:hover,
+  .design-grid button:active {
+    transform: none;
+  }
+}
 .design-grid button[aria-pressed="true"] {
   outline: 2px solid #6667dd;
   outline-offset: 2px;

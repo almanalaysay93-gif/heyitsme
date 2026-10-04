@@ -143,13 +143,13 @@ export function DesignControls({
     }
   };
   /**
-   * Free choices first. Without Pro, the paid ones follow under one "More with Pro" label,
-   * instead of a badge on every tile. With Pro, it is one plain grid.
+   * Free choices first. Without Pro, the paid ones follow under a "More with Pro" label,
+   * each with its PRO badge. With Pro, it is one plain grid.
    */
   const tiers = <T,>(
     items: readonly T[],
     isPaid: (item: T, index: number) => boolean,
-    tile: (item: T, index: number) => ReactNode
+    tile: (item: T, index: number, badge: ReactNode) => ReactNode
   ) => {
     const all = items.map((item, index) => ({ item, index }));
     const paid = pro ? [] : all.filter(({ item, index }) => isPaid(item, index));
@@ -158,20 +158,21 @@ export function DesignControls({
       <>
         {free.length ? (
           <div className="design-grid">
-            {free.map(({ item, index }) => tile(item, index))}
+            {free.map(({ item, index }) => tile(item, index, null))}
           </div>
         ) : null}
         {paid.length ? (
           <>
             <p className="design-more">More with Pro</p>
             <div className="design-grid">
-              {paid.map(({ item, index }) => tile(item, index))}
+              {paid.map(({ item, index }) => tile(item, index, <small className="plan-chip plan-chip-pro">PRO</small>))}
             </div>
           </>
         ) : null}
       </>
     );
   };
+  const proBadge = pro ? null : <small className="plan-chip plan-chip-pro">PRO</small>;
   const options = (
     label: string,
     items: readonly string[],
@@ -185,7 +186,7 @@ export function DesignControls({
       {tiers(
         items,
         (_, i) => i >= freeCount,
-        (item, i) => (
+        (item, i, badge) => (
           <button
             type="button"
             key={item}
@@ -198,6 +199,7 @@ export function DesignControls({
             ) : (
               item.replaceAll("-", " ")
             )}
+            {badge}
           </button>
         )
       )}
@@ -211,7 +213,7 @@ export function DesignControls({
           {tiers(
             THEMES,
             t => t.pro,
-            t => (
+            (t, _, badge) => (
               <button
                 type="button"
                 key={t.name}
@@ -228,6 +230,7 @@ export function DesignControls({
                   Aa
                 </span>
                 {t.name}
+                {badge}
               </button>
             )
           )}
@@ -236,7 +239,7 @@ export function DesignControls({
           {tiers(
             COLORS,
             (_, i) => i > 5,
-            ([name, color, text], i) => (
+            ([name, color, text], i, badge) => (
               <button
                 type="button"
                 key={name}
@@ -255,6 +258,7 @@ export function DesignControls({
                   Aa
                 </span>
                 {name}
+                {badge}
               </button>
             )
           )}
@@ -356,7 +360,7 @@ export function DesignControls({
       {children}
       {pro ? null : <p className="design-more design-more-groups">More with Pro</p>}
       <div className="pro-design">
-        <Fold title="Gradients">
+        <Fold title="Gradients" meta={proBadge}>
           <div className="design-grid">
             {GRADIENTS.map(([name, colors]) => (
               <button
@@ -405,7 +409,7 @@ export function DesignControls({
             </select>
           </label>
         </Fold>
-        <Fold title="Custom colors">
+        <Fold title="Custom colors" meta={proBadge}>
           {(
             ["background", "accent", "text", "button", "buttonText"] as const
           ).map(key => (
@@ -440,7 +444,7 @@ export function DesignControls({
             Reset colors
           </button>
         </Fold>
-        <Fold title="Advanced QR">
+        <Fold title="Advanced QR" meta={proBadge}>
           <div className="qr-editor">
           <div className="qr-editor-preview">
             <QrPreview value="https://heyitsme.fyi/c/demo" design={qr} />

@@ -1543,6 +1543,9 @@ main[tabindex="-1"]:focus { outline: 0; }
 
 /* Builder: short heading, a pinned toolbar (tabs + save), one tab panel at a time. */
 .builder-page { --builder-pin: 96px; }
+/* Labels and titles are not editable, so clicking them shows no typing cursor. Real fields keep theirs. */
+.builder-page { caret-color: transparent; }
+.builder-page input, .builder-page textarea, .builder-page select, .builder-page [contenteditable="true"] { caret-color: var(--ink); }
 .builder-head { display: grid; justify-items: start; gap: 10px; }
 .builder-head h1 { margin: 0; font-size: 30px; line-height: 1.05; letter-spacing: -.045em; }
 .builder-head .guest-builder-banner { margin-top: 0; }
