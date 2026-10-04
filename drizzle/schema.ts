@@ -430,6 +430,8 @@ export const workspaceEvents = pgTable("workspaceEvents", {
   capacity: integer("capacity"),
   allowMaybe: boolean("allowMaybe").default(true).notNull(),
   design: jsonb("design").$type<{ background?: string; button?: string; font?: "modern" | "classic" | "friendly" }>(),
+  // Landing-page look, section layout and section content as JSON. See shared/eventPage.ts.
+  page: jsonb("page").$type<Record<string, unknown>>(),
   status: varchar("status", { length: 16 }).default("draft").notNull(),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),

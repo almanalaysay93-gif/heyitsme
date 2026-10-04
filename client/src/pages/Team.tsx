@@ -158,6 +158,7 @@ const ACTIVITY: Record<string, string> = {
   "event.ended": "marked an event as ended",
   "event.archived": "archived an event",
   "event.form_changed": "changed an event's RSVP form",
+  "event.page_changed": "changed an event's page",
   "event.rsvp_edited": "edited an event response",
   "event.rsvp_deleted": "deleted an event response",
   "event.exported": "downloaded an event's responses",

@@ -16,7 +16,7 @@ import { DEMO_CARD, DEMO_CARD_ID, DEMO_REFERENCES, DEMO_SLUG,
 } from "@shared/demoCard";
 import { ENV } from "./_core/env";
 import { BILLING_SCHEMA_STATEMENTS } from "./billing/schemaSql";
-import { TEAM_ANALYTICS_SCHEMA_STATEMENTS, TEAM_BRAND_SCHEMA_STATEMENTS, TEAM_ASSETS_SCHEMA_STATEMENTS, TEAM_SEATS_SCHEMA_STATEMENTS, TEAM_EVENTS_SCHEMA_STATEMENTS, TEAM_CARDS_SCHEMA_STATEMENTS, TEAM_CONTACTS_SCHEMA_STATEMENTS, TEAMS_SCHEMA_STATEMENTS } from "./teams/schemaSql";
+import { TEAM_ANALYTICS_SCHEMA_STATEMENTS, TEAM_BRAND_SCHEMA_STATEMENTS, TEAM_ASSETS_SCHEMA_STATEMENTS, TEAM_SEATS_SCHEMA_STATEMENTS, TEAM_EVENTS_SCHEMA_STATEMENTS, TEAM_EVENT_PAGE_SCHEMA_STATEMENTS, TEAM_CARDS_SCHEMA_STATEMENTS, TEAM_CONTACTS_SCHEMA_STATEMENTS, TEAMS_SCHEMA_STATEMENTS } from "./teams/schemaSql";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _schemaReady: Promise<void> | null = null;
@@ -46,7 +46,7 @@ const SCHEMA_INDEXES = [
 
 // One row records that the runtime bootstrap completed. Bump this when ensureSchema gains a new step.
 const SCHEMA_BOOTSTRAP_KEY = "runtimeSchemaVersion";
-export const SCHEMA_BOOTSTRAP_VERSION = "0021_client_reviews";
+export const SCHEMA_BOOTSTRAP_VERSION = "0022_event_page";
 
 async function ensureSchema(client: postgres.Sql) {
   const [current] = await client<{ value: { version?: string } }[]>`
@@ -183,6 +183,9 @@ async function ensureSchema(client: postgres.Sql) {
   if (teamSeats.length === 0) {
     for (const statement of TEAM_SEATS_SCHEMA_STATEMENTS) await client.unsafe(statement);
   }
+
+  // Event landing page (drizzle/0022) adds one column to "workspaceEvents". "if not exists" makes it safe to repeat.
+  for (const statement of TEAM_EVENT_PAGE_SCHEMA_STATEMENTS) await client.unsafe(statement);
   await client`
     insert into "appSettings" ("key", "value", "updatedAt")
     values (${SCHEMA_BOOTSTRAP_KEY}, ${JSON.stringify({ version: SCHEMA_BOOTSTRAP_VERSION })}::jsonb, now())

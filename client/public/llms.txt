@@ -26,6 +26,7 @@ heyitsme is a digital business card and professional presence web product for th
 - `/pricing` — Free, Pro and Teams plans.
 - `/c/:slug` — public card, presented as a landing page in the owner's chosen template (photo, image or looping video cover, services and prices, hours and address, links, work, references, QR).
 - `/c/demo?template=professional|business|services` — demo card in each template.
+- `/event/:slug` — public team event page: date, place, schedule, speakers, gallery, sponsors, questions and answers, links, and an RSVP form.
 - `/privacy` — privacy policy.
 - `/terms` — terms of use.
 

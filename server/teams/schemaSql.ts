@@ -89,3 +89,7 @@ export const TEAM_SEATS_SCHEMA_STATEMENTS: readonly string[] = [
   "alter table \"workspaces\" add column if not exists \"seatLimit\" integer",
   "alter table \"workspaces\" add column if not exists \"accessUntil\" timestamp"
 ];
+// The statements of drizzle/0022_event_page.sql (teamEvents.test.ts keeps the two equal).
+export const TEAM_EVENT_PAGE_SCHEMA_STATEMENTS: readonly string[] = [
+  "alter table \"workspaceEvents\" add column if not exists \"page\" jsonb"
+];

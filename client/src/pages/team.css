@@ -121,3 +121,9 @@
 .event-questions li{background:rgba(255,255,255,.55)}
 .event-back{color:#797d91;font-size:12px;font-weight:650}
 .event-back:hover{color:var(--purple-deep)}
+.event-section-bar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.event-section-bar h2{margin:0;overflow-wrap:anywhere}
+.event-page-section>div+div{margin-top:16px}
+.event-image-pick{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:8px 0}
+.event-thumb{width:96px;height:72px;object-fit:cover;border-radius:12px;border:1px solid rgba(24,30,60,.14);background:#fff}
+.event-thumb-round{width:72px;border-radius:50%}

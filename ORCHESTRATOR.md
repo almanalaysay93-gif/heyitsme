@@ -172,3 +172,35 @@ Source spec: `D:\Downloads\heyitsmepayment.txt` (v1.0).
 - Bug hunt (browser, local PGlite harness) found and fixed: B1 plan chips stretched on /pricing, B2 lost bullets on /pricing facts, B3 nav narrower than content on /pricing, B4 yearly savings showed the standard amount beside the founding price, B5 Pro chip stretched in the upgrade dialog, B6 check icon wrapped in the comparison table, B7 toggle caption contrast 4.4:1 (now 5.6:1), B8 Insights first requested a 30-day range the Free plan refuses, B9 `/app/billing` missing from the server SPA route list.
 - Deviation from spec: no "Upgrade with Google Pay" button. The 2C2P hosted page shows the official wallet buttons; ours reads "Continue to secure checkout", because Google brand rules forbid custom Google Pay buttons and GCash is also offered.
 - Skipped from spec in this run: NFC section on the landing page and /pricing (NFC store not built), Teams checkout, admin screens, monetization analytics events (the analytics table is per card), renewal reminder emails.
+
+## 2026-10-04 — Buildme run: event landing page
+
+### Design Read (confirmed via Grill Me and Brainstorming)
+The public team event page (`/event/:slug`) becomes a full landing page in the Business card-template look
+(`lx-` glass system, themes Tide / Sunset / Midnight, one accent), with event sections and the RSVP form as the last block.
+Admins edit it in a new "Page" tab under Team > Events.
+
+### Decisions
+- D1: Same look as the Business card page, own component. `CardLanding.tsx` is not touched.
+- D2: Sections: Details, Schedule, Speakers, Gallery, Sponsors, Questions and answers, Resource links. Each can be hidden and moved. RSVP is always last and cannot be hidden. A mobile dock holds the RSVP button.
+- D3: Speakers (brainstorm approach A): one flat list, up to 12. Up to 3 can be "featured" (large block with photo and bio); the rest sit in a grid. A speaker is typed by hand or filled once from a team card, with an optional link to that card.
+- D4: Look: card themes plus one accent. Accent falls back to the team brand color, then the theme accent. Old events keep their font and button color (now the accent); the old page background is not used.
+- D5: Images only, capped (12 gallery photos, 12 sponsor logos, 3MB each). Stored under the event's own folder; the server refuses any image path outside it.
+- D6: Hero extras: Add to calendar (Google link and .ics file), Directions, Share, Countdown.
+- D7: Preview: `/event/:slug?preview=<workspaceId>-<eventId>`, team admins only, works for drafts, replies turned off.
+- D8: v1 is flat. Phase 2: multi-day agenda, sponsor tiers, several speakers per agenda row.
+
+### Work units (single owner each)
+- Contract: `shared/eventPage.ts` (schema, limits, defaults, legacy mapping, section order, calendar and countdown helpers).
+- Data: `workspaceEvents.page` jsonb, `drizzle/0022_event_page.sql`, `TEAM_EVENT_PAGE_SCHEMA_STATEMENTS`, `ensureSchema`.
+- API: `server/teams/eventsRouter.ts` (`uploadImage`, `speakerCards`, `copyCardPhoto`, `savePage`, `preview`; `page` added to `get` and `publicEvent.get`).
+- UI: `EventLanding.tsx`, `eventLanding.css`, `PublicEvent.tsx`, `EventPageEditor.tsx`, `TeamEvents.tsx`, `team.css`.
+- Gates: `pnpm check`, `pnpm test`, `pnpm build`, browser pass, anti-slop and a11y review.
+
+### Result (2026-10-04)
+- Gates: `pnpm check` clean, `pnpm test` 496 passed (52 files), `pnpm build` clean. 18 new tests (`server/eventPage.test.ts`, `server/teams/teamEventPage.test.ts`).
+- Browser pass on a throwaway in-process PGlite harness (deleted after): public page in all three themes at 1280 and 390 wide, calendar menu, gallery lightbox, FAQ, RSVP submit, mobile dock, draft preview, editor (open section, change theme, save). No console errors, no sideways scroll, no control under 44px in the new UI.
+- Bug hunt found and fixed: B1 image path could contain `..` and climb out of the event folder (a later save could then delete another team's file); B2 the required mark on RSVP questions dropped to its own line; B3 link error text named https only while http is also accepted.
+- Anti-slop: no banned words, no gradient text, no glass inside glass (rows inside panels are flat fills), reduced motion covered.
+- Not done: real uploads were not exercised in the browser (the harness has no storage; covered by server tests with storage mocked). Post-launch monitor not run (nothing deployed). Not committed.
+- Known gap: an image uploaded in the editor but never saved stays in storage; no sweep covers event files yet.
