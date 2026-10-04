@@ -220,3 +220,56 @@
   .ev-gallery img, .ev-sponsors a { transition: none; }
   .ev-gallery button:hover img, .ev-sponsors a:hover { transform: none; }
 }
+
+/* ============ Look options (admin choice) ============ */
+/* The main button can have its own color. Set on the button itself, so links and highlights keep the accent. */
+.lx-event .lx-btn-primary { --accent: var(--ev-button); color: var(--ev-on-button); }
+
+/* An own background color: the backdrop takes its tint from the accent instead of the theme's fixed hues. */
+.lx-event.ev-own-paper {
+  --blob-1: color-mix(in srgb, var(--accent) 26%, transparent);
+  --blob-2: color-mix(in srgb, var(--ink) 7%, transparent);
+  --blob-3: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.lx-event.ev-own-paper.lx-theme-midnight {
+  --glass-solid: color-mix(in srgb, #fff 8%, var(--base));
+  --glass-shadow: 0 1px 2px rgb(0 0 0 / .3), 0 16px 40px -10px rgb(0 0 0 / .5);
+}
+@media (prefers-reduced-transparency: no-preference) {
+  .lx-event.ev-own-paper.lx-theme-midnight:not(.ev-flat) {
+    --glass-fill: color-mix(in srgb, var(--base) 52%, transparent);
+    --glass-fill-strong: color-mix(in srgb, var(--base) 70%, transparent);
+  }
+}
+
+/* Two-dimensional: solid panels, a plain outline and a hard offset shadow. No blur, no sheen, no drifting backdrop. */
+.lx-event.ev-flat {
+  --glass-fill: var(--glass-solid);
+  --glass-fill-strong: var(--glass-solid);
+  --glass-border: var(--ink);
+  --glass-edge: transparent;
+  --glass-highlight: 0 0 0 0 transparent;
+  --glass-shadow: 4px 4px 0 0 var(--ink);
+  --glass-blur: 0px;
+  --glass-sat: 100%;
+  --sheen: transparent;
+  --pill-fill: color-mix(in srgb, var(--ink) 6%, var(--glass-solid));
+  --pill-hover: color-mix(in srgb, var(--ink) 13%, var(--glass-solid));
+  --radius-panel: 14px;
+  --radius-media: 10px;
+}
+.lx-event.ev-flat :is(.lx-glass, .lx-section, .lx-ticket, .lx-nav, .lx-dock, .lx-frame-portrait) {
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  border-width: 2px;
+}
+.lx-event.ev-flat :is(.lx-glass, .lx-section, .lx-ticket, .lx-nav, .lx-dock, .lx-frame-portrait)::before { display: none; }
+.lx-event.ev-flat .lx-aurora { display: none; }
+.lx-event.ev-flat .lx-btn { border-width: 2px; border-radius: 10px; }
+.lx-event.ev-flat .lx-btn-primary,
+.lx-event.ev-flat .lx-btn-primary:hover { background: var(--accent); border-color: var(--ink); box-shadow: none; }
+.lx-event.ev-flat .lx-btn-primary:hover { box-shadow: 3px 3px 0 0 var(--ink); }
+.lx-event.ev-flat .lx-btn-ghost { background: var(--glass-solid); border-color: var(--ink); box-shadow: none; }
+.lx-event.ev-flat .lx-btn-ghost:hover { background: var(--pill-hover); }
+
+/* Still: nothing moves, whatever the visitor's device prefers. */
+.lx-event.ev-still *, .lx-event.ev-still *::before, .lx-event.ev-still *::after { animation: none !important; transition: none !important; }

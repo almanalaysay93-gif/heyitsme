@@ -9,6 +9,8 @@ import {
   eventAccent,
   eventCountdown,
   eventIcs,
+  eventLook,
+  eventQr,
   eventPageImages,
   eventPageSchema,
   googleCalendarLink,
@@ -190,5 +192,81 @@ describe("event calendar and countdown", () => {
     expect(eventCountdown(start, null, at("2030-01-10T13:00:00.000Z"))).toEqual({ state: "over" });
     expect(eventCountdown(null, null, 0)).toBeNull();
     expect(eventCountdown("not a date", null, 0)).toBeNull();
+  });
+});
+
+describe("event page look", () => {
+  const page = (value: Record<string, unknown> = {}) => eventPageSchema.parse(value);
+
+  it("starts as the glass style with full motion and no colors of its own", () => {
+    expect(defaultEventPage()).toMatchObject({
+      style: "glass",
+      motion: "full",
+      colors: { background: "", text: "", button: "", buttonText: "" },
+      qr: { dots: "", background: "", frame: "", rounded: false },
+    });
+    // A page saved before these options existed reads the same way.
+    expect(parseEventPage({ theme: "sunset" })).toMatchObject({ theme: "sunset", style: "glass", motion: "full", qr: { rounded: false } });
+    expect(eventPageSchema.safeParse({ colors: { background: "red" } }).success).toBe(false);
+    expect(eventPageSchema.safeParse({ style: "3d" }).success).toBe(false);
+    expect(eventPageSchema.safeParse({ motion: "wild" }).success).toBe(false);
+  });
+
+  it("follows the theme and the accent until a color is picked", () => {
+    for (const theme of EVENT_THEMES) {
+      const look = eventLook(page({ theme }));
+      expect(look).toMatchObject({ theme, paper: EVENT_PALETTES[theme].paper, ink: EVENT_PALETTES[theme].ink, ownPaper: false, ownInk: false, notes: [] });
+      expect(look.button).toBe(look.accent);
+      expect(contrastRatio(look.onButton, look.button)).toBeGreaterThanOrEqual(4.5);
+    }
+    expect(eventLook(page(), "#aa2211")).toMatchObject({ accent: "#aa2211", button: "#aa2211" });
+  });
+
+  it("uses the admin's colors when they can be read", () => {
+    const look = eventLook(page({ colors: { background: "#fff8e7", text: "#3a2a00", button: "#111111", buttonText: "#ffd54a" } }));
+    expect(look).toMatchObject({ theme: "tide", paper: "#fff8e7", ink: "#3a2a00", button: "#111111", onButton: "#ffd54a", ownPaper: true, ownInk: true, notes: [] });
+  });
+
+  it("switches to the dark panels for a dark background, and back for a light one", () => {
+    const dark = eventLook(page({ theme: "sunset", colors: { background: "#101820" } }));
+    expect(dark.theme).toBe("midnight");
+    expect(contrastRatio(dark.ink, dark.paper)).toBeGreaterThanOrEqual(4.5);
+    const light = eventLook(page({ theme: "midnight", colors: { background: "#fdf6ec" } }));
+    expect(light.theme).toBe("tide");
+    expect(contrastRatio(light.ink, light.paper)).toBeGreaterThanOrEqual(4.5);
+    expect(eventLook(page({ theme: "sunset", colors: { background: "#fdf6ec" } })).theme).toBe("sunset");
+  });
+
+  it("never shows text that cannot be read, on any background", () => {
+    for (const background of ["#000000", "#ffffff", "#777777", "#757575", "#808080", "#ff0000", "#00ff00", "#0000ff", "#ffff00", "#8a2be2"]) {
+      for (const text of ["", "#000000", "#ffffff", "#777777", background]) {
+        const look = eventLook(page({ colors: { background, text, button: background, buttonText: text } }));
+        expect(contrastRatio(look.ink, look.paper), `${text} on ${background}`).toBeGreaterThanOrEqual(4.5);
+        if (look.theme !== "midnight") expect(contrastRatio(look.ink, "#ffffff"), `${text} on a light panel`).toBeGreaterThanOrEqual(4.5);
+        expect(contrastRatio(look.onButton, look.button), `button ${text} on ${background}`).toBeGreaterThanOrEqual(4.5);
+        expect(contrastRatio(look.accentText, look.paper)).toBeGreaterThanOrEqual(4.5);
+        expect(contrastRatio(eventLook(page({ accent: background })).onAccent, background)).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  it("says so when it had to replace a color", () => {
+    const look = eventLook(page({ colors: { background: "#ffffff", text: "#eeeeee", button: "#222222", buttonText: "#333333" } }));
+    expect(look.ink).toBe(EVENT_PALETTES.tide.ink);
+    expect(look.onButton).toBe("#ffffff");
+    expect(look.notes).toHaveLength(2);
+  });
+
+  it("keeps the QR code scannable", () => {
+    expect(eventQr(page())).toEqual({ dots: "#111827", background: "#ffffff", frame: "#234bad", rounded: false, note: null });
+    expect(eventQr(page(), "#0e7469").frame).toBe("#0e7469");
+    expect(eventQr(page({ qr: { frame: "#aa2211" } }), "#0e7469").frame).toBe("#aa2211");
+    expect(eventQr(page({ qr: { dots: "#0b2a2d", background: "#eef5f3", rounded: true } }))).toMatchObject({ dots: "#0b2a2d", background: "#eef5f3", rounded: true, note: null });
+    // Light dots on a dark background, and a pair too close together, both go back to black on white.
+    for (const qr of [{ dots: "#ffffff", background: "#000000" }, { dots: "#888888", background: "#999999" }, { background: "#222222" }]) {
+      const safe = eventQr(page({ qr: { ...qr, frame: "#aa2211", rounded: true } }));
+      expect(safe).toMatchObject({ dots: "#111827", background: "#ffffff", frame: "#aa2211", rounded: true });
+      expect(safe.note).toBeTruthy();
+    }
   });
 });

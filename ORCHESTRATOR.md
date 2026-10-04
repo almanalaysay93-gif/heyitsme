@@ -280,3 +280,36 @@ Owner: "analyze whats missing in the design in the events builder thats present 
 - Browser pass on a throwaway PGlite harness (deleted after), 1280 and 390 wide. No console errors, no sideways scroll, no control under 44px.
 - Bug hunt found and fixed: B1 an empty heading block left a double divider in Details; removed. B2 on phones the picture tile squeezed its text into a thin column; the text now wraps under a wide tile.
 - Not done: template picker, photo shape, background photo, gradients, custom colors, QR styling, Google Reviews, branding toggle. Real upload into the tiles, publish from draft through the new button, and the live tab dot not exercised in a browser.
+
+## 2026-10-04 — Buildme run: event page background image
+
+### Design Read
+Owner: "bellow the banner should be a upload background image option".
+
+### Decisions
+- D1: The background is a field of the page JSON, not a new column, so no migration and the existing file ownership check and cleanup cover it.
+- D2: Drawn like the card page background (`lx-bg` with a veil of the theme's paper color), replacing the aurora.
+- D3: Saved with the page on Save, not at once like the banner; the hint says so.
+
+### Result (2026-10-04)
+- Gates: `pnpm check` clean, `pnpm test` 505 passed (53 files), `pnpm build` clean. One new server test.
+- Browser pass on a throwaway PGlite harness (deleted after), 1280 and 390 wide, upload mocked. No console errors, no sideways scroll, no control under 44px.
+- Not done: real upload to storage and the Sunset and Midnight themes not exercised in a browser.
+
+## 2026-10-04 — Buildme run: event page colors, QR look, animation, two-dimensional style
+
+### Design Read
+Owner: "add custom colors, QR styling and animation in the templates add an option for a Two-Dimensional Style website look". Read as the event builder's Design tab; not confirmed.
+
+### Decisions
+- D1: All four options live in the page JSON with defaults. No migration, older pages unchanged.
+- D2: One shared function (`eventLook`) decides the drawn colors, so the builder preview, the public page and the tests agree. Unreadable picks are replaced, never drawn, and the builder says which.
+- D3: The QR code falls back to black on white when the picked pair could fail to scan. Corner squares stay square with rounded dots.
+- D4: "Two-dimensional" is a page style beside Glass, not a fourth theme, so it works with every theme and color.
+- D5: Animation has three levels. The device's reduced-motion setting still wins.
+- D6: No plan gating added. Events have no entitlements; billing untouched. Left for the owner.
+
+### Result (2026-10-04)
+- Gates: `pnpm check` clean, `pnpm test` 517 passed (54 files), `pnpm build` clean. Twelve new tests.
+- Browser pass on a throwaway PGlite harness (deleted after), 1280 and 390 wide. No console errors, no sideways scroll, no control under 44px.
+- Not done: real phone scan of a styled code, Sunset with the flat style, background image together with own colors.

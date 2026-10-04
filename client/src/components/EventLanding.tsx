@@ -4,11 +4,10 @@ import { LegalLinks } from "@/components/LegalLinks";
 import { copyToClipboard, getInitials, safeFileName } from "@/lib/cardKit";
 import { save } from "@/lib/teamFiles";
 import {
-  EVENT_PALETTES,
   agendaByDay,
-  eventAccent,
   eventCountdown,
   eventIcs,
+  eventLook,
   googleCalendarLink,
   orderSpeakers,
   resolveEventSections,
@@ -19,7 +18,7 @@ import {
   type EventSpeaker,
 } from "@shared/eventPage";
 import { formatEventTime } from "@shared/events";
-import { contrastRatio, mapLink, readableOn } from "@shared/pageConfig";
+import { mapLink } from "@shared/pageConfig";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowUpRight, CalendarPlus, Clock, Globe2, MapPin, Share2 } from "lucide-react";
 import type { inferRouterOutputs } from "@trpc/server";
@@ -95,10 +94,12 @@ type Props = {
 
 export function EventLanding({ event, pageUrl, preview = false, children }: Props) {
   const { page, company } = event;
-  const palette = EVENT_PALETTES[page.theme];
-  const accent = eventAccent(page, company.colors?.primary);
-  const motionOn = useMotionOn(true);
-  const enter = useHeroEntrance(true);
+  const look = eventLook(page, company.colors?.primary);
+  // "Still" turns every movement off. "Calm" keeps the entrances and drops the drifting backdrop and the pointer light.
+  const moves = page.motion !== "off";
+  const lively = page.motion === "full";
+  const motionOn = useMotionOn(moves);
+  const enter = useHeroEntrance(moves);
   const rootRef = useRef<HTMLDivElement>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
   const [dockShown, setDockShown] = useState(false);
@@ -110,6 +111,7 @@ export function EventLanding({ event, pageUrl, preview = false, children }: Prop
   const directions = event.mapUrl || (place ? mapLink(place) : null);
   const logo = safeImage(company.logoUrl);
   const cover = safeImage(event.coverImageUrl);
+  const background = safeImage(page.backgroundUrl);
   const calendar: CalendarEvent | null = event.startAt
     ? { title: event.title, startAt: event.startAt, endAt: event.endAt, location: place, details: event.description?.slice(0, 600) ?? "", url: pageUrl, uid: event.slug }
     : null;
@@ -118,12 +120,12 @@ export function EventLanding({ event, pageUrl, preview = false, children }: Prop
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    if (!motionOn) { root.style.setProperty("--aurora-play", "paused"); return; }
+    if (!motionOn || !lively) { root.style.setProperty("--aurora-play", "paused"); return; }
     const sync = () => root.style.setProperty("--aurora-play", document.hidden ? "paused" : "running");
     sync();
     document.addEventListener("visibilitychange", sync);
     return () => document.removeEventListener("visibilitychange", sync);
-  }, [motionOn]);
+  }, [motionOn, lively]);
 
   // The phone dock appears once the hero buttons have scrolled off the top.
   useEffect(() => {
@@ -334,14 +336,27 @@ export function EventLanding({ event, pageUrl, preview = false, children }: Prop
   return (
     <div
       ref={rootRef}
-      className={`lx lx-business lx-event lx-theme-${page.theme} ev-font-${page.font}`}
+      className={[
+        `lx lx-business lx-event lx-theme-${look.theme} ev-font-${page.font}`,
+        page.style === "flat" ? "ev-flat" : "",
+        look.ownPaper ? "ev-own-paper" : "",
+        moves ? "" : "ev-still",
+      ].filter(Boolean).join(" ")}
       style={{
-        ["--accent" as string]: accent,
-        ["--on-accent" as string]: readableOn(accent),
-        ["--accent-text" as string]: contrastRatio(accent, palette.paper) >= 4.5 ? accent : palette.ink,
+        ["--accent" as string]: look.accent,
+        ["--on-accent" as string]: look.onAccent,
+        ["--accent-text" as string]: look.accentText,
+        ["--ev-button" as string]: look.button,
+        ["--ev-on-button" as string]: look.onButton,
+        ...(look.ownPaper ? { ["--base" as string]: look.paper } : {}),
+        // An own color has no softer partner in the theme, so secondary text uses it too.
+        ...(look.ownInk ? { ["--ink" as string]: look.ink, ["--muted" as string]: look.ink } : {}),
       }}
     >
-      <div className="lx-aurora" aria-hidden="true"><i /><i /><i /><i /></div>
+      {/* A page background of its own takes the place of the theme's aurora, as on a card page. */}
+      {background
+        ? <div className="lx-bg" aria-hidden="true"><img src={background} alt="" decoding="async" /></div>
+        : <div className="lx-aurora" aria-hidden="true"><i /><i /><i /><i /></div>}
 
       <header className="lx-nav">
         <a className="lx-brand" href="/"><BrandMark /><span>heyitsme</span></a>
@@ -384,12 +399,12 @@ export function EventLanding({ event, pageUrl, preview = false, children }: Prop
         {cover ? <div className="lx-band ev-band"><img className="lx-cover-media" src={cover} alt="" /></div> : null}
 
         {sections.map((section) => (
-          <GlassPanel enabled key={section.id} className={`lx-section ev-section-${section.id}`}>
+          <GlassPanel enabled={moves} light={lively} key={section.id} className={`lx-section ev-section-${section.id}`}>
             {renderSection(section.id)}
           </GlassPanel>
         ))}
 
-        <GlassPanel enabled light={false} className="lx-section ev-rsvp" id="rsvp" aria-labelledby="rsvp-title">
+        <GlassPanel enabled={moves} light={false} className="lx-section ev-rsvp" id="rsvp" aria-labelledby="rsvp-title">
           {children}
         </GlassPanel>
       </main>

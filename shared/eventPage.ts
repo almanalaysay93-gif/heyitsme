@@ -1,5 +1,6 @@
 import { isContactLink } from "./contactLink";
 import { EVENT_FONTS, type EventDesign } from "./events";
+import { contrastRatio, readableOn } from "./pageConfig";
 import { z } from "zod";
 
 /**
@@ -19,6 +20,16 @@ export const EVENT_PALETTES: Record<EventTheme, { paper: string; ink: string; ac
   tide: { paper: "#eef5f3", ink: "#0b2a2d", accent: "#0e7469" },
   sunset: { paper: "#f9f1ee", ink: "#2b1b22", accent: "#a8432f" },
 };
+
+/** How the page is drawn: frosted glass panels over a moving backdrop, or flat panels with plain outlines. */
+export const EVENT_STYLES = ["glass", "flat"] as const;
+export type EventStyle = (typeof EVENT_STYLES)[number];
+export const EVENT_STYLE_LABELS: Record<EventStyle, string> = { glass: "Glass", flat: "Two-dimensional" };
+
+/** How much the page moves. A visitor who asks their device for less motion always gets the still page. */
+export const EVENT_MOTIONS = ["full", "calm", "off"] as const;
+export type EventMotion = (typeof EVENT_MOTIONS)[number];
+export const EVENT_MOTION_LABELS: Record<EventMotion, string> = { full: "Lively", calm: "Calm", off: "Still" };
 
 export const EVENT_SECTION_IDS = ["details", "schedule", "speakers", "gallery", "sponsors", "faq", "links"] as const;
 export type EventSectionId = (typeof EVENT_SECTION_IDS)[number];
@@ -54,6 +65,9 @@ const image = z
   .optional()
   .default("");
 
+/** A #rrggbb color, or empty for "not set". */
+const color = (what: string) => z.string().trim().regex(/^(#[0-9a-fA-F]{6})?$/, `${what} must be a #rrggbb color`).optional().default("");
+
 /** Day and tier labels, in display order. A row points at one by its position in the list. */
 const labels = (max: number, what: string) => z.array(text(40).min(1)).max(max, `Up to ${max} ${what}.`).optional().default([]);
 const position = (max: number) => z.number().int().min(0).max(max - 1).optional().default(0);
@@ -78,6 +92,18 @@ export const eventPageSchema = z.object({
   /** Accent as #rrggbb; empty means the team's brand color, or the theme's own accent. */
   accent: z.string().trim().regex(/^(#[0-9a-fA-F]{6})?$/, "Accent must be a #rrggbb color").optional().default(""),
   font: z.enum(EVENT_FONTS).optional().default("modern"),
+  /** A photo behind the whole page, under a veil of the theme's paper color. Empty means the theme's own background. */
+  backgroundUrl: image,
+  style: z.enum(EVENT_STYLES).optional().default("glass"),
+  motion: z.enum(EVENT_MOTIONS).optional().default("full"),
+  /** The admin's own colors. An empty one follows the theme. Unreadable pairs are not shown as picked (see eventLook). */
+  colors: z
+    .object({ background: color("Background"), text: color("Text"), button: color("Button"), buttonText: color("Button text") })
+    .prefault({}),
+  /** The look of the QR code on the Share tab. An empty frame means the team's brand color (see eventQr). */
+  qr: z
+    .object({ dots: color("QR dots"), background: color("QR background"), frame: color("QR frame"), rounded: z.boolean().optional().default(false) })
+    .prefault({}),
   /** Display order. Hidden sections stay in the list so their position survives being turned back on. */
   sections: z
     .array(z.object({ id: z.enum(EVENT_SECTION_IDS), hidden: z.boolean().optional().default(false) }))
@@ -171,6 +197,78 @@ export function eventAccent(page: Pick<EventPage, "theme" | "accent">, brandColo
   return EVENT_PALETTES[page.theme].accent;
 }
 
+const READABLE = 4.5;
+// Near-black or white, whichever reads better. A mid-tone where neither reaches 4.5:1 gets pure black, which always does.
+const inkOn = (hex: string): string => (contrastRatio(readableOn(hex), hex) >= READABLE ? readableOn(hex) : "#000000");
+
+export type EventLook = {
+  /** The theme the page is drawn in. An own background that is dark on a light theme (or the reverse) switches it. */
+  theme: EventTheme;
+  paper: string;
+  ink: string;
+  accent: string;
+  onAccent: string;
+  /** The accent when it can be read as text on the page, else the ink. */
+  accentText: string;
+  button: string;
+  onButton: string;
+  ownPaper: boolean;
+  ownInk: boolean;
+  /** What the page changed to stay readable, in words for the admin. Empty when every chosen color is used as picked. */
+  notes: string[];
+};
+
+/**
+ * The colors the page shows. The admin's own colors win where they can be read: text needs 4.5:1 on the background
+ * and on the panels over it, and button text needs 4.5:1 on the button. A color that fails is replaced, never shown.
+ */
+export function eventLook(page: Pick<EventPage, "theme" | "accent" | "colors">, brandColor?: string | null): EventLook {
+  const accent = eventAccent(page, brandColor);
+  const notes: string[] = [];
+  const ownPaper = Boolean(page.colors.background);
+  let theme = page.theme;
+  let { paper, ink } = EVENT_PALETTES[theme];
+  if (ownPaper) {
+    paper = page.colors.background;
+    const dark = contrastRatio(paper, "#ffffff") >= contrastRatio(paper, "#000000");
+    if (dark !== (theme === "midnight")) theme = dark ? "midnight" : "tide";
+    ink = EVENT_PALETTES[theme].ink;
+    if (contrastRatio(ink, paper) < READABLE) ink = dark ? "#ffffff" : "#000000";
+  }
+  // Light panels sit between the background and white, so text there has to read on both ends.
+  const reads = (value: string) => Math.min(contrastRatio(value, paper), theme === "midnight" ? 21 : contrastRatio(value, "#ffffff")) >= READABLE;
+  let ownInk = ink !== EVENT_PALETTES[theme].ink;
+  if (page.colors.text) {
+    if (reads(page.colors.text)) {
+      ink = page.colors.text;
+      ownInk = true;
+    } else notes.push("That text color is hard to read on this background, so the page uses a readable one.");
+  }
+  const button = page.colors.button || accent;
+  let onButton = inkOn(button);
+  if (page.colors.buttonText) {
+    if (contrastRatio(page.colors.buttonText, button) >= READABLE) onButton = page.colors.buttonText;
+    else notes.push("That button text is hard to read on the button color, so the page uses a readable one.");
+  }
+  return { theme, paper, ink, accent, onAccent: inkOn(accent), accentText: reads(accent) ? accent : ink, button, onButton, ownPaper, ownInk, notes };
+}
+
+export const EVENT_QR_COLORS = { dots: "#111827", background: "#ffffff", frame: "#234bad" } as const;
+export type EventQrStyle = { dots: string; background: string; frame: string; rounded: boolean; note: string | null };
+
+/**
+ * The QR code's colors. Phone cameras need dark dots on a light background with strong contrast,
+ * so a pair that fails goes back to black on white rather than making a code nobody can scan.
+ */
+export function eventQr(page: Pick<EventPage, "qr">, brandColor?: string | null): EventQrStyle {
+  const dots = page.qr.dots || EVENT_QR_COLORS.dots;
+  const background = page.qr.background || EVENT_QR_COLORS.background;
+  const frame = page.qr.frame || (brandColor && HEX.test(brandColor) ? brandColor : EVENT_QR_COLORS.frame);
+  const scans = contrastRatio(dots, background) >= READABLE && contrastRatio(dots, "#ffffff") > contrastRatio(background, "#ffffff");
+  if (scans) return { dots, background, frame, rounded: page.qr.rounded, note: null };
+  return { ...EVENT_QR_COLORS, frame, rounded: page.qr.rounded, note: "Phones need dark dots on a light background, so the code uses black on white." };
+}
+
 /** Featured speakers first, each group in the order the admin set. */
 export function orderSpeakers(speakers: EventSpeaker[]): { featured: EventSpeaker[]; rest: EventSpeaker[] } {
   return { featured: speakers.filter((speaker) => speaker.featured), rest: speakers.filter((speaker) => !speaker.featured) };
@@ -227,6 +325,7 @@ export function rowSpeakers(page: Pick<EventPage, "speakers">, row: Pick<EventPa
 /** Every stored file the page shows, so the server can tell which ones a save dropped. */
 export function eventPageImages(page: EventPage): string[] {
   return [
+    page.backgroundUrl,
     ...page.speakers.map((speaker) => speaker.photoUrl),
     ...page.gallery.map((photo) => photo.url),
     ...page.sponsors.map((sponsor) => sponsor.logoUrl),

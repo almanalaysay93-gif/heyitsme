@@ -1,21 +1,30 @@
 import { Fold } from "@/components/Fold";
 import { SortList, moveTo, movedPosition } from "@/components/SortList";
+import { eventQrSvg } from "@/lib/eventQr";
 import { failed, readBase64 } from "@/lib/teamFiles";
 import { trpc } from "@/lib/trpc";
 import {
+  EVENT_MOTIONS,
+  EVENT_MOTION_LABELS,
   EVENT_PAGE_LIMITS,
   EVENT_PALETTES,
   EVENT_SECTION_LABELS,
+  EVENT_STYLES,
+  EVENT_STYLE_LABELS,
   EVENT_THEMES,
   EVENT_THEME_LABELS,
+  eventLook,
+  eventQr,
   newSpeakerId,
   resolveEventSections,
+  type EventMotion,
   type EventPage,
   type EventSectionId,
+  type EventStyle,
 } from "@shared/eventPage";
 import { EVENT_FONTS, EVENT_FONT_LABELS, type EventFont } from "@shared/events";
 import { Check, Eye, EyeOff, Image as ImageIcon, RotateCcw, Trash2 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
 type Target = { workspaceId: number; eventId: number };
@@ -304,7 +313,29 @@ export function EventPageSections({ page, onChange, target, issue, onBusy }: { p
 }
 
 /** The Design tab of the event builder: theme, font and accent color. */
-export function EventPageLook({ page, onChange }: { page: EventPage; onChange: EventPageChange }) {
+const STYLE_HELP: Record<EventStyle, string> = {
+  glass: "Frosted panels over a soft backdrop that drifts.",
+  flat: "Solid panels with a plain outline. No blur and no depth, like a printed poster.",
+};
+const MOTION_HELP: Record<EventMotion, string> = {
+  full: "Sections glide in, the backdrop drifts and panels catch the pointer.",
+  calm: "Sections glide in once. Nothing else moves.",
+  off: "Nothing moves.",
+};
+const COLOR_FIELDS = [["background", "Background"], ["text", "Text"], ["button", "Button"], ["buttonText", "Button text"]] as const;
+const QR_FIELDS = [["dots", "Dots"], ["background", "Background"], ["frame", "Frame"]] as const;
+
+/** `brandColor` is the team's main color. `url` is the event link the QR preview points at. */
+export function EventPageLook({ page, brandColor, url, onChange }: { page: EventPage; brandColor?: string | null; url: string; onChange: EventPageChange }) {
+  const look = eventLook(page, brandColor);
+  const qr = eventQr(page, brandColor);
+  const shown = { background: look.paper, text: look.ink, button: look.button, buttonText: look.onButton };
+  const ownColors = COLOR_FIELDS.some(([key]) => page.colors[key]);
+  const ownQr = QR_FIELDS.some(([key]) => page.qr[key]) || page.qr.rounded;
+  const code = useMemo(
+    () => eventQrSvg(url, { dots: qr.dots, background: qr.background, frame: qr.frame, rounded: qr.rounded }, "Scan to RSVP", null),
+    [url, qr.dots, qr.background, qr.frame, qr.rounded],
+  );
   return <>
     <div className="form-section">
       <div className="pd-block-head"><h3>Theme</h3><p>Sets the page background, the text color and the default accent.</p></div>
@@ -321,6 +352,17 @@ export function EventPageLook({ page, onChange }: { page: EventPage; onChange: E
       </div>
     </div>
     <div className="form-section">
+      <div className="pd-block-head"><h3>Page style</h3><p>How the panels and buttons are drawn. Works with every theme and color.</p></div>
+      <div className="theme-picker" role="group" aria-label="Page style">
+        {EVENT_STYLES.map(style => <button type="button" key={style} aria-pressed={page.style === style} className={`theme-swatch ${page.style === style ? "is-selected" : ""}`} onClick={() => onChange(current => ({ ...current, style }))}>
+          <span className={`event-style-chip event-style-chip-${style}`} aria-hidden="true" />
+          <span>{EVENT_STYLE_LABELS[style]}</span>
+          {page.style === style ? <Check size={14} aria-hidden="true" /> : null}
+        </button>)}
+      </div>
+      <p className="field-hint">{STYLE_HELP[page.style]}</p>
+    </div>
+    <div className="form-section">
       <div className="pd-block-head"><h3>Font</h3><p>Used for every heading and line on the page.</p></div>
       <label className="field-label"><select aria-label="Font" value={page.font} onChange={event => onChange(current => ({ ...current, font: event.target.value as EventFont }))}>{EVENT_FONTS.map(font => <option key={font} value={font}>{EVENT_FONT_LABELS[font]}</option>)}</select></label>
     </div>
@@ -334,6 +376,44 @@ export function EventPageLook({ page, onChange }: { page: EventPage; onChange: E
           </label>
           {page.accent ? <button type="button" className="outline-button pd-small-button" onClick={() => onChange(current => ({ ...current, accent: "" }))}><RotateCcw size={13} aria-hidden="true" /> Reset</button> : null}
         </div>
+      </div>
+    </div>
+    <div className="form-section">
+      <div className="pd-block">
+        <div className="pd-block-head"><h3>Custom colors</h3><p>Your own background, text and button colors. A color you leave alone follows the theme and the accent.</p></div>
+        <div className="pd-accent">
+          {COLOR_FIELDS.map(([key, label]) => <label className="pd-swatch" key={key}>
+            <input type="color" aria-label={`${label} color`} value={page.colors[key] || shown[key]} onChange={event => onChange(current => ({ ...current, colors: { ...current.colors, [key]: event.target.value } }))} />
+            <span>{label}: {page.colors[key] ? page.colors[key].toUpperCase() : "Theme"}</span>
+          </label>)}
+          {ownColors ? <button type="button" className="outline-button pd-small-button" onClick={() => onChange(current => ({ ...current, colors: { background: "", text: "", button: "", buttonText: "" } }))}><RotateCcw size={13} aria-hidden="true" /> Reset colors</button> : null}
+        </div>
+        {look.notes.map(note => <p className="field-hint event-look-note" role="status" key={note}>{note}</p>)}
+      </div>
+    </div>
+    <div className="form-section">
+      <div className="pd-block-head"><h3>Animation</h3><p>How much the page moves. Visitors who ask their device for less motion always get the still page.</p></div>
+      <div className="theme-picker" role="group" aria-label="Animation">
+        {EVENT_MOTIONS.map(motion => <button type="button" key={motion} aria-pressed={page.motion === motion} className={`theme-swatch ${page.motion === motion ? "is-selected" : ""}`} onClick={() => onChange(current => ({ ...current, motion }))}>
+          <span>{EVENT_MOTION_LABELS[motion]}</span>
+          {page.motion === motion ? <Check size={14} aria-hidden="true" /> : null}
+        </button>)}
+      </div>
+      <p className="field-hint">{MOTION_HELP[page.motion]}</p>
+    </div>
+    <div className="form-section">
+      <div className="pd-block">
+        <div className="pd-block-head"><h3>QR code</h3><p>The code people scan to open this page. Download it from the event's Share section after you save.</p></div>
+        <div className="event-qr-preview" dangerouslySetInnerHTML={{ __html: code }} />
+        <div className="pd-accent">
+          {QR_FIELDS.map(([key, label]) => <label className="pd-swatch" key={key}>
+            <input type="color" aria-label={`QR ${label.toLowerCase()} color`} value={page.qr[key] || qr[key]} onChange={event => onChange(current => ({ ...current, qr: { ...current.qr, [key]: event.target.value } }))} />
+            <span>{label}: {page.qr[key] ? page.qr[key].toUpperCase() : key === "frame" ? "Company color" : "Standard"}</span>
+          </label>)}
+          {ownQr ? <button type="button" className="outline-button pd-small-button" onClick={() => onChange(current => ({ ...current, qr: { dots: "", background: "", frame: "", rounded: false } }))}><RotateCcw size={13} aria-hidden="true" /> Reset code</button> : null}
+        </div>
+        <label className="pd-check"><input type="checkbox" checked={page.qr.rounded} onChange={event => onChange(current => ({ ...current, qr: { ...current.qr, rounded: event.target.checked } }))} /> Rounded dots</label>
+        {qr.note ? <p className="field-hint event-look-note" role="status">{qr.note}</p> : null}
       </div>
     </div>
   </>;
