@@ -127,6 +127,8 @@
 .fold { min-width: 0; border-bottom: 1px solid rgba(24,30,60,.08); }
 .fold > summary { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 4px 2px; color: var(--ink); font-size: 14px; font-weight: 650; letter-spacing: -.01em; list-style: none; cursor: pointer; border-radius: 10px; transition: color .16s var(--ease-out); }
 .fold > summary::-webkit-details-marker { display: none; }
+/* A fold title is a button, not text: no typing cursor and no text selection when it is clicked. */
+.fold > summary { caret-color: transparent; -webkit-user-select: none; user-select: none; }
 .fold > summary::after { content: ""; flex: none; width: 7px; height: 7px; margin: 0 6px 3px 4px; border-right: 2px solid #8a8da0; border-bottom: 2px solid #8a8da0; transform: rotate(45deg); transition: transform .2s var(--ease-out); }
 .fold[open] > summary::after { margin-bottom: -3px; transform: rotate(-135deg); }
 .fold > summary:focus-visible { outline: 2px solid var(--purple); outline-offset: 2px; }
