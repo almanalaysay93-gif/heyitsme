@@ -229,3 +229,22 @@ Same page, same `lx-` system. Three additions the owner deferred from v1: a sche
 - Bug hunt found and fixed: B1 the row-speaker list and group names lost their spacing to the `.lx ul` and `.lx h3` resets; B2 `.ev-agenda li` rules reached the nested speaker list.
 - Anti-slop: no banned words, no gradient text, no glass inside glass.
 - Not done: Sunset and Midnight not looked at for the new blocks; sponsor logos inside tiers not seen in a browser. Not committed.
+
+## 2026-10-04 — Buildme run: event builder
+
+### Design Read
+Owner: "i want it like the card builder interface when making the event". Same frame as the card builder: pinned toolbar with tabs and save actions, folds, live preview beside the form, Preview tab on phones, step buttons at the foot of each tab.
+
+### Decisions
+- D1: One builder for both making and editing an event. Owner did not confirm this scope.
+- D2: Reuse the card builder's global classes; event-only rules live in `eventBuilder.css`. `Home.tsx` and `CardLanding.tsx` untouched.
+- D3: One save covers details, page and RSVP form. No server change.
+- D4: The preview is the real `EventLanding`, made inert, with the phone reply bar hidden.
+- D5: Pictures wait until the event exists, because uploads need an event id.
+- D6: The builder title is an h2; the team page already has the h1.
+
+### Result (2026-10-04)
+- Gates: `pnpm check` clean, `pnpm test` 502 passed (52 files), `pnpm build` clean. No new tests (client components are outside the vitest include).
+- Browser pass on a throwaway PGlite harness (deleted after), 1280 and 390 wide. No console errors, no sideways scroll, no control under 44px.
+- Bug hunt found and fixed: B1 publishing with no start date saved, then failed on the server with a 400; now stopped in the builder first. B2 tabs 40px and primary button 42px tall; now 44px.
+- Not done: real image upload, Discard changes and the leave prompt not exercised in a browser. Not committed.
