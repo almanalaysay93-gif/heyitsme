@@ -19,7 +19,7 @@ import { ArrowDown, ArrowUp, Eye, EyeOff, Plus, RotateCcw, Trash2 } from "lucide
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import "./pageDesigner.css";
 
-type Panels = { address: string; setAddress: (address: string) => void; layout: ReactNode; contact: ReactNode; appearance: ReactNode; content: ReactNode };
+type Panels = { address: string; setAddress: (address: string) => void; referencesHeading: string; setReferencesHeading: (heading: string) => void; layout: ReactNode; contact: ReactNode; appearance: ReactNode; content: ReactNode };
 
 type Props = {
   children?: (panels: Panels) => ReactNode;
@@ -87,6 +87,8 @@ export function PageDesigner({ children, value, onChange, themeAccent, onPending
   const panels: Panels = {
     address: config.address,
     setAddress: (address) => commit({ ...config, address }),
+    referencesHeading: config.referencesHeading,
+    setReferencesHeading: (referencesHeading) => commit({ ...config, referencesHeading }),
     layout: <div className="pd">
       <DesignControls config={config} onChange={commit} onUpload={onUploadImage} />
       <TemplatePicker value={config.template} onSelect={(id) => { if (id !== config.template) commit(switchTemplate(config, id)); }} />

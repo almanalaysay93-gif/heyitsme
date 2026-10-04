@@ -68,6 +68,11 @@ export const PLAN_FEATURES = {
   },
 } as const;
 
+/** Google business setups (connect or reconnect) an account may make in any 7 days. Teams is for members of an active team. */
+export const GOOGLE_SETUPS_PER_WEEK = { free: 1, pro: 5, teams: 10 } as const;
+export type GoogleSetupTier = keyof typeof GOOGLE_SETUPS_PER_WEEK;
+export const GOOGLE_SETUP_WINDOW_DAYS = 7;
+
 /** What every account had before paid plans. Applies while PLAN_LIMITS_ENABLED is off. */
 export const LEGACY_LIMITS: PlanLimits = { cards: TECHNICAL_CARD_LIMIT, monthlyLeads: null, analyticsDays: 90,
 };

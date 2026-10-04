@@ -111,6 +111,10 @@ describe("gate regressions", () => {
     expect(out!.cta?.url).toBe("");
   });
 
+  it("keeps the owner's title for the reviews section", () => {
+    expect(toEmittable({ ...defaultPageConfig(), referencesHeading: "  What clients say  " })!.referencesHeading).toBe("What clients say");
+  });
+
   it("keeps the services headline", () => {
     expect(toEmittable({ ...defaultPageConfig("services"), headline: "  Color & cuts  " })!.headline).toBe("Color & cuts");
   });

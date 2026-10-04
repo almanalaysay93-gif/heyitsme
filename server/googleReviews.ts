@@ -1,6 +1,8 @@
-import { and, eq, gte, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, eq, gt, gte, isNull, ne, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { cards, googleReviewEvents, googleReviewPages, users } from "../drizzle/schema";
+import { GOOGLE_SETUPS_PER_WEEK, GOOGLE_SETUP_WINDOW_DAYS, type GoogleSetupTier } from "@shared/plans";
+import { cards, googlePlacesUsage, googleReviewEvents, googleReviewPages, users, workspaceMembers, workspaces } from "../drizzle/schema";
+import { ENV } from "./_core/env";
 import { getDb } from "./db";
 import type { Place } from "./googlePlaces";
 import { getUserEntitlements } from "./billing/service";
@@ -18,7 +20,55 @@ export async function ownerReviewPage(cardId: number, ownerId: number) {
 }
 
 export class ReviewPlanLimitError extends Error {
-  constructor() { super("Free accounts can connect one Google business. Disconnect it before adding another, or upgrade to Pro."); }
+  constructor(message = "Free accounts can connect one Google business. Disconnect it before adding another, or upgrade to Pro.") { super(message); }
+}
+
+/**
+ * A finished setup is kept as a row in the Places usage log with a count of 0, so it never adds to the
+ * Google request totals and still counts after the review page is deleted.
+ */
+const SETUP_LOG_TYPE = "business_setup";
+const SETUP_WINDOW_MS = GOOGLE_SETUP_WINDOW_DAYS * 86_400_000;
+
+export function setupTier(plan: string, onActiveTeam: boolean): GoogleSetupTier {
+  return onActiveTeam ? "teams" : plan === "pro" ? "pro" : "free";
+}
+
+export type SetupAllowance = { tier: GoogleSetupTier; used: number; limit: number | null; canSetup: boolean; nextAt: Date | null };
+
+/** `setups` are the times of this account's setups, oldest first. A null limit is unlimited. */
+export function setupAllowance(tier: GoogleSetupTier, limit: number | null, setups: Date[], now = new Date()): SetupAllowance {
+  const recent = setups.filter(at => at.getTime() > now.getTime() - SETUP_WINDOW_MS);
+  const canSetup = limit === null || recent.length < limit;
+  // The next setup opens when the oldest one that still counts against the limit turns a week old.
+  const nextAt = canSetup || limit === null ? null : new Date(recent[recent.length - limit].getTime() + SETUP_WINDOW_MS);
+  return { tier, used: recent.length, limit, canSetup, nextAt };
+}
+
+type Database = Awaited<ReturnType<typeof database>>;
+
+// `db` may be a transaction, which reads the same way.
+async function setupUsage(db: Pick<Database, "select">, owner: { id: number; email: string | null }, now = new Date()) {
+  const entitlements = await getUserEntitlements(db as Database, owner, now);
+  const [team] = ENV.teamsEnabled ? await db.select({ id: workspaces.id }).from(workspaceMembers).innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
+    .where(and(eq(workspaceMembers.userId, owner.id), eq(workspaceMembers.status, "active"), isNull(workspaces.deletedAt), or(isNull(workspaces.accessUntil), gt(workspaces.accessUntil, now)))).limit(1) : [];
+  const tier = setupTier(entitlements.plan, Boolean(team));
+  const rows = await db.select({ at: googlePlacesUsage.createdAt }).from(googlePlacesUsage)
+    .where(and(eq(googlePlacesUsage.ownerUserId, owner.id), eq(googlePlacesUsage.requestType, SETUP_LOG_TYPE), gte(googlePlacesUsage.createdAt, new Date(now.getTime() - SETUP_WINDOW_MS)))).orderBy(asc(googlePlacesUsage.createdAt));
+  // Complimentary accounts have no weekly limit.
+  return setupAllowance(tier, entitlements.source === "complimentary" ? null : GOOGLE_SETUPS_PER_WEEK[tier], rows.map(row => row.at), now);
+}
+
+const setupLimitMessage = (usage: SetupAllowance) =>
+  `You have used ${usage.limit === 1 ? "your Google business setup" : `all ${usage.limit} of your Google business setups`} for this week. Please try again later.`;
+
+/** Stops a setup before any Google request is made for it. */
+export async function assertSetupAvailable(ownerId: number) {
+  const db = await database();
+  const [owner] = await db.select({ id: users.id, email: users.email }).from(users).where(eq(users.id, ownerId)).limit(1);
+  if (!owner) return;
+  const usage = await setupUsage(db, owner);
+  if (!usage.canSetup) throw new ReviewPlanLimitError(setupLimitMessage(usage));
 }
 
 export function canConnectBusiness(plan: string, hasOtherActiveBusiness: boolean) {
@@ -29,8 +79,9 @@ export async function reviewConnectionAllowance(cardId: number, ownerId: number)
   const db = await database();
   const [owner] = await db.select({ id: users.id, email: users.email }).from(users).where(eq(users.id, ownerId)).limit(1);
   const plan = owner ? (await getUserEntitlements(db, owner)).plan : "free";
+  const setups = owner ? await setupUsage(db, owner) : setupAllowance("free", GOOGLE_SETUPS_PER_WEEK.free, []);
   const [other] = await db.select({ id: googleReviewPages.id }).from(googleReviewPages).where(and(eq(googleReviewPages.ownerUserId, ownerId), ne(googleReviewPages.cardId, cardId), eq(googleReviewPages.enabled, true))).limit(1);
-  return { plan, canConnect: canConnectBusiness(plan, Boolean(other)) };
+  return { plan, canConnect: canConnectBusiness(plan, Boolean(other)), setups };
 }
 
 const googleUrl = /^https:\/\/(?:[a-z0-9-]+\.)?google\.com\//i;
@@ -55,6 +106,9 @@ export async function connectReviewPage(cardId: number, ownerId: number, place: 
     if (!card || card.deletedAt) return null;
     const [other] = await tx.select({ id: googleReviewPages.id }).from(googleReviewPages).where(and(eq(googleReviewPages.ownerUserId, ownerId), ne(googleReviewPages.cardId, cardId), eq(googleReviewPages.enabled, true))).limit(1);
     if (!canConnectBusiness(plan, Boolean(other))) throw new ReviewPlanLimitError();
+    // The owner row is locked above, so two setups at once cannot both slip under the weekly limit.
+    const usage = await setupUsage(tx, owner);
+    if (!usage.canSetup) throw new ReviewPlanLimitError(setupLimitMessage(usage));
     const data = {
       placeId: place.id,
       businessName: (place.displayName?.text ?? card.company ?? card.displayName).slice(0, 200),
@@ -71,6 +125,7 @@ export async function connectReviewPage(cardId: number, ownerId: number, place: 
       updatedAt: new Date(),
     };
     const [page] = await tx.insert(googleReviewPages).values({ ...data, cardId, ownerUserId: ownerId, slug: nanoid(8), branding: { logoUrl: card.logoUrl ?? card.avatarUrl, theme: card.theme ?? "clean" } }).onConflictDoUpdate({ target: googleReviewPages.cardId, set: data }).returning();
+    await tx.insert(googlePlacesUsage).values({ requestType: SETUP_LOG_TYPE, requestCount: 0, cardId, ownerUserId: ownerId });
     return page;
   });
 }
@@ -117,6 +172,13 @@ export async function reviewSummary(cardId: number, ownerId: number, days: numbe
   const since = days == null ? undefined : new Date(Date.now() - days * 86_400_000);
   const rows = await db.select({ type: googleReviewEvents.type, source: googleReviewEvents.source, day: sql<string>`date(${googleReviewEvents.createdAt})::text`, count: sql<number>`count(*)::int` }).from(googleReviewEvents).where(and(eq(googleReviewEvents.pageId, page.id), since ? gte(googleReviewEvents.createdAt, since) : undefined)).groupBy(googleReviewEvents.type, googleReviewEvents.source, sql`date(${googleReviewEvents.createdAt})`);
   return { page, rows };
+}
+
+/** Removes the review page and its activity for good. The card itself is left alone. */
+export async function deleteReviewPage(cardId: number, ownerId: number) {
+  const db = await database();
+  const [page] = await db.delete(googleReviewPages).where(and(eq(googleReviewPages.cardId, cardId), eq(googleReviewPages.ownerUserId, ownerId))).returning({ id: googleReviewPages.id });
+  return Boolean(page);
 }
 
 export async function updateReviewSettings(cardId: number, ownerId: number, patch: { enabled?: boolean; showOnCard?: boolean; branding?: Record<string, unknown> }) {

@@ -125,6 +125,8 @@ export const pageConfigSchema = z.object({
   address: optionalText(240),
   /** Additional custom links for business portals, menus, catalogs, etc. */
   links: z.array(pageLinkSchema).max(PAGE_LIMITS.links).optional().default([]),
+  /** The owner's own title for the references and reviews section; empty means "Kind words". */
+  referencesHeading: optionalText(60),
   /** Contact persons and officers in charge for business directory. */
   contactPersons: z.array(contactPersonSchema).max(PAGE_LIMITS.contactPersons).optional().default([]),
   /** Hides the heyitsme name in the page header and footer. Turning it on needs Pro (server/billing/gate.ts). */

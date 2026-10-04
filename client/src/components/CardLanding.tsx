@@ -514,7 +514,7 @@ export function CardLanding(props: CardLandingProps) {
       case "references":
         return (
           <>
-            {heading("Kind words")}
+            {heading("Kind words", config.referencesHeading)}
             {references.length > 0 ? (
               <div className="lx-quotes">
                 {references.map((reference) => (
@@ -535,7 +535,8 @@ export function CardLanding(props: CardLandingProps) {
                   {googleReview.rating ? `★ ${googleReview.rating} on Google` : ""}
                   {googleReview.reviewCount != null ? ` · ${googleReview.reviewCount} reviews` : ""}
                 </p>
-                <a href={`/r/${googleReview.slug}?source=profile`} className="lx-btn lx-btn-outline" style={{ display: "inline-block", textDecoration: "none" }}>
+                {/* Straight to Google's review box in a new tab, so the visitor keeps this page open. */}
+                <a href={`/api/google-reviews/${encodeURIComponent(googleReview.slug)}/write?source=profile`} target="_blank" rel="noopener noreferrer" className="lx-btn lx-btn-outline" style={{ display: "inline-block", textDecoration: "none" }}>
                   Leave a Google review
                 </a>
               </div>

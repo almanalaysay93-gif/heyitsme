@@ -1478,10 +1478,11 @@ function BuilderView({
             <div className="form-section-heading">
               <span>★</span>
               <div>
-                <h2>Google Reviews</h2>
-                <p>Connect your Google business to show your rating on this card and get a review page, QR code and NFC link.</p>
+                <h2>Reviews</h2>
+                <p>Name the reviews section, and connect your Google business to show your rating and a review button on this card.</p>
               </div>
             </div>
+            <Field id="field-referencesHeading" label="Section heading" value={panels.referencesHeading} onChange={(value: string) => panels.setReferencesHeading(value.slice(0, 60))} placeholder="Kind words" hint="Title shown above your client references and Google reviews. Leave empty for “Kind words”." />
             {draft.id > 0 && isAuthenticated
               ? <a className="outline-button" href={`/app/google-reviews?card=${draft.id}`}><Star size={14} /> Set up Google Reviews</a>
               : <p className="editor-empty">Save this card first, then connect your Google business.</p>}

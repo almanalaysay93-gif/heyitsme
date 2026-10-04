@@ -57,7 +57,7 @@ import {
 } from "./billing/gate";
 import { getPlaceDetails, searchBusinesses, signSelection, verifyConfirmedPlace, verifySelection } from "./googlePlaces";
 import { PlacesCapError, placesUsageReport, savePlacesSettings } from "./googlePlacesUsage";
-import { connectReviewPage, ownerReviewPage, publicReviewPage, reviewConnectionAllowance, ReviewPlanLimitError, reviewPageForCard, reviewSummary, trackReviewEvent, updateReviewSettings } from "./googleReviews";
+import { assertSetupAvailable, connectReviewPage, deleteReviewPage, ownerReviewPage, publicReviewPage, reviewConnectionAllowance, ReviewPlanLimitError, reviewPageForCard, reviewSummary, trackReviewEvent, updateReviewSettings } from "./googleReviews";
 
 // Rendered as <img src>, so only http(s) or same-origin storage paths — never data:/javascript:.
 const imageUrl = z
@@ -261,6 +261,13 @@ async function enforceRateLimit(
 async function placesCaller(cardId: number, ownerId: number) {
   const card = await getCardByIdForOwner(cardId, ownerId);
   if (!card || card.deletedAt) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found." });
+  // Out of setups for the week: stop here, before Google is asked anything.
+  try {
+    await assertSetupAvailable(ownerId);
+  } catch (error) {
+    if (error instanceof ReviewPlanLimitError) throw new TRPCError({ code: "FORBIDDEN", message: error.message });
+    throw error;
+  }
   return { cardId, ownerId };
 }
 
@@ -350,6 +357,10 @@ export const appRouter = router({
       const page = await updateReviewSettings(cardId, ctx.user.id, patch);
       if (!page) throw new TRPCError({ code: "NOT_FOUND", message: "Review page not found." });
       return page;
+    }),
+    delete: protectedProcedure.input(z.object({ cardId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      if (!(await deleteReviewPage(input.cardId, ctx.user.id))) throw new TRPCError({ code: "NOT_FOUND", message: "Review page not found." });
+      return { ok: true };
     }),
     publicPage: publicProcedure.input(z.object({ slug: z.string().min(1).max(24) })).query(({ input }) => publicReviewPage(input.slug)),
     forCard: publicProcedure.input(z.object({ cardId: z.number().int().positive() })).query(({ input }) => reviewPageForCard(input.cardId)),
