@@ -14,6 +14,9 @@ export const planEnded = (workspace: WorkspacePlan, now = new Date()) =>
 // Looking at what a team already has is never taken away.
 const READ_ONLY: readonly TeamCapability[] = ["canViewWorkspaceAnalytics"];
 
+// Capabilities with a switch of their own, on top of the plan.
+const SWITCHED: Partial<Record<TeamCapability, () => boolean>> = { canStyleEventPages: () => ENV.teamEventStylingEnabled };
+
 /**
  * What Teams allows: for everyone when no workspace is given, and for one workspace when it is. TEAMS_ENABLED
  * switches all of it. A workspace whose plan has ended keeps what it has, to read and download, and loses
@@ -22,7 +25,7 @@ const READ_ONLY: readonly TeamCapability[] = ["canViewWorkspaceAnalytics"];
 export function teamEntitlements(workspace?: WorkspacePlan, now = new Date()): TeamEntitlements {
   const open = ENV.teamsEnabled && !(workspace && planEnded(workspace, now));
   return Object.fromEntries(
-    TEAM_CAPABILITIES.map(name => [name, READ_ONLY.includes(name) ? ENV.teamsEnabled : open])
+    TEAM_CAPABILITIES.map(name => [name, (READ_ONLY.includes(name) ? ENV.teamsEnabled : open) && (SWITCHED[name]?.() ?? true)])
   ) as TeamEntitlements;
 }
 

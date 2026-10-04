@@ -77,6 +77,7 @@ export const TEAM_CAPABILITIES = [
   "canCreateTemplates",
   "canManageBrand",
   "canCreateEvents",
+  "canStyleEventPages",
   "canViewWorkspaceAnalytics",
   "canManageWorkspaceContacts",
   "canUseDepartments",

@@ -249,6 +249,37 @@ describe("team event page", () => {
     expect((await team.asOwner.teamEvents.get(event.target)).page).toMatchObject(look);
   });
 
+  it("with event styling off, keeps a saved look and refuses a new one", async () => {
+    const team = await makeTeam();
+    const event = await makeEvent(team, true);
+    const look = { colors: { background: "#fff8e7", text: "#3a2a00", button: "", buttonText: "" }, qr: { dots: "#0b2a2d", background: "", frame: "", rounded: true } };
+    await team.asOwner.teamEvents.savePage({ ...event.target, page: look });
+    expect((await team.asOwner.teams.get({ workspaceId: team.workspaceId })).entitlements.canStyleEventPages).toBe(true);
+
+    ENV.teamEventStylingEnabled = false;
+    try {
+      const seen = (await team.asOwner.teams.get({ workspaceId: team.workspaceId })).entitlements;
+      expect(seen.canStyleEventPages).toBe(false);
+      expect(seen.canCreateEvents).toBe(true);
+      // Visitors still get the saved look, and the rest of the page can still be edited around it.
+      expect((await visitor().publicEvent.get({ slug: event.slug })).page).toMatchObject(look);
+      const edited = await team.asOwner.teamEvents.savePage({ ...event.target, page: { ...look, theme: "midnight", style: "flat", motion: "calm", faq: [{ question: "Parking?", answer: "On site." }] } });
+      expect(edited.page).toMatchObject({ ...look, theme: "midnight", style: "flat", motion: "calm" });
+
+      await expect(team.asOwner.teamEvents.savePage({ ...event.target, page: { ...look, colors: { ...look.colors, button: "#111111" } } })).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(team.asOwner.teamEvents.savePage({ ...event.target, page: { ...look, qr: { ...look.qr, frame: "#aa2211" } } })).rejects.toThrow("Custom colors and QR styling are not available");
+      expect((await team.asOwner.teamEvents.get(event.target)).page).toMatchObject({ ...look, theme: "midnight" });
+
+      // Going back to the standard look is always allowed, and it cannot be picked again while off.
+      const reset = await team.asOwner.teamEvents.savePage({ ...event.target, page: {} });
+      expect(reset.page).toMatchObject({ colors: { background: "", text: "" }, qr: { dots: "", rounded: false } });
+      await expect(team.asOwner.teamEvents.savePage({ ...event.target, page: look })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    } finally {
+      ENV.teamEventStylingEnabled = true;
+    }
+    await expect(team.asOwner.teamEvents.savePage({ ...event.target, page: look })).resolves.toBeTruthy();
+  });
+
   it("links a speaker only to a card of the same team, and only while that card is online", async () => {
     const team = await makeTeam();
     const rival = await makeTeam("Rival");

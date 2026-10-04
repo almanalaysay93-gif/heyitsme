@@ -313,3 +313,19 @@ Owner: "add custom colors, QR styling and animation in the templates add an opti
 - Gates: `pnpm check` clean, `pnpm test` 517 passed (54 files), `pnpm build` clean. Twelve new tests.
 - Browser pass on a throwaway PGlite harness (deleted after), 1280 and 390 wide. No console errors, no sideways scroll, no control under 44px.
 - Not done: real phone scan of a styled code, Sunset with the flat style, background image together with own colors.
+
+## 2026-10-04 — Buildme run: Teams capability for event colors and QR styling
+
+### Design Read
+Owner: "custom colors/QR build", then chose "New Teams capability" when asked what the gate should be.
+
+### Decisions
+- D1: `canStyleEventPages` joins the Teams capabilities and is resolved on the server only.
+- D2: A launch flag (`TEAM_EVENT_STYLING_ENABLED`, on by default) makes the capability switchable today. Per-workspace switching needs a column; left for later.
+- D3: Covers custom colors and the QR look, the two things named. Style and animation stay open.
+- D4: Off never deletes: saved looks stay live, only new picks are refused, reset is allowed.
+
+### Result (2026-10-04)
+- Gates: `pnpm check` clean, `pnpm test` 519 passed (54 files), `pnpm build` clean. Two new tests.
+- Browser pass on a throwaway PGlite harness (deleted after) with the flag off, 1280 and 390 wide. No console errors, no sideways scroll.
+- Not done: per-workspace switch, an admin screen for it.

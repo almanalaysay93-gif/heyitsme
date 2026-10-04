@@ -27,7 +27,7 @@ import {
   type EventStatus,
   type RsvpStatus,
 } from "@shared/events";
-import { EVENT_PAGE_LIMITS, eventPageImages, eventPageSchema, normalizeEventPage, parseEventPage } from "@shared/eventPage";
+import { EVENT_PAGE_LIMITS, eventPageImages, eventPageSchema, eventStylingAdded, normalizeEventPage, parseEventPage } from "@shared/eventPage";
 import { isAdminRole } from "@shared/teams";
 import { cards, workspaceEventFields, workspaceEventRsvpAnswers, workspaceEventRsvps, workspaceEvents, workspaces } from "../../drizzle/schema";
 import { ENV } from "../_core/env";
@@ -37,6 +37,7 @@ import type { Db } from "../billing/service";
 import { csvCell } from "../proTools";
 import { storageDelete, storageGetSignedUrl, storagePut } from "../storage";
 import { canManageEvent, recordAudit, requireWorkspaceMember } from "./access";
+import { teamEntitlements } from "./entitlements";
 import { id, limit, requireDb, teamProcedure } from "./router";
 
 const eventProcedure = teamProcedure("canCreateEvents");
@@ -528,9 +529,13 @@ export const teamEventsRouter = router({
   /** Saves the landing page: look, section order and section content. The RSVP form is saved by saveFields. */
   savePage: eventProcedure.input(z.object({ workspaceId: id, eventId: id, page: eventPageSchema })).mutation(async ({ ctx, input }) => {
     const db = await requireDb();
-    const { event } = await managedEvent(db, ctx.user.id, input.workspaceId, input.eventId);
+    const { access, event } = await managedEvent(db, ctx.user.id, input.workspaceId, input.eventId);
     // Speaker ids, and the day, tier and speaker each row points at, are settled here, never trusted from the browser.
     const page = normalizeEventPage(input.page);
+    // Without event styling a page keeps the colors and QR look it has; only new ones are refused.
+    if (!teamEntitlements(access.workspace).canStyleEventPages && eventStylingAdded(parseEventPage(event.page, event.design), page)) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Custom colors and QR styling are not available for this team right now. The saved look stays as it is." });
+    }
     if (JSON.stringify(page).length > EVENT_PAGE_LIMITS.pageJson) throw bad("This page holds too much text. Shorten a section and save again.");
     const prefix = eventFilePrefix(event.workspaceId, event.id);
     if (eventPageImages(page).some(url => !url.startsWith(prefix))) throw bad("Upload the image again.");

@@ -326,7 +326,9 @@ const COLOR_FIELDS = [["background", "Background"], ["text", "Text"], ["button",
 const QR_FIELDS = [["dots", "Dots"], ["background", "Background"], ["frame", "Frame"]] as const;
 
 /** `brandColor` is the team's main color. `url` is the event link the QR preview points at. */
-export function EventPageLook({ page, brandColor, url, onChange }: { page: EventPage; brandColor?: string | null; url: string; onChange: EventPageChange }) {
+const STYLING_OFF = "Not available for this team right now. What is saved stays on the page, and you can still reset it.";
+
+export function EventPageLook({ page, brandColor, canStyle, url, onChange }: { page: EventPage; brandColor?: string | null; canStyle: boolean; url: string; onChange: EventPageChange }) {
   const look = eventLook(page, brandColor);
   const qr = eventQr(page, brandColor);
   const shown = { background: look.paper, text: look.ink, button: look.button, buttonText: look.onButton };
@@ -383,11 +385,12 @@ export function EventPageLook({ page, brandColor, url, onChange }: { page: Event
         <div className="pd-block-head"><h3>Custom colors</h3><p>Your own background, text and button colors. A color you leave alone follows the theme and the accent.</p></div>
         <div className="pd-accent">
           {COLOR_FIELDS.map(([key, label]) => <label className="pd-swatch" key={key}>
-            <input type="color" aria-label={`${label} color`} value={page.colors[key] || shown[key]} onChange={event => onChange(current => ({ ...current, colors: { ...current.colors, [key]: event.target.value } }))} />
+            <input type="color" aria-label={`${label} color`} disabled={!canStyle} value={page.colors[key] || shown[key]} onChange={event => onChange(current => ({ ...current, colors: { ...current.colors, [key]: event.target.value } }))} />
             <span>{label}: {page.colors[key] ? page.colors[key].toUpperCase() : "Theme"}</span>
           </label>)}
           {ownColors ? <button type="button" className="outline-button pd-small-button" onClick={() => onChange(current => ({ ...current, colors: { background: "", text: "", button: "", buttonText: "" } }))}><RotateCcw size={13} aria-hidden="true" /> Reset colors</button> : null}
         </div>
+        {canStyle ? null : <p className="field-hint event-look-note">{STYLING_OFF}</p>}
         {look.notes.map(note => <p className="field-hint event-look-note" role="status" key={note}>{note}</p>)}
       </div>
     </div>
@@ -407,12 +410,13 @@ export function EventPageLook({ page, brandColor, url, onChange }: { page: Event
         <div className="event-qr-preview" dangerouslySetInnerHTML={{ __html: code }} />
         <div className="pd-accent">
           {QR_FIELDS.map(([key, label]) => <label className="pd-swatch" key={key}>
-            <input type="color" aria-label={`QR ${label.toLowerCase()} color`} value={page.qr[key] || qr[key]} onChange={event => onChange(current => ({ ...current, qr: { ...current.qr, [key]: event.target.value } }))} />
+            <input type="color" aria-label={`QR ${label.toLowerCase()} color`} disabled={!canStyle} value={page.qr[key] || qr[key]} onChange={event => onChange(current => ({ ...current, qr: { ...current.qr, [key]: event.target.value } }))} />
             <span>{label}: {page.qr[key] ? page.qr[key].toUpperCase() : key === "frame" ? "Company color" : "Standard"}</span>
           </label>)}
           {ownQr ? <button type="button" className="outline-button pd-small-button" onClick={() => onChange(current => ({ ...current, qr: { dots: "", background: "", frame: "", rounded: false } }))}><RotateCcw size={13} aria-hidden="true" /> Reset code</button> : null}
         </div>
-        <label className="pd-check"><input type="checkbox" checked={page.qr.rounded} onChange={event => onChange(current => ({ ...current, qr: { ...current.qr, rounded: event.target.checked } }))} /> Rounded dots</label>
+        <label className="pd-check"><input type="checkbox" checked={page.qr.rounded} disabled={!canStyle && !page.qr.rounded} onChange={event => onChange(current => ({ ...current, qr: { ...current.qr, rounded: event.target.checked } }))} /> Rounded dots</label>
+        {canStyle ? null : <p className="field-hint event-look-note">{STYLING_OFF}</p>}
         {qr.note ? <p className="field-hint event-look-note" role="status">{qr.note}</p> : null}
       </div>
     </div>

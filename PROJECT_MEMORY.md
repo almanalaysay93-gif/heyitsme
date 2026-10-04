@@ -386,7 +386,7 @@ Owner asked to find what the card builder's design has that the event builder la
 - Gates: `pnpm check` clean, `pnpm test` 504 passed (53 files), `pnpm build` clean. Browser pass on the throwaway PGlite harness at 1280 and 390 wide: copy link (clipboard read back), eye toggle, accent set and reset, error focus, no console errors, no sideways scroll, no control under 44px.
 - Not checked in a browser: real image upload into the tiles (harness has no storage), publish from draft through the new button, the live tab dot (code path only).
 
-## 2026-10-04 — Event page background image (Claude, branch `feat/event-background`, NOT committed)
+## 2026-10-04 — Event page background image (Claude, merged to `main` 2026-10-04)
 Owner asked for an upload background image option below the banner in the event builder.
 - `shared/eventPage.ts`: new `backgroundUrl` on the event page (same stored-file rule as speaker photos) and it is listed in `eventPageImages`, so `savePage` checks it belongs to the event and deletes the file when it is dropped. No new column, no migration: it lives in the `page` JSON.
 - `EventBuilder.tsx`: "Background image" block under Banner in Details, using `EventImagePicker`. Uploads through the existing `teamEvents.uploadImage`; unlike the banner it is saved with the next Save.
@@ -394,7 +394,7 @@ Owner asked for an upload background image option below the banner in the event 
 - Gates: `pnpm check` clean, `pnpm test` 505 passed (53 files), `pnpm build` clean. New server test in `teamEventPage.test.ts`. Browser pass on the throwaway PGlite harness at 1280 and 390 wide with the upload call mocked and a black-and-white checker photo: pick, preview, save, reopen, public page, remove; no console errors, no sideways scroll, no control under 44px.
 - Not checked in a browser: a real upload to storage, Sunset and Midnight themes with a background.
 
-## 2026-10-04 — Event page look: custom colors, QR styling, animation, two-dimensional style (Claude, branch `feat/event-background`, NOT committed)
+## 2026-10-04 — Event page look: custom colors, QR styling, animation, two-dimensional style (Claude, merged to `main` 2026-10-04)
 Owner asked: "add custom colors, QR styling and animation in the templates add an option for a Two-Dimensional Style website look". Read as: the event builder's Design tab. Not confirmed with the owner.
 - `shared/eventPage.ts`: the page JSON gains `style` (`glass` or `flat`), `motion` (`full`, `calm`, `off`), `colors` (background, text, button, button text) and `qr` (dots, background, frame, rounded). All optional with defaults, so older saved pages read unchanged. No new column, no migration.
 - `eventLook(page, brandColor)` works out what the page draws. A dark background of the admin's own switches to the dark panels, a light one to the light panels. Text or button text that does not reach 4.5:1 is replaced and a note says so in the builder.
@@ -405,3 +405,11 @@ Owner asked: "add custom colors, QR styling and animation in the templates add a
 - No plan gating: the card builder treats custom colors and advanced QR as Pro, events have no entitlements of their own. Billing code untouched. Owner to decide whether these should be gated.
 - Gates: `pnpm check` clean, `pnpm test` 517 passed (54 files), `pnpm build` clean. New tests in `server/eventPage.test.ts`, `server/teams/teamEventPage.test.ts`, `client/src/lib/eventQr.test.ts`. Browser pass on the throwaway PGlite harness at 1280 and 390 wide: every Design control, notes for unreadable picks, save, reopen, public page, Share QR; no console errors, no sideways scroll, no control under 44px.
 - Not checked: scanning a styled code with a real phone, Sunset theme in the flat style, a background image together with own colors.
+
+## 2026-10-04 — Teams capability for event colors and QR styling (Claude, branch `feat/event-style-capability`, NOT committed)
+Owner picked "New Teams capability" for gating event custom colors and QR styling.
+- `shared/teams.ts`: new capability `canStyleEventPages`. Resolved in `server/teams/entitlements.ts` like the others (Teams on, plan not ended) and also needs the new launch flag `TEAM_EVENT_STYLING_ENABLED` (on by default, in `.env.example`). The flag is for every team; a per-workspace switch would need a column and was not built.
+- It covers the event page's `colors` and `qr` only. Theme, accent, page style and animation stay open to every team.
+- `teamEvents.savePage` refuses a save that picks a new color or QR look while the capability is off (`eventStylingAdded` in `shared/eventPage.ts`). A saved look stays, visitors keep seeing it, the rest of the page can be edited around it, and going back to the standard look is always allowed. Nothing is deleted.
+- Builder: with the capability off the color and QR pickers are disabled with a line saying why; Reset stays usable. The browser copy is a hint only, the server decides.
+- Gates: `pnpm check` clean, `pnpm test` 519 passed (54 files), `pnpm build` clean. Browser pass on the throwaway PGlite harness with the flag off, 1280 and 390 wide: pickers disabled, notes shown, other design changes still save, no console errors, no sideways scroll.

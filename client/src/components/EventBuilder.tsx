@@ -115,10 +115,10 @@ export function EventBuilder({ workspaceId, eventId, onClose }: { workspaceId: n
     </section>;
   }
   const company: Company = { name: workspace.name, logoUrl: workspace.logoUrl ?? null, colors: workspace.brandColors ?? null };
-  return <Builder workspaceId={workspaceId} initial={eventId === null ? null : detail.data ?? null} company={company} zone={detail.data?.timezone ?? workspace.timezone} onClose={onClose} />;
+  return <Builder workspaceId={workspaceId} initial={eventId === null ? null : detail.data ?? null} company={company} zone={detail.data?.timezone ?? workspace.timezone} canStyle={Boolean(team.data?.entitlements.canStyleEventPages)} onClose={onClose} />;
 }
 
-function Builder({ workspaceId, initial, company, zone, onClose }: { workspaceId: number; initial: EventData | null; company: Company; zone: string; onClose: (eventId: number | null) => void }) {
+function Builder({ workspaceId, initial, company, zone, canStyle, onClose }: { workspaceId: number; initial: EventData | null; company: Company; zone: string; canStyle: boolean; onClose: (eventId: number | null) => void }) {
   const utils = trpc.useUtils();
   const create = trpc.teamEvents.create.useMutation();
   const update = trpc.teamEvents.update.useMutation();
@@ -476,7 +476,7 @@ function Builder({ workspaceId, initial, company, zone, onClose }: { workspaceId
           <section {...panelProps("design")}>
             <div className="builder-panel-head"><h2>Design</h2><p>The page uses the same layout as a Business card page. Pick a theme, a font and an accent color.</p></div>
             <div className="builder-panel-body">
-              <EventPageLook page={draft.page} brandColor={company.colors?.primary} url={`${window.location.origin}/event/${meta.slug || "your-event"}?source=qr`} onChange={changePage} />
+              <EventPageLook page={draft.page} brandColor={company.colors?.primary} canStyle={canStyle} url={`${window.location.origin}/event/${meta.slug || "your-event"}?source=qr`} onChange={changePage} />
             </div>
             {stepNav("design")}
           </section>

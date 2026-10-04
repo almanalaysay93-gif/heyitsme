@@ -253,6 +253,16 @@ export function eventLook(page: Pick<EventPage, "theme" | "accent" | "colors">, 
   return { theme, paper, ink, accent, onAccent: inkOn(accent), accentText: reads(accent) ? accent : ink, button, onButton, ownPaper, ownInk, notes };
 }
 
+/**
+ * True when a save picks colors or a QR look the saved page did not have. Leaving them as saved, or going back to
+ * the standard ones, is not: a team that loses event styling keeps what it has and can still reset it.
+ */
+export function eventStylingAdded(saved: Pick<EventPage, "colors" | "qr">, next: Pick<EventPage, "colors" | "qr">): boolean {
+  const added = <T extends Record<string, string | boolean>>(before: T, after: T) =>
+    Object.keys(after).some(key => Boolean(after[key]) && after[key] !== before[key]);
+  return added(saved.colors, next.colors) || added(saved.qr, next.qr);
+}
+
 export const EVENT_QR_COLORS = { dots: "#111827", background: "#ffffff", frame: "#234bad" } as const;
 export type EventQrStyle = { dots: string; background: string; frame: string; rounded: boolean; note: string | null };
 
