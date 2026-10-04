@@ -11,6 +11,7 @@ import {
   eventIcs,
   eventLook,
   eventQr,
+  eventStylingAdded,
   eventPageImages,
   eventPageSchema,
   googleCalendarLink,
@@ -255,6 +256,20 @@ describe("event page look", () => {
     expect(look.ink).toBe(EVENT_PALETTES.tide.ink);
     expect(look.onButton).toBe("#ffffff");
     expect(look.notes).toHaveLength(2);
+  });
+
+  it("tells a new color or QR look from a kept or reset one", () => {
+    const plain = page();
+    const styled = page({ colors: { background: "#fff8e7" }, qr: { dots: "#0b2a2d", rounded: true } });
+    expect(eventStylingAdded(plain, plain)).toBe(false);
+    expect(eventStylingAdded(styled, styled)).toBe(false);
+    expect(eventStylingAdded(styled, plain)).toBe(false);
+    expect(eventStylingAdded(styled, page({ colors: { background: "#fff8e7" } }))).toBe(false);
+    expect(eventStylingAdded(plain, styled)).toBe(true);
+    expect(eventStylingAdded(styled, page({ colors: { background: "#000000" }, qr: { dots: "#0b2a2d", rounded: true } }))).toBe(true);
+    expect(eventStylingAdded(plain, page({ qr: { rounded: true } }))).toBe(true);
+    // Theme, style and animation are not part of it.
+    expect(eventStylingAdded(plain, page({ theme: "midnight", style: "flat", motion: "off", accent: "#aa2211" }))).toBe(false);
   });
 
   it("keeps the QR code scannable", () => {
