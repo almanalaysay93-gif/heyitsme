@@ -1,12 +1,11 @@
 import { EventAnswerInput, type EventAnswer } from "@/components/EventAnswerInput";
+import { EventPageEditor } from "@/components/EventPageEditor";
 import { failed, logoData, readBase64, save } from "@/lib/teamFiles";
 import { trpc } from "@/lib/trpc";
 import {
   CHOICE_FIELD_TYPES,
   EVENT_FIELD_TYPES,
   EVENT_FIELD_TYPE_LABELS,
-  EVENT_FONTS,
-  EVENT_FONT_LABELS,
   EVENT_STATUS_LABELS,
   MAX_EVENT_FIELDS,
   RSVP_STATUSES,
@@ -16,7 +15,6 @@ import {
   instantToWall,
   type EventFieldMode,
   type EventFieldType,
-  type EventFont,
   type EventStatus,
   type RsvpStatus,
 } from "@shared/events";
@@ -75,9 +73,9 @@ export function TeamEvents({ workspaceId, admin }: { workspaceId: number; admin:
 
 type Details = {
   title: string; description: string; startAt: string; endAt: string; rsvpDeadline: string; venue: string; address: string; mapUrl: string;
-  organizerName: string; organizerContact: string; capacity: string; allowMaybe: boolean; ownColors: boolean; background: string; button: string; font: EventFont;
+  organizerName: string; organizerContact: string; capacity: string; allowMaybe: boolean;
 };
-const BLANK: Details = { title: "", description: "", startAt: "", endAt: "", rsvpDeadline: "", venue: "", address: "", mapUrl: "", organizerName: "", organizerContact: "", capacity: "", allowMaybe: true, ownColors: false, background: "#f1f4fa", button: "#234bad", font: "modern" };
+const BLANK: Details = { title: "", description: "", startAt: "", endAt: "", rsvpDeadline: "", venue: "", address: "", mapUrl: "", organizerName: "", organizerContact: "", capacity: "", allowMaybe: true };
 
 function toDetails(event: EventData["event"], zone: string): Details {
   const wall = (date: Date | null) => (date ? instantToWall(date, zone) : "");
@@ -85,7 +83,6 @@ function toDetails(event: EventData["event"], zone: string): Details {
     title: event.title, description: event.description ?? "", startAt: wall(event.startAt), endAt: wall(event.endAt), rsvpDeadline: wall(event.rsvpDeadline),
     venue: event.venue ?? "", address: event.address ?? "", mapUrl: event.mapUrl ?? "", organizerName: event.organizerName ?? "", organizerContact: event.organizerContact ?? "",
     capacity: event.capacity ? String(event.capacity) : "", allowMaybe: event.allowMaybe,
-    ownColors: Boolean(event.design?.background || event.design?.button), background: event.design?.background ?? BLANK.background, button: event.design?.button ?? BLANK.button, font: event.design?.font ?? "modern",
   };
 }
 
@@ -96,7 +93,6 @@ function fromDetails(details: Details) {
     title: details.title, description: details.description, startAt: details.startAt || null, endAt: details.endAt || null, rsvpDeadline: details.rsvpDeadline || null,
     venue: details.venue, address: details.address, mapUrl: details.mapUrl, organizerName: details.organizerName, organizerContact: details.organizerContact,
     capacity, allowMaybe: details.allowMaybe,
-    design: { font: details.font, ...(details.ownColors ? { background: details.background, button: details.button } : {}) },
   };
 }
 
@@ -125,14 +121,8 @@ function DetailsForm({ initial, zone, busy, submitLabel, onSubmit, onCancel }: {
       {text("mapUrl", "Google Maps link", 500, { type: "url", placeholder: "https://" })}
       {text("organizerName", "Organizer", 160)}
       {text("organizerContact", "Organizer contact (email or phone)", 200)}
-      <label className="gr-field">Font<select value={details.font} onChange={event => set("font", event.target.value as EventFont)}>{EVENT_FONTS.map(font => <option key={font} value={font}>{EVENT_FONT_LABELS[font]}</option>)}</select></label>
     </div>
     <label className="team-toggle"><input type="checkbox" checked={details.allowMaybe} onChange={event => set("allowMaybe", event.target.checked)} /> Let people answer "Maybe"</label>
-    <label className="team-toggle"><input type="checkbox" checked={details.ownColors} onChange={event => set("ownColors", event.target.checked)} /> Use different colors from the company colors</label>
-    {details.ownColors ? <div className="team-form-grid">
-      <label className="gr-field">Page background<input type="color" value={details.background} onChange={event => set("background", event.target.value)} /></label>
-      <label className="gr-field">Button color<input type="color" value={details.button} onChange={event => set("button", event.target.value)} /></label>
-    </div> : null}
     <div className="gr-actions">
       <button type="submit" className="gr-primary" disabled={busy}>{busy ? "Saving..." : submitLabel}</button>
       {onCancel ? <button type="button" className="gr-secondary" onClick={onCancel}>Cancel</button> : null}
@@ -156,12 +146,12 @@ function CreateEvent({ workspaceId, onDone }: { workspaceId: number; onDone: (ev
   };
   return <section className="gr-panel">
     <h2>Create event</h2>
-    <p>Start with the basics. You can add a banner, set up the RSVP form and publish on the next screen.</p>
+    <p>Start with the basics. You can add a banner, build the page, set up the RSVP form and publish on the next screen.</p>
     <DetailsForm initial={BLANK} zone={zone} busy={create.isPending} submitLabel="Create event" onSubmit={submit} onCancel={() => onDone(null)} />
   </section>;
 }
 
-const SECTIONS = ["Details", "RSVP form", "Responses", "Share"] as const;
+const SECTIONS = ["Details", "Page", "RSVP form", "Responses", "Share"] as const;
 type Section = (typeof SECTIONS)[number];
 const NEXT_STATUS: Record<EventStatus, [EventStatus, string][]> = {
   draft: [["published", "Publish"], ["archived", "Archive"]],
@@ -203,7 +193,7 @@ function EventManager({ workspaceId, eventId, onBack }: { workspaceId: number; e
   if (detail.isLoading) return <section className="gr-panel" role="status">Loading...</section>;
   if (!detail.data) return <section className="gr-panel">{back}<p role="alert" className="gr-error">{detail.error?.message ?? "This event could not be loaded."}</p></section>;
 
-  const { event, timezone, fields, stats, rsvpState } = detail.data;
+  const { event, page, timezone, fields, stats, rsvpState } = detail.data;
   const isPublic = event.status !== "draft" && event.status !== "archived";
   const cover = async (file: File | undefined) => {
     if (!file) return;
@@ -240,13 +230,14 @@ function EventManager({ workspaceId, eventId, onBack }: { workspaceId: number; e
           <label className="gr-secondary team-file">{uploadCover.isPending ? "Uploading..." : event.coverImageUrl ? "Replace banner" : "Upload banner"}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploadCover.isPending} onChange={change => { void cover(change.target.files?.[0]); change.target.value = ""; }} /></label>
           {event.coverImageUrl ? <button type="button" className="gr-secondary team-danger" disabled={removeCover.isPending} onClick={() => void run(() => removeCover.mutateAsync(target), "Banner removed.")}>Remove banner</button> : null}
         </div>
-        <p className="gr-attribution">JPG, PNG or WebP, up to 3MB. The page also shows your company logo and colors from Brand.</p>
+        <p className="gr-attribution">JPG, PNG or WebP, up to 3MB. The page also shows your company logo from Brand.</p>
       </section>
       <section className="gr-panel">
         <h2>Details</h2>
         <DetailsForm key={String(event.updatedAt)} initial={toDetails(event, timezone)} zone={timezone} busy={update.isPending} submitLabel="Save details" onSubmit={details => void run(async () => update.mutateAsync({ ...target, ...fromDetails(details) }), "Event saved.")} />
       </section>
     </> : null}
+    {section === "Page" ? <EventPageEditor target={target} slug={event.slug} initial={page} onSaved={refresh} /> : null}
     {section === "RSVP form" ? <FormBuilder key={fields.map(field => field.id).join("-")} target={target} fields={fields} onSaved={refresh} /> : null}
     {section === "Responses" ? <Responses target={target} stats={stats} title={event.title} onChanged={refresh} /> : null}
     {section === "Share" ? <Share workspaceId={workspaceId} slug={event.slug} isPublic={isPublic} /> : null}

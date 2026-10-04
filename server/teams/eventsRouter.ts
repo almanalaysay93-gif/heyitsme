@@ -8,7 +8,6 @@ import {
   CHOICE_FIELD_TYPES,
   EVENT_FIELD_MODES,
   EVENT_FIELD_TYPES,
-  EVENT_FONTS,
   EVENT_STATUSES,
   LONG_ANSWER_MAX,
   MAX_EVENTS,
@@ -28,14 +27,15 @@ import {
   type EventStatus,
   type RsvpStatus,
 } from "@shared/events";
+import { EVENT_PAGE_LIMITS, eventPageImages, eventPageSchema, parseEventPage } from "@shared/eventPage";
 import { isAdminRole } from "@shared/teams";
-import { workspaceEventFields, workspaceEventRsvpAnswers, workspaceEventRsvps, workspaceEvents, workspaces } from "../../drizzle/schema";
+import { cards, workspaceEventFields, workspaceEventRsvpAnswers, workspaceEventRsvps, workspaceEvents, workspaces } from "../../drizzle/schema";
 import { ENV } from "../_core/env";
 import { clientIp } from "../_core/rateLimit";
 import { publicProcedure, router } from "../_core/trpc";
 import type { Db } from "../billing/service";
 import { csvCell } from "../proTools";
-import { storagePut } from "../storage";
+import { storageDelete, storageGetSignedUrl, storagePut } from "../storage";
 import { canManageEvent, recordAudit, requireWorkspaceMember } from "./access";
 import { id, limit, requireDb, teamProcedure } from "./router";
 
@@ -50,7 +50,6 @@ const newSlug = customAlphabet("abcdefghijkmnpqrstuvwxyz23456789", 10);
 type EventRow = typeof workspaceEvents.$inferSelect;
 type FieldRow = typeof workspaceEventFields.$inferSelect;
 
-const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Choose a color");
 const text = (max: number) => z.string().trim().max(max).optional().nullable().transform(value => value || null);
 const wall = z
   .string()
@@ -80,7 +79,6 @@ const eventFields = {
   organizerContact: text(200),
   capacity: z.number().int().min(1).max(100_000).optional().nullable().transform(value => value ?? null),
   allowMaybe: z.boolean().default(true),
-  design: z.object({ background: hex.optional(), button: hex.optional(), font: z.enum(EVENT_FONTS).optional() }).default({}),
 };
 const eventInput = z.object(eventFields);
 
@@ -114,6 +112,87 @@ async function managedEvent(db: Db, userId: number, workspaceId: number, eventId
   const [event] = await db.select().from(workspaceEvents).where(eq(workspaceEvents.id, eventId)).limit(1);
   if (!event || !canManageEvent(access, event)) throw notFound();
   return { access, event };
+}
+
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const imageInput = {
+  workspaceId: id,
+  eventId: id,
+  fileName: z.string().min(1).max(180),
+  contentType: z.string().min(1).max(120),
+  dataBase64: z.string().min(1).max(MAX_COVER_BASE64, "Image is larger than 3MB. Upload a smaller one."),
+};
+
+/** Every file an event owns sits under this prefix, so a save can only link to, and only delete, its own files. */
+const eventFilePrefix = (workspaceId: number, eventId: number) => `/storage/team-${workspaceId}/event-${eventId}-`;
+
+/** Checks the bytes really are a JPG, PNG or WebP, then stores them under the event's prefix. */
+async function storeEventImage(event: { id: number; workspaceId: number }, file: { fileName: string; contentType: string; bytes: Buffer }) {
+  // Loaded on use: the upload checks live beside the personal upload route, which itself mounts this router.
+  const { confirmUploadType, resolveUploadType } = await import("../routers");
+  const declared = resolveUploadType(file.fileName, file.contentType);
+  const contentType = declared ? confirmUploadType(file.bytes, declared) : null;
+  if (!contentType || !IMAGE_TYPES.includes(contentType)) throw bad("Use a JPG, PNG or WebP image.");
+  try {
+    const name = file.fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
+    return await storagePut(`team-${event.workspaceId}/event-${event.id}-${nanoid(8)}-${name}`, file.bytes, contentType);
+  } catch (error) {
+    console.error("[Teams] event image upload failed:", error);
+    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Could not save the image right now. Please try again in a moment." });
+  }
+}
+
+/**
+ * Deletes stored files an event no longer shows. Only files under the event's own prefix are touched.
+ * The change is already saved by the time this runs, so storage errors are logged and never thrown.
+ */
+async function dropEventFiles(event: { id: number; workspaceId: number }, urls: (string | null | undefined)[]) {
+  const prefix = eventFilePrefix(event.workspaceId, event.id);
+  const keys = urls.filter((url): url is string => Boolean(url?.startsWith(prefix))).map(url => url.slice("/storage/".length));
+  if (keys.length === 0) return;
+  try {
+    await storageDelete(keys);
+  } catch (error) {
+    console.error("[Teams] could not remove unused event files:", error);
+  }
+}
+
+const liveCard = and(eq(cards.published, true), isNull(cards.teamStatus), isNull(cards.deletedAt));
+
+/**
+ * The event as its page shows it: details, landing-page content and the form. Never who answered, nor how many.
+ * A speaker's card link is kept only while that card is online, so the page never links to a hidden card.
+ */
+async function eventView(db: Db, event: EventRow, workspace: typeof workspaces.$inferSelect) {
+  const [fields, stats] = await Promise.all([fieldsOf(db, event.id), eventStats(db, [event.id])]);
+  const page = parseEventPage(event.page, event.design);
+  const slugs = Array.from(new Set(page.speakers.map(speaker => speaker.cardSlug).filter(Boolean)));
+  const online = slugs.length
+    ? await db.select({ slug: cards.slug }).from(cards).where(and(eq(cards.workspaceId, workspace.id), inArray(cards.slug, slugs), liveCard))
+    : [];
+  const live = new Set(online.map(card => card.slug));
+  return {
+    slug: event.slug,
+    title: event.title,
+    description: event.description,
+    coverImageUrl: event.coverImageUrl,
+    startAt: event.startAt,
+    endAt: event.endAt,
+    rsvpDeadline: event.rsvpDeadline,
+    venue: event.venue,
+    address: event.address,
+    mapUrl: event.mapUrl,
+    organizerName: event.organizerName,
+    organizerContact: event.organizerContact,
+    allowMaybe: event.allowMaybe,
+    page: { ...page, speakers: page.speakers.map(speaker => ({ ...speaker, cardSlug: live.has(speaker.cardSlug) ? speaker.cardSlug : "" })) },
+    timezone: workspace.timezone,
+    company: { name: workspace.name, logoUrl: workspace.logoUrl, colors: workspace.brandColors ?? null },
+    rsvpState: rsvpState(event, seatsTaken(stats.get(event.id))),
+    fields: fields
+      .filter(field => field.enabled)
+      .map(field => ({ id: field.id, label: field.label, fieldType: field.fieldType as EventFieldType, required: field.required, options: field.options, standardKey: field.standardKey })),
+  };
 }
 
 const emptyStats = () => ({ responses: 0, attending: 0, maybe: 0, notAttending: 0, guests: 0, checkedIn: 0 });
@@ -238,8 +317,10 @@ export const teamEventsRouter = router({
     const { access, event } = await managedEvent(db, ctx.user.id, input.workspaceId, input.eventId);
     const [fields, stats] = await Promise.all([fieldsOf(db, event.id), eventStats(db, [event.id])]);
     const numbers = stats.get(event.id) ?? emptyStats();
+    const { page, ...row } = event;
     return {
-      event: { ...event, status: event.status as EventStatus },
+      event: { ...row, status: event.status as EventStatus },
+      page: parseEventPage(page, event.design),
       timezone: access.workspace.timezone,
       fields,
       stats: numbers,
@@ -378,44 +459,102 @@ export const teamEventsRouter = router({
       return { fields: await fieldsOf(db, event.id) };
     }),
 
-  uploadCover: eventProcedure
-    .input(
-      z.object({
-        workspaceId: id,
-        eventId: id,
-        fileName: z.string().min(1).max(180),
-        contentType: z.string().min(1).max(120),
-        dataBase64: z.string().min(1).max(MAX_COVER_BASE64, "Image is larger than 3MB. Upload a smaller one."),
-      })
-    )
-    .mutation(async ({ ctx, input }) => {
-      await limit("team-event-cover", `user:${ctx.user.id}`, 20, 10 * MINUTE);
-      const db = await requireDb();
-      const { event } = await managedEvent(db, ctx.user.id, input.workspaceId, input.eventId);
-      // Loaded on use: the upload checks live beside the personal upload route, which itself mounts this router.
-      const { confirmUploadType, resolveUploadType } = await import("../routers");
-      const declared = resolveUploadType(input.fileName, input.contentType);
-      const bytes = Buffer.from(input.dataBase64, "base64");
-      const contentType = declared ? confirmUploadType(bytes, declared) : null;
-      if (!contentType || !["image/jpeg", "image/png", "image/webp"].includes(contentType)) {
-        throw bad("Use a JPG, PNG or WebP image for the banner.");
-      }
-      let stored: { url: string };
-      try {
-        stored = await storagePut(`team-${input.workspaceId}/event-${event.id}-${nanoid(8)}-${input.fileName.replace(/[^a-zA-Z0-9._-]/g, "-")}`, bytes, contentType);
-      } catch (error) {
-        console.error("[Teams] event banner upload failed:", error);
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Could not save the image right now. Please try again in a moment." });
-      }
-      await db.update(workspaceEvents).set({ coverImageUrl: stored.url, updatedAt: new Date() }).where(eq(workspaceEvents.id, event.id));
-      return { coverImageUrl: stored.url };
-    }),
+  uploadCover: eventProcedure.input(z.object(imageInput)).mutation(async ({ ctx, input }) => {
+    await limit("team-event-cover", `user:${ctx.user.id}`, 20, 10 * MINUTE);
+    const db = await requireDb();
+    const { event } = await managedEvent(db, ctx.user.id, input.workspaceId, input.eventId);
+    const stored = await storeEventImage(event, { fileName: input.fileName, contentType: input.contentType, bytes: Buffer.from(input.dataBase64, "base64") });
+    await db.update(workspaceEvents).set({ coverImageUrl: stored.url, updatedAt: new Date() }).where(eq(workspaceEvents.id, event.id));
+    await dropEventFiles(event, [event.coverImageUrl]);
+    return { coverImageUrl: stored.url };
+  }),
 
   removeCover: eventProcedure.input(z.object({ workspaceId: id, eventId: id })).mutation(async ({ ctx, input }) => {
     const db = await requireDb();
     const { event } = await managedEvent(db, ctx.user.id, input.workspaceId, input.eventId);
     await db.update(workspaceEvents).set({ coverImageUrl: null, updatedAt: new Date() }).where(eq(workspaceEvents.id, event.id));
+    await dropEventFiles(event, [event.coverImageUrl]);
     return { ok: true };
+  }),
+
+  /** Stores a speaker photo, gallery photo or sponsor logo. It shows on the page once the page is saved with it. */
+  uploadImage: eventProcedure.input(z.object(imageInput)).mutation(async ({ ctx, input }) => {
+    await limit("team-event-image", `user:${ctx.user.id}`, 60, 10 * MINUTE);
+    const db = await requireDb();
+    const { event } = await managedEvent(db, ctx.user.id, input.workspaceId, input.eventId);
+    const stored = await storeEventImage(event, { fileName: input.fileName, contentType: input.contentType, bytes: Buffer.from(input.dataBase64, "base64") });
+    return { url: stored.url };
+  }),
+
+  /** The team's cards, to fill in a speaker from. Details are copied into the event, not linked live. */
+  speakerCards: eventProcedure.input(z.object({ workspaceId: id, eventId: id })).query(async ({ ctx, input }) => {
+    const db = await requireDb();
+    await managedEvent(db, ctx.user.id, input.workspaceId, input.eventId);
+    const rows = await db
+      .select({ slug: cards.slug, name: cards.displayName, role: cards.title, bio: cards.bio, avatarUrl: cards.avatarUrl })
+      .from(cards)
+      .where(and(eq(cards.workspaceId, input.workspaceId), isNull(cards.deletedAt)))
+      .orderBy(asc(cards.displayName))
+      .limit(500);
+    return rows.map(({ avatarUrl, ...card }) => ({ ...card, hasPhoto: Boolean(avatarUrl?.startsWith("/storage/")) }));
+  }),
+
+  /** Copies a team card's photo into the event's own files, so a later change to the card cannot break the page. */
+  copyCardPhoto: eventProcedure.input(z.object({ workspaceId: id, eventId: id, cardSlug: z.string().min(1).max(120) })).mutation(async ({ ctx, input }) => {
+    await limit("team-event-image", `user:${ctx.user.id}`, 60, 10 * MINUTE);
+    const db = await requireDb();
+    const { event } = await managedEvent(db, ctx.user.id, input.workspaceId, input.eventId);
+    const [card] = await db
+      .select({ avatarUrl: cards.avatarUrl })
+      .from(cards)
+      .where(and(eq(cards.workspaceId, input.workspaceId), eq(cards.slug, input.cardSlug), isNull(cards.deletedAt)))
+      .limit(1);
+    if (!card) throw bad("A speaker can only link to a card from this team.");
+    if (!card.avatarUrl?.startsWith("/storage/")) return { url: "" };
+    try {
+      const key = card.avatarUrl.slice("/storage/".length);
+      const response = await fetch(await storageGetSignedUrl(key, 60));
+      const bytes = Buffer.from(await response.arrayBuffer());
+      if (!response.ok || bytes.length === 0 || bytes.length > 3 * 1024 * 1024) return { url: "" };
+      const stored = await storeEventImage(event, { fileName: key.split("/").pop() ?? "photo", contentType: response.headers.get("content-type") ?? "", bytes });
+      return { url: stored.url };
+    } catch (error) {
+      // The speaker still gets the card's name, role and bio; the photo can be uploaded by hand.
+      console.error("[Teams] could not copy a card photo to an event:", error);
+      return { url: "" };
+    }
+  }),
+
+  /** Saves the landing page: look, section order and section content. The RSVP form is saved by saveFields. */
+  savePage: eventProcedure.input(z.object({ workspaceId: id, eventId: id, page: eventPageSchema })).mutation(async ({ ctx, input }) => {
+    const db = await requireDb();
+    const { event } = await managedEvent(db, ctx.user.id, input.workspaceId, input.eventId);
+    const { page } = input;
+    if (JSON.stringify(page).length > EVENT_PAGE_LIMITS.pageJson) throw bad("This page holds too much text. Shorten a section and save again.");
+    const prefix = eventFilePrefix(event.workspaceId, event.id);
+    if (eventPageImages(page).some(url => !url.startsWith(prefix))) throw bad("Upload the image again.");
+    const slugs = Array.from(new Set(page.speakers.map(speaker => speaker.cardSlug).filter(Boolean)));
+    if (slugs.length > 0) {
+      const own = await db
+        .select({ slug: cards.slug })
+        .from(cards)
+        .where(and(eq(cards.workspaceId, input.workspaceId), inArray(cards.slug, slugs), isNull(cards.deletedAt)));
+      if (own.length !== slugs.length) throw bad("A speaker can only link to a card from this team.");
+    }
+    await db.transaction(async tx => {
+      await tx.update(workspaceEvents).set({ page, updatedAt: new Date() }).where(eq(workspaceEvents.id, event.id));
+      await recordAudit(tx, { workspaceId: input.workspaceId, actorUserId: ctx.user.id, action: "event.page_changed", entityType: "event", entityId: event.id, metadata: { title: event.title } });
+    });
+    const kept = new Set(eventPageImages(page));
+    await dropEventFiles(event, eventPageImages(parseEventPage(event.page, event.design)).filter(url => !kept.has(url)));
+    return { page };
+  }),
+
+  /** The page as visitors will see it, for an admin, whatever the event's status. Lets a draft be checked before it goes out. */
+  preview: eventProcedure.input(z.object({ workspaceId: id, eventId: id })).query(async ({ ctx, input }) => {
+    const db = await requireDb();
+    const { access, event } = await managedEvent(db, ctx.user.id, input.workspaceId, input.eventId);
+    return eventView(db, event, access.workspace);
   }),
 
   /** The responses, with every question as a column. Admins only. */
@@ -531,29 +670,7 @@ export const publicEventRouter = router({
     await limit("event-view", clientIp(ctx.req), 120, MINUTE);
     const db = await requireDb();
     const { event, workspace } = await publicEvent(db, input.slug);
-    const [fields, stats] = await Promise.all([fieldsOf(db, event.id), eventStats(db, [event.id])]);
-    return {
-      slug: event.slug,
-      title: event.title,
-      description: event.description,
-      coverImageUrl: event.coverImageUrl,
-      startAt: event.startAt,
-      endAt: event.endAt,
-      rsvpDeadline: event.rsvpDeadline,
-      venue: event.venue,
-      address: event.address,
-      mapUrl: event.mapUrl,
-      organizerName: event.organizerName,
-      organizerContact: event.organizerContact,
-      allowMaybe: event.allowMaybe,
-      design: event.design ?? {},
-      timezone: workspace.timezone,
-      company: { name: workspace.name, logoUrl: workspace.logoUrl, colors: workspace.brandColors ?? null },
-      rsvpState: rsvpState(event, seatsTaken(stats.get(event.id))),
-      fields: fields
-        .filter(field => field.enabled)
-        .map(field => ({ id: field.id, label: field.label, fieldType: field.fieldType as EventFieldType, required: field.required, options: field.options, standardKey: field.standardKey })),
-    };
+    return eventView(db, event, workspace);
   }),
 
   rsvp: publicProcedure
