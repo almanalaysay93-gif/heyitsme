@@ -1603,9 +1603,17 @@ function BuilderView({
                   <h3>Google Reviews</h3>
                   <p>Connect your Google business to show your rating and a review button on this card.</p>
                 </div>
-                {draft.id > 0 && isAuthenticated
-                  ? <a className="outline-button builder-google" href={`/app/google-reviews?card=${draft.id}`}><Star size={14} /> Set up Google Reviews</a>
-                  : <p className="field-hint">Save this card first, then connect your Google business here.</p>}
+                {draft.id > 0 && isAuthenticated ? (
+                  <a className="outline-button builder-google" href={`/app/google-reviews?card=${draft.id}`}><Star size={14} /> Set up Google Reviews</a>
+                ) : (
+                  <>
+                    {/* The setup page works on a saved card in an account, so the button first gets the owner there. */}
+                    <button type="button" className="outline-button builder-google" disabled={saving} onClick={isAuthenticated ? onSave : onPublishAndCopy}>
+                      <Star size={14} /> {isAuthenticated ? "Save card to set up Google Reviews" : "Sign in to set up Google Reviews"}
+                    </button>
+                    <p className="fold-hint builder-google-note">{isAuthenticated ? "Google Reviews connects to a saved card. Save, then open this card again to set it up." : "Google Reviews connects to a saved card in your account."}</p>
+                  </>
+                )}
                 <Field id="field-referencesHeading" label="Section heading" value={panels.referencesHeading} onChange={(value: string) => panels.setReferencesHeading(value.slice(0, 60))} placeholder="Kind words" hint="Title shown above your client references and Google reviews." />
               </div>
             </div>

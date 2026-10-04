@@ -1605,6 +1605,7 @@ main[tabindex="-1"]:focus { outline: 0; }
 .builder-layout { scroll-margin-top: var(--builder-pin); }
 .builder-panel[hidden] { display: none; }
 .builder-google { width: fit-content; margin-bottom: 14px; }
+.builder-google + .builder-google-note { margin: -6px 0 14px; }
 /* The preview column spans the row so the preview inside it has room to stay pinned beside a long tab. */
 .builder-preview-column { align-self: stretch; }
 @media (min-width: 761px) {
