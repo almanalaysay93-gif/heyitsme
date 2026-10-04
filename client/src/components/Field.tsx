@@ -6,7 +6,6 @@ export function Field({ label, value, onChange, placeholder, type = "text", requ
   return (
     <label className="field-label" htmlFor={inputId}>
       <span>{label}{required ? " *" : ""}</span>
-      {hint ? <small className="field-hint" style={{ fontSize: "12px", color: "#6b6f82", display: "block", marginBottom: "4px" }}>{hint}</small> : null}
       <input
         id={inputId}
         ref={inputRef}
@@ -20,6 +19,7 @@ export function Field({ label, value, onChange, placeholder, type = "text", requ
         aria-describedby={errorId}
         className={error ? "has-error" : undefined}
       />
+      {hint ? <small className="field-hint" style={{ fontSize: "12px", fontWeight: 500, color: "#6b6f82", display: "block" }}>{hint}</small> : null}
       {error ? (
         <span id={errorId} className="field-error-text" role="alert">
           {error}

@@ -1,4 +1,5 @@
 import { DesignControls } from "./DesignControls";
+import { Fold } from "./Fold";
 import { hasPendingEdits, isUnusableLink, moveSection, toEmittable, toggleSection } from "@/lib/pageDesigner";
 import {
   FRAME_IDS,
@@ -19,7 +20,19 @@ import { ArrowDown, ArrowUp, Eye, EyeOff, Plus, RotateCcw, Trash2 } from "lucide
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import "./pageDesigner.css";
 
-type Panels = { address: string; setAddress: (address: string) => void; referencesHeading: string; setReferencesHeading: (heading: string) => void; layout: ReactNode; contact: ReactNode; appearance: ReactNode; content: ReactNode };
+type Panels = {
+  address: string;
+  setAddress: (address: string) => void;
+  referencesHeading: string;
+  setReferencesHeading: (heading: string) => void;
+  /** Every look control. `extras` are look controls the builder owns (palette, background photo); they sit before the Pro groups. */
+  design: (extras?: ReactNode) => ReactNode;
+  template: ReactNode;
+  sections: ReactNode;
+  accent: ReactNode;
+  contact: ReactNode;
+  content: ReactNode;
+};
 
 type Props = {
   children?: (panels: Panels) => ReactNode;
@@ -84,13 +97,51 @@ export function PageDesigner({ children, value, onChange, themeAccent, onPending
   const removeRow = (key: "stats" | "services" | "hours" | "links" | "contactPersons", index: number) =>
     commit({ ...config, [key]: config[key].filter((_, i) => i !== index) });
 
+  const half = (a: string, b: string) => Boolean(a.trim()) !== Boolean(b.trim());
+  const count = (used: number, limit: number) => `${used} of ${limit}`;
+
+  const branding = (
+    <Fold
+      title="heyitsme branding"
+      hint={
+        canRemoveBranding || config.hideBranding
+          ? "Show or hide the heyitsme name in your page header and footer."
+          : "Free pages show a small heyitsme name in the header and footer. Pro can hide it."
+      }
+    >
+      <label className="pd-check">
+        <input
+          type="checkbox"
+          checked={config.hideBranding}
+          onChange={(event) => {
+            // Turning it off is always allowed. Turning it on needs Pro, unless this card already had it.
+            if (event.target.checked && !canRemoveBranding) {
+              onLockedBranding?.();
+              return;
+            }
+            commit({ ...config, hideBranding: event.target.checked });
+          }}
+        />
+        Hide the heyitsme name on my page
+      </label>
+    </Fold>
+  );
+
   const panels: Panels = {
     address: config.address,
     setAddress: (address) => commit({ ...config, address }),
     referencesHeading: config.referencesHeading,
     setReferencesHeading: (referencesHeading) => commit({ ...config, referencesHeading }),
-    layout: <div className="pd">
-      <DesignControls config={config} onChange={commit} onUpload={onUploadImage} />
+    design: (extras) => (
+      <DesignControls config={config} onChange={commit} onUpload={onUploadImage} proExtras={canRemoveBranding ? null : branding}>
+        <Fold title="Photo shape" hint="How your profile photo is framed on your page.">
+          <FramePicker value={resolveFrame(config)} avatarUrl={avatarUrl} initials={initials} onSelect={(frame) => commit({ ...config, frame })} />
+        </Fold>
+        {extras}
+        {canRemoveBranding ? branding : null}
+      </DesignControls>
+    ),
+    template: <div className="pd">
       <TemplatePicker value={config.template} onSelect={(id) => { if (id !== config.template) commit(switchTemplate(config, id)); }} />
 
       {config.template === "services" ? (
@@ -102,114 +153,75 @@ export function PageDesigner({ children, value, onChange, themeAccent, onPending
           <TextField label="Service page title" value={config.headline} maxLength={80} placeholder="Color, cuts and care in Makati" onChange={(headline) => commit({ ...config, headline })} />
         </div>
       ) : null}
-
-      <div className="pd-block">
-        <div className="pd-block-head">
-          <h3>Photo shape</h3>
-          <p>How your profile photo is framed on your page.</p>
-        </div>
-        <FramePicker value={resolveFrame(config)} avatarUrl={avatarUrl} initials={initials} onSelect={(frame) => commit({ ...config, frame })} />
-      </div>
-
-      <div className="pd-block">
-        <div className="pd-block-head">
-          <h3>heyitsme branding {canRemoveBranding ? null : <span className="plan-chip plan-chip-pro">Pro</span>}</h3>
-          <p>
-            {canRemoveBranding || config.hideBranding
-              ? "Show or hide the heyitsme name in your page header and footer."
-              : "Free pages show a small heyitsme name in the header and footer. Pro can hide it."}
-          </p>
-        </div>
-        <label className="pd-check">
-          <input
-            type="checkbox"
-            checked={config.hideBranding}
-            onChange={(event) => {
-              // Turning it off is always allowed. Turning it on needs Pro, unless this card already had it.
-              if (event.target.checked && !canRemoveBranding) {
-                onLockedBranding?.();
-                return;
-              }
-              commit({ ...config, hideBranding: event.target.checked });
-            }}
-          />
-          Hide the heyitsme name on my page
-        </label>
-      </div>
-
-      <div className="pd-block">
-        <div className="pd-block-head">
-          <h3>Sections</h3>
-          <p>Hidden sections keep their place for when you turn them back on.</p>
-        </div>
-        <ol className="pd-sections">
-          {sections.map((section, index) => {
-            const label = SECTION_LABELS[section.id];
-            const setSections = (next: typeof sections) => commit({ ...config, sections: next });
-            return (
-              <li key={section.id} className={`pd-section-row${section.hidden ? " is-hidden" : ""}`}>
-                <span className="pd-section-index" aria-hidden="true">{index + 1}</span>
-                <span className="pd-section-name">{label}</span>
-                <span className="pd-section-state">{section.hidden ? "Hidden" : ""}</span>
-                <button
-                  type="button"
-                  className="icon-button"
-                  aria-pressed={!section.hidden}
-                  aria-label={`Show ${label} on page`}
-                  onClick={() => setSections(toggleSection(sections, index))}
-                >
-                  {section.hidden ? <EyeOff size={14} /> : <Eye size={14} />}
-                </button>
-                <button
-                  type="button"
-                  className="icon-button"
-                  aria-label={`Move ${label} up`}
-                  aria-disabled={index === 0}
-                  onClick={() => move(index, -1)}
-                >
-                  <ArrowUp size={14} />
-                </button>
-                <button
-                  type="button"
-                  className="icon-button"
-                  aria-label={`Move ${label} down`}
-                  aria-disabled={index === sections.length - 1}
-                  onClick={() => move(index, 1)}
-                >
-                  <ArrowDown size={14} />
-                </button>
-              </li>
-            );
-          })}
-        </ol>
-        <p className="pd-sr-only" role="status" aria-live="polite">{announcement}</p>
-      </div>
-
     </div>,
-    appearance: <div className="pd">
-      <div className="pd-block">
-        <div className="pd-block-head">
-          <h3>Accent color</h3>
-          <p>The palette sets the background and default accent. A custom accent overrides button and highlight colors. Reset uses the palette color.</p>
-        </div>
-        <div className="pd-accent">
-          <label className="pd-swatch">
-            <input
-              type="color"
-              value={config.accent || themeAccent}
-              onChange={(event) => commit({ ...config, accent: event.target.value })}
-              aria-label="Accent color"
-            />
-            <span>{config.accent ? config.accent.toUpperCase() : "Palette color"}</span>
-          </label>
-          {config.accent ? (
-            <button type="button" className="outline-button pd-small-button" onClick={() => commit({ ...config, accent: "" })}>
-              <RotateCcw size={13} /> Reset
-            </button>
-          ) : null}
-        </div>
+    sections: <div className="pd-block">
+      <div className="pd-block-head">
+        <h3>Sections</h3>
+        <p>Show, hide and reorder the parts of your page. Hidden sections keep their place for when you turn them back on.</p>
       </div>
-
+      <ol className="pd-sections">
+        {sections.map((section, index) => {
+          const label = SECTION_LABELS[section.id];
+          const setSections = (next: typeof sections) => commit({ ...config, sections: next });
+          return (
+            <li key={section.id} className={`pd-section-row${section.hidden ? " is-hidden" : ""}`}>
+              <span className="pd-section-index" aria-hidden="true">{index + 1}</span>
+              <span className="pd-section-name">{label}</span>
+              <span className="pd-section-state">{section.hidden ? "Hidden" : ""}</span>
+              <button
+                type="button"
+                className="icon-button"
+                aria-pressed={!section.hidden}
+                aria-label={`Show ${label} on page`}
+                onClick={() => setSections(toggleSection(sections, index))}
+              >
+                {section.hidden ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label={`Move ${label} up`}
+                aria-disabled={index === 0}
+                onClick={() => move(index, -1)}
+              >
+                <ArrowUp size={14} />
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label={`Move ${label} down`}
+                aria-disabled={index === sections.length - 1}
+                onClick={() => move(index, 1)}
+              >
+                <ArrowDown size={14} />
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+      <p className="pd-sr-only" role="status" aria-live="polite">{announcement}</p>
+    </div>,
+    accent: <div className="pd-block">
+      <div className="pd-block-head">
+        <h3>Accent color</h3>
+        <p>The palette sets the background and default accent. A custom accent overrides button and highlight colors. Reset uses the palette color.</p>
+      </div>
+      <div className="pd-accent">
+        <label className="pd-swatch">
+          <input
+            type="color"
+            value={config.accent || themeAccent}
+            onChange={(event) => commit({ ...config, accent: event.target.value })}
+            aria-label="Accent color"
+          />
+          <span>{config.accent ? config.accent.toUpperCase() : "Palette color"}</span>
+        </label>
+        {config.accent ? (
+          <button type="button" className="outline-button pd-small-button" onClick={() => commit({ ...config, accent: "" })}>
+            <RotateCcw size={13} /> Reset
+          </button>
+        ) : null}
+      </div>
     </div>,
     contact: <div className="pd">
       <div className="pd-block">
@@ -230,13 +242,13 @@ export function PageDesigner({ children, value, onChange, themeAccent, onPending
         </div>
       </div>
 
-        <div className="pd-block">
-          <RowsHead
-            title="Contact persons & office in-charge"
-            hint="Use Contact persons in Sections to hide or move this block."
-            count={config.contactPersons.length}
-            limit={PAGE_LIMITS.contactPersons}
-          />
+      <div className="fold-list">
+        <Fold
+          title="Contact persons & office in-charge"
+          meta={count(config.contactPersons.length, PAGE_LIMITS.contactPersons)}
+          hint="To hide or move this block on your page, use Sections in the Page tab."
+          attention={config.contactPersons.some((c) => !c.name.trim() && Boolean(c.role.trim() || c.phone.trim() || c.email.trim()))}
+        >
           {config.contactPersons.map((row, index) => (
             <div className="pd-item" key={index}>
               <div className="pd-row pd-row-officer">
@@ -283,15 +295,14 @@ export function PageDesigner({ children, value, onChange, themeAccent, onPending
             disabled={config.contactPersons.length >= PAGE_LIMITS.contactPersons}
             onClick={() => commit({ ...config, contactPersons: [...config.contactPersons, { name: "", role: "", phone: "", email: "" }] })}
           />
-        </div>
+        </Fold>
 
-        <div className="pd-block">
-          <RowsHead
-            title="Resource links"
-            hint="Labeled resources. Use Resource links in Sections to hide or move this block."
-            count={config.links.length}
-            limit={PAGE_LIMITS.links}
-          />
+        <Fold
+          title="Resource links"
+          meta={count(config.links.length, PAGE_LIMITS.links)}
+          hint="Labeled resources. To hide or move this block on your page, use Sections in the Page tab."
+          attention={config.links.some((l) => (!l.title.trim() && Boolean(l.url.trim())) || isUnusableLink(l.url))}
+        >
           {config.links.map((row, index) => (
             <div className="pd-item" key={index}>
               <div className="pd-row pd-row-link">
@@ -329,28 +340,33 @@ export function PageDesigner({ children, value, onChange, themeAccent, onPending
             disabled={config.links.length >= PAGE_LIMITS.links}
             onClick={() => commit({ ...config, links: [...config.links, { title: "", url: "", description: "" }] })}
           />
-        </div>
-
+        </Fold>
+      </div>
     </div>,
-    content: <div className="pd">
-      <OptionalEditor optional={config.template === "services" && !config.stats.length} label="Highlights">
-      <div className="pd-block">
-        <RowsHead title="Highlights" hint="Short numbers people remember, like 12 years or 300 clients." count={config.stats.length} limit={PAGE_LIMITS.stats} />
+    content: <>
+      <Fold
+        title="Highlights"
+        meta={count(config.stats.length, PAGE_LIMITS.stats)}
+        hint="Short numbers people remember, like 12 years or 300 clients."
+        attention={config.stats.some((s) => half(s.value, s.label))}
+      >
         {config.stats.map((row, index) => (
           <div className="pd-row pd-row-stat" key={index}>
             <input className="pd-input" value={row.value} maxLength={16} placeholder="12" aria-label={`Highlight ${index + 1} value`} onChange={(e) => setRow("stats", index, { value: e.target.value })} />
             <input className="pd-input" value={row.label} maxLength={48} placeholder="years in practice" aria-label={`Highlight ${index + 1} label`} onChange={(e) => setRow("stats", index, { label: e.target.value })} />
             <RemoveButton label={`Remove highlight ${index + 1}`} onClick={() => removeRow("stats", index)} />
-            {Boolean(row.value.trim()) !== Boolean(row.label.trim()) ? <span className="pd-warn pd-row-warn">Add both a number and a label to show this.</span> : null}
+            {half(row.value, row.label) ? <span className="pd-warn pd-row-warn">Add both a number and a label to show this.</span> : null}
           </div>
         ))}
         <AddButton label="Add highlight" disabled={config.stats.length >= PAGE_LIMITS.stats} onClick={() => commit({ ...config, stats: [...config.stats, { value: "", label: "" }] })} />
-      </div>
-      </OptionalEditor>
+      </Fold>
 
-      <OptionalEditor optional={config.template === "professional" && !config.services.length} label="Services & prices">
-      <div className="pd-block">
-        <RowsHead title="Services & prices" hint="Rows without a name stay here until you fill them in." count={config.services.length} limit={PAGE_LIMITS.services} />
+      <Fold
+        title="Services & prices"
+        meta={count(config.services.length, PAGE_LIMITS.services)}
+        hint="Rows without a name stay here until you fill them in."
+        attention={config.services.some((s) => (!s.name.trim() && Boolean(s.price.trim() || s.description.trim() || s.url.trim())) || isUnusableLink(s.url))}
+      >
         {config.services.map((row, index) => (
           <div className="pd-service" key={index}>
             <div className="pd-row pd-row-service">
@@ -364,38 +380,30 @@ export function PageDesigner({ children, value, onChange, themeAccent, onPending
           </div>
         ))}
         <AddButton label="Add service" disabled={config.services.length >= PAGE_LIMITS.services} onClick={() => commit({ ...config, services: [...config.services, { name: "", description: "", price: "", url: "" }] })} />
-      </div>
-      </OptionalEditor>
+      </Fold>
 
-      <OptionalEditor optional={config.template === "professional" && !config.hours.length && !config.address} label="Hours & address">
-      <div className="pd-block">
-        <RowsHead title="Hours & address" hint="Add a row for each set of days." count={config.hours.length} limit={PAGE_LIMITS.hours} />
+      <Fold
+        title="Hours & address"
+        meta={count(config.hours.length, PAGE_LIMITS.hours)}
+        hint="Add a row for each set of days. Uses the address in the Profile tab."
+        attention={config.hours.some((h) => half(h.days, h.time))}
+      >
         {config.hours.map((row, index) => (
           <div className="pd-row pd-row-hours" key={index}>
             <input className="pd-input" value={row.days} maxLength={32} placeholder="Mon – Fri" aria-label={`Hours row ${index + 1} days`} onChange={(e) => setRow("hours", index, { days: e.target.value })} />
             <input className="pd-input" value={row.time} maxLength={40} placeholder="9:00 – 18:00" aria-label={`Hours row ${index + 1} time`} onChange={(e) => setRow("hours", index, { time: e.target.value })} />
             <RemoveButton label={`Remove hours row ${index + 1}`} onClick={() => removeRow("hours", index)} />
-            {Boolean(row.days.trim()) !== Boolean(row.time.trim()) ? <span className="pd-warn pd-row-warn">Add both days and times to show this.</span> : null}
+            {half(row.days, row.time) ? <span className="pd-warn pd-row-warn">Add both days and times to show this.</span> : null}
           </div>
         ))}
         <AddButton label="Add hours" disabled={config.hours.length >= PAGE_LIMITS.hours} onClick={() => commit({ ...config, hours: [...config.hours, { days: "", time: "" }] })} />
-        <p className="field-hint">Uses the address in Essentials.</p>
-      </div>
-      </OptionalEditor>
-
-    </div>,
+      </Fold>
+    </>,
   };
   return <>
-    {children ? children(panels) : <>{panels.layout}{panels.content}{panels.contact}{panels.appearance}</>}
+    {children ? children(panels) : <>{panels.template}{panels.sections}{panels.content}{panels.contact}{panels.design()}{panels.accent}</>}
     {tooLarge ? <p className="pd-warn" role="status">This page has more text than we can save. Shorten a few descriptions or links.</p> : null}
   </>;
-}
-
-export function OptionalEditor({ optional, label, children }: { optional: boolean; label: string; children: ReactNode }) {
-  return <details className={`optional-editor${optional ? "" : " is-core"}`} open={optional ? undefined : true}>
-    <summary>{label} (optional)</summary>
-    {children}
-  </details>;
 }
 
 function TemplatePicker({ value, onSelect }: { value: TemplateId; onSelect: (id: TemplateId) => void }) {
@@ -482,17 +490,6 @@ function TextField({ label, value, onChange, placeholder, maxLength, warn }: { l
       <input value={value} maxLength={maxLength} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
       {warn ? <span className="pd-warn">{warn}</span> : null}
     </label>
-  );
-}
-
-function RowsHead({ title, hint, count, limit }: { title: string; hint: string; count: number; limit: number }) {
-  return (
-    <div className="pd-block-head">
-      <h3>
-        {title} <span className="pd-count">{count} of {limit}</span>
-      </h3>
-      <p>{hint}</p>
-    </div>
   );
 }
 

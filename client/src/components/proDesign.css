@@ -1,17 +1,27 @@
 .pro-design {
   display: grid;
-  gap: 20px;
+  min-width: 0;
 }
-.design-section summary {
-  font-size: 16px;
-  font-weight: 650;
-  min-height: 44px;
-  cursor: pointer;
-  padding: 12px 0;
+/* Paid choices sit under this one label instead of carrying a badge each. */
+.design-more {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  color: var(--purple-deep);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
-.design-section {
-  border-bottom: 1px solid #8885;
-  padding-bottom: 12px;
+.design-more::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(107, 92, 255, 0.22);
+}
+.design-more-groups {
+  margin: 26px 0 4px;
 }
 .design-grid {
   display: grid;
