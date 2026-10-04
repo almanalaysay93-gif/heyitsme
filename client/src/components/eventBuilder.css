@@ -59,3 +59,9 @@
 .event-sort-fold>.icon-button[aria-pressed="true"]{color:var(--purple-deep)}
 .event-sort-fold>.icon-button:focus-visible{outline:3px solid rgba(107,92,255,.38);outline-offset:2px}
 .event-sort-fold.is-hidden .fold-title{color:#6b6f82}
+/* Design tab: page style chips, QR preview, and notes about colors the page had to replace. */
+.event-style-chip{flex:none;width:30px;height:22px;border-radius:8px;background:linear-gradient(135deg,rgba(255,255,255,.95),rgba(190,196,255,.55));border:1px solid rgba(255,255,255,.9);box-shadow:0 4px 10px rgba(48,44,115,.22)}
+.event-style-chip-flat{border-radius:4px;background:#fff;border:2px solid #1c1e2e;box-shadow:3px 3px 0 #1c1e2e}
+.event-qr-preview{width:min(100%,190px)}
+.event-qr-preview svg{display:block;width:100%;height:auto}
+.event-builder .event-look-note{color:#8a4b00;font-weight:650}

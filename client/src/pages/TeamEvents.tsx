@@ -1,6 +1,7 @@
 import { EventAnswerInput, type EventAnswer } from "@/components/EventAnswerInput";
 import { EventBuilder } from "@/components/EventBuilder";
 import { eventGuestWorkbook } from "@/lib/eventGuestExport";
+import { eventQrSvg } from "@/lib/eventQr";
 import { failed, logoData, readBase64, save } from "@/lib/teamFiles";
 import { trpc } from "@/lib/trpc";
 import {
@@ -19,8 +20,8 @@ import {
   type EventStatus,
   type RsvpStatus,
 } from "@shared/events";
+import { eventQr, type EventPage } from "@shared/eventPage";
 import type { inferRouterOutputs } from "@trpc/server";
-import QRCode from "qrcode";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import type { AppRouter } from "../../../server/routers";
@@ -113,7 +114,7 @@ function EventManager({ workspaceId, eventId, onBack, onEdit }: { workspaceId: n
   if (detail.isLoading) return <section className="gr-panel" role="status">Loading...</section>;
   if (!detail.data) return <section className="gr-panel">{back}<p role="alert" className="gr-error">{detail.error?.message ?? "This event could not be loaded."}</p></section>;
 
-  const { event, timezone, stats, rsvpState } = detail.data;
+  const { event, page, timezone, stats, rsvpState } = detail.data;
   const isPublic = event.status !== "draft" && event.status !== "archived";
   return <>
     <section className="gr-panel">
@@ -139,7 +140,7 @@ function EventManager({ workspaceId, eventId, onBack, onEdit }: { workspaceId: n
 
     {section === "Responses" ? <ResponseSummary stats={stats} /> : null}
     {section === "Guests" ? <Guests target={target} title={event.title} onChanged={refresh} /> : null}
-    {section === "Share" ? <Share workspaceId={workspaceId} slug={event.slug} isPublic={isPublic} /> : null}
+    {section === "Share" ? <Share workspaceId={workspaceId} slug={event.slug} isPublic={isPublic} page={page} /> : null}
   </>;
 }
 
@@ -267,56 +268,14 @@ function ResponseEditor({ target, row, fields, onClose, onChanged }: { target: {
   </section>;
 }
 
-const escapeXml = (value: string) => value.replace(/[<>&"']/g, character => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" })[character]!);
-const isDark = (hex: string) => {
-  const [r, g, b] = [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16));
-  return (r * 299 + g * 587 + b * 114) / 1000 < 150;
-};
-
-/** The QR code in a branded frame: company color, logo in the middle, and a line that says what to do. */
-function qrSvg(url: string, color: string, cta: string, logo: string | null) {
-  const modules = QRCode.create(url, { errorCorrectionLevel: "H" }).modules;
-  const count = modules.size;
-  const cell = 10;
-  const quiet = 4 * cell;
-  const pad = 28;
-  const white = count * cell + quiet * 2;
-  const width = white + pad * 2;
-  const bar = cta ? 92 : 0;
-  const height = width + bar;
-  const origin = pad + quiet;
-  const logoCells = logo ? Math.floor(count * 0.22) : 0;
-  const logoStart = Math.floor((count - logoCells) / 2);
-  let path = "";
-  for (let row = 0; row < count; row++) {
-    for (let col = 0; col < count; col++) {
-      if (!modules.get(row, col)) continue;
-      if (logoCells && row >= logoStart && row < logoStart + logoCells && col >= logoStart && col < logoStart + logoCells) continue;
-      path += `M${origin + col * cell} ${origin + row * cell}h${cell}v${cell}h-${cell}z`;
-    }
-  }
-  const logoAt = origin + logoStart * cell;
-  const logoSize = logoCells * cell;
-  return [
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="QR code for the event page">`,
-    `<rect width="${width}" height="${height}" rx="36" fill="${color}"/>`,
-    `<rect x="${pad}" y="${pad}" width="${white}" height="${white}" rx="20" fill="#ffffff"/>`,
-    `<path d="${path}" fill="#111827"/>`,
-    logo ? `<image href="${escapeXml(logo)}" x="${logoAt + cell / 2}" y="${logoAt + cell / 2}" width="${logoSize - cell}" height="${logoSize - cell}" preserveAspectRatio="xMidYMid meet"/>` : "",
-    cta ? `<text x="${width / 2}" y="${width + bar / 2 - 4}" text-anchor="middle" dominant-baseline="middle" font-family="Arial,Helvetica,sans-serif" font-size="40" font-weight="700" fill="${isDark(color) ? "#ffffff" : "#111827"}">${escapeXml(cta)}</text>` : "",
-    "</svg>",
-  ].join("");
-}
-
-function Share({ workspaceId, slug, isPublic }: { workspaceId: number; slug: string; isPublic: boolean }) {
+function Share({ workspaceId, slug, isPublic, page }: { workspaceId: number; slug: string; isPublic: boolean; page: Pick<EventPage, "qr"> }) {
   const brand = trpc.teamBrand.get.useQuery({ workspaceId });
   const url = eventUrl(slug);
   const [cta, setCta] = useState("Scan to RSVP");
   const [withLogo, setWithLogo] = useState(true);
   const [logo, setLogo] = useState<string | null>(null);
   const logoUrl = brand.data?.logoUrl ?? null;
-  const primary = brand.data?.primary;
-  const color = primary && /^#[0-9a-fA-F]{6}$/.test(primary) ? primary : "#234bad";
+  const look = eventQr(page, brand.data?.primary);
 
   useEffect(() => {
     let live = true;
@@ -325,7 +284,10 @@ function Share({ workspaceId, slug, isPublic }: { workspaceId: number; slug: str
     return () => { live = false; };
   }, [logoUrl]);
 
-  const svg = useMemo(() => qrSvg(`${url}?source=qr`, color, cta.trim(), withLogo ? logo : null), [url, color, cta, withLogo, logo]);
+  const svg = useMemo(
+    () => eventQrSvg(`${url}?source=qr`, look, cta.trim(), withLogo ? logo : null),
+    [url, look.dots, look.background, look.frame, look.rounded, cta, withLogo, logo],
+  );
   const png = () => {
     const image = new Image();
     const source = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
@@ -348,7 +310,7 @@ function Share({ workspaceId, slug, isPublic }: { workspaceId: number; slug: str
     <label className="gr-field">Event link<input type="text" readOnly value={url} onFocus={event => event.target.select()} /></label>
     <div className="gr-actions"><button type="button" className="gr-secondary" onClick={() => void navigator.clipboard.writeText(url).then(() => toast.success("Link copied."), failed)}>Copy link</button></div>
     <h2 className="event-subhead">QR code</h2>
-    <p>Uses your company color{logoUrl ? " and logo" : ""} from Brand.</p>
+    <p>The frame uses your company color from Brand unless the event has its own. Colors and dot shape are set under Edit event, in Design.</p>
     <div className="event-qr" dangerouslySetInnerHTML={{ __html: svg }} />
     <label className="gr-field">Line under the code<input type="text" maxLength={24} value={cta} onChange={event => setCta(event.target.value)} /></label>
     {logoUrl ? <label className="team-toggle"><input type="checkbox" checked={withLogo} disabled={!logo} onChange={event => setWithLogo(event.target.checked)} /> Show the company logo in the middle</label> : null}

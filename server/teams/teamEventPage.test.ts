@@ -209,6 +209,46 @@ describe("team event page", () => {
     expect(storageDelete).toHaveBeenCalledWith([second.url.slice("/storage/".length)]);
   });
 
+  it("keeps a page background uploaded for this event, shows it to visitors, and deletes it when removed", async () => {
+    const team = await makeTeam();
+    const event = await makeEvent(team, true);
+    const other = await makeEvent(team);
+    const photo = await upload(team, event.target);
+    const foreign = await upload(team, other.target);
+
+    await expect(team.asOwner.teamEvents.savePage({ ...event.target, page: { backgroundUrl: foreign.url } })).rejects.toThrow("Upload the image again.");
+    await expect(team.asOwner.teamEvents.savePage({ ...event.target, page: { backgroundUrl: "https://evil.test/a.png" } })).rejects.toThrow("Upload the image again.");
+
+    const saved = await team.asOwner.teamEvents.savePage({ ...event.target, page: { backgroundUrl: photo.url } });
+    expect(saved.page.backgroundUrl).toBe(photo.url);
+    expect((await visitor().publicEvent.get({ slug: event.slug })).page.backgroundUrl).toBe(photo.url);
+    expect(storageDelete).not.toHaveBeenCalled();
+
+    expect((await team.asOwner.teamEvents.savePage({ ...event.target, page: {} })).page.backgroundUrl).toBe("");
+    expect(storageDelete).toHaveBeenCalledWith([photo.url.slice("/storage/".length)]);
+  });
+
+  it("saves the page style, animation, colors and QR look, and shows them to visitors", async () => {
+    const team = await makeTeam();
+    const event = await makeEvent(team, true);
+    const look = {
+      style: "flat" as const,
+      motion: "calm" as const,
+      colors: { background: "#fff8e7", text: "#3a2a00", button: "#111111", buttonText: "#ffd54a" },
+      qr: { dots: "#0b2a2d", background: "#eef5f3", frame: "#aa2211", rounded: true },
+    };
+    const saved = await team.asOwner.teamEvents.savePage({ ...event.target, page: look });
+    expect(saved.page).toMatchObject(look);
+    expect((await visitor().publicEvent.get({ slug: event.slug })).page).toMatchObject(look);
+    expect((await team.asOwner.teamEvents.get(event.target)).page).toMatchObject(look);
+
+    await expect(team.asOwner.teamEvents.savePage({ ...event.target, page: { colors: { background: "url(x)" } } })).rejects.toThrow("Background must be a #rrggbb color");
+    await expect(team.asOwner.teamEvents.savePage({ ...event.target, page: { qr: { dots: "javascript:1" } } })).rejects.toThrow("QR dots must be a #rrggbb color");
+    await expect(team.asOwner.teamEvents.savePage({ ...event.target, page: { style: "3d" as never } })).rejects.toThrow();
+    // A failed save leaves the saved look alone.
+    expect((await team.asOwner.teamEvents.get(event.target)).page).toMatchObject(look);
+  });
+
   it("links a speaker only to a card of the same team, and only while that card is online", async () => {
     const team = await makeTeam();
     const rival = await makeTeam("Rival");

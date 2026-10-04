@@ -127,6 +127,7 @@ function Builder({ workspaceId, initial, company, zone, onClose }: { workspaceId
   const setStatus = trpc.teamEvents.setStatus.useMutation();
   const uploadCover = trpc.teamEvents.uploadCover.useMutation();
   const removeCover = trpc.teamEvents.removeCover.useMutation();
+  const uploadImage = trpc.teamEvents.uploadImage.useMutation();
 
   // The builder keeps its own copy of the event so that creating it does not restart the screen.
   const [start] = useState<Draft>(() => (initial ? fromServer(initial) : { details: BLANK, page: defaultEventPage(), questions: standardQuestions() }));
@@ -283,6 +284,17 @@ function Builder({ workspaceId, initial, company, zone, onClose }: { workspaceId
       failed(error);
     }
   };
+  /** The page background is part of the page, so it goes out with the next save, unlike the banner. */
+  const pickBackground = async (file: File | undefined) => {
+    if (!file || !target) return;
+    if (file.size > MAX_IMAGE_BYTES) { toast.error("Image is larger than 3MB. Upload a smaller one."); return; }
+    try {
+      const stored = await uploadImage.mutateAsync({ ...target, fileName: file.name, contentType: file.type || "image/png", dataBase64: await readBase64(file) });
+      changePage(current => ({ ...current, backgroundUrl: stored.url }));
+    } catch (error) {
+      failed(error);
+    }
+  };
   const clearCover = async () => {
     if (!target) return;
     try {
@@ -341,7 +353,7 @@ function Builder({ workspaceId, initial, company, zone, onClose }: { workspaceId
   } as EventView;
   const choices = (["attending", "maybe", "not_attending"] as const).filter(choice => choice !== "maybe" || details.allowMaybe);
   const zoneName = zone.replaceAll("_", " ");
-  const saving = busy || uploading;
+  const saving = busy || uploading || uploadImage.isPending;
   // Shown on the tab as you type, the way the card builder marks a tab with a bad field.
   const pageUnfinished = eventPageProblem(draft.page) !== null;
   const formUnfinished = questionProblem(draft.questions) !== null;
@@ -398,6 +410,12 @@ function Builder({ workspaceId, initial, company, zone, onClose }: { workspaceId
                 <EventImagePicker label="Event banner" shape="wide" url={meta.cover ?? ""} busy={uploadCover.isPending || removeCover.isPending} disabled={!target}
                   hint={target ? "JPG, PNG or WebP, up to 3MB. Saved as soon as you pick it." : "Add it once the event is created."}
                   onPick={file => void pickCover(file)} onClear={() => void clearCover()} />
+              </div>
+              <div className="form-section">
+                <div className="pd-block-head"><h3>Background image</h3><p>A photo behind the whole page, softened so the text stays easy to read. Without one, the page uses the theme's background.</p></div>
+                <EventImagePicker label="Page background" shape="wide" url={draft.page.backgroundUrl} busy={uploadImage.isPending} disabled={!target}
+                  hint={target ? "JPG, PNG or WebP, up to 3MB. Shows on the page after you save." : "Add it once the event is created."}
+                  onPick={file => void pickBackground(file)} onClear={() => changePage(current => ({ ...current, backgroundUrl: "" }))} />
               </div>
               <div className="fold-list">
                 <Fold title="When" defaultOpen forceOpen={Boolean(errors.startAt)} attention={Boolean(errors.startAt)} attentionLabel="Needs a date" meta={details.startAt ? details.startAt.replace("T", " ") : "No date yet"} hint={`Times are in your team's time zone (${zoneName}).`}>
@@ -458,7 +476,7 @@ function Builder({ workspaceId, initial, company, zone, onClose }: { workspaceId
           <section {...panelProps("design")}>
             <div className="builder-panel-head"><h2>Design</h2><p>The page uses the same layout as a Business card page. Pick a theme, a font and an accent color.</p></div>
             <div className="builder-panel-body">
-              <EventPageLook page={draft.page} onChange={changePage} />
+              <EventPageLook page={draft.page} brandColor={company.colors?.primary} url={`${window.location.origin}/event/${meta.slug || "your-event"}?source=qr`} onChange={changePage} />
             </div>
             {stepNav("design")}
           </section>

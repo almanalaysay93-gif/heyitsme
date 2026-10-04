@@ -385,3 +385,23 @@ Owner asked to find what the card builder's design has that the event builder la
 - Left out, needs schema or server work: template picker, photo shape, page background photo, gradients and custom colors, QR styling, Google Reviews, branding toggle (billing).
 - Gates: `pnpm check` clean, `pnpm test` 504 passed (53 files), `pnpm build` clean. Browser pass on the throwaway PGlite harness at 1280 and 390 wide: copy link (clipboard read back), eye toggle, accent set and reset, error focus, no console errors, no sideways scroll, no control under 44px.
 - Not checked in a browser: real image upload into the tiles (harness has no storage), publish from draft through the new button, the live tab dot (code path only).
+
+## 2026-10-04 — Event page background image (Claude, branch `feat/event-background`, NOT committed)
+Owner asked for an upload background image option below the banner in the event builder.
+- `shared/eventPage.ts`: new `backgroundUrl` on the event page (same stored-file rule as speaker photos) and it is listed in `eventPageImages`, so `savePage` checks it belongs to the event and deletes the file when it is dropped. No new column, no migration: it lives in the `page` JSON.
+- `EventBuilder.tsx`: "Background image" block under Banner in Details, using `EventImagePicker`. Uploads through the existing `teamEvents.uploadImage`; unlike the banner it is saved with the next Save.
+- `EventLanding.tsx`: with a background, the page draws `lx-bg` (photo under a 65% veil of the theme's paper color) in place of the aurora, the same way a card page does.
+- Gates: `pnpm check` clean, `pnpm test` 505 passed (53 files), `pnpm build` clean. New server test in `teamEventPage.test.ts`. Browser pass on the throwaway PGlite harness at 1280 and 390 wide with the upload call mocked and a black-and-white checker photo: pick, preview, save, reopen, public page, remove; no console errors, no sideways scroll, no control under 44px.
+- Not checked in a browser: a real upload to storage, Sunset and Midnight themes with a background.
+
+## 2026-10-04 — Event page look: custom colors, QR styling, animation, two-dimensional style (Claude, branch `feat/event-background`, NOT committed)
+Owner asked: "add custom colors, QR styling and animation in the templates add an option for a Two-Dimensional Style website look". Read as: the event builder's Design tab. Not confirmed with the owner.
+- `shared/eventPage.ts`: the page JSON gains `style` (`glass` or `flat`), `motion` (`full`, `calm`, `off`), `colors` (background, text, button, button text) and `qr` (dots, background, frame, rounded). All optional with defaults, so older saved pages read unchanged. No new column, no migration.
+- `eventLook(page, brandColor)` works out what the page draws. A dark background of the admin's own switches to the dark panels, a light one to the light panels. Text or button text that does not reach 4.5:1 is replaced and a note says so in the builder.
+- `eventQr(page, brandColor)` does the same for the code: a pair under 4.5:1, or dots lighter than the background, goes back to black on white with a note. The frame follows the company color unless the event has its own.
+- `client/src/lib/eventQr.ts`: the QR drawing moved out of `TeamEvents.tsx` so the builder preview and the Share section draw the same code. Rounded dots keep the three corner squares square.
+- `EventPageEditor.tsx` Design tab now has: Theme, Page style, Font, Accent color, Custom colors, Animation, QR code (with a live preview).
+- `EventLanding.tsx` and `eventLanding.css`: `ev-flat` (solid panels, 2px outline, hard offset shadow, no blur, no aurora), `ev-own-paper`, `ev-still`. Calm keeps the entrance and panel motion but pauses the aurora and the panel light. Still stops everything. Reduced-motion devices always get the still page.
+- No plan gating: the card builder treats custom colors and advanced QR as Pro, events have no entitlements of their own. Billing code untouched. Owner to decide whether these should be gated.
+- Gates: `pnpm check` clean, `pnpm test` 517 passed (54 files), `pnpm build` clean. New tests in `server/eventPage.test.ts`, `server/teams/teamEventPage.test.ts`, `client/src/lib/eventQr.test.ts`. Browser pass on the throwaway PGlite harness at 1280 and 390 wide: every Design control, notes for unreadable picks, save, reopen, public page, Share QR; no console errors, no sideways scroll, no control under 44px.
+- Not checked: scanning a styled code with a real phone, Sunset theme in the flat style, a background image together with own colors.
