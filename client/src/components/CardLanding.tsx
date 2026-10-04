@@ -551,8 +551,7 @@ export function CardLanding(props: CardLandingProps) {
                 ) : (
                   <p className="lx-review-score"><span className="lx-stars" style={{ "--fill": "100%" } as React.CSSProperties} aria-hidden="true">★★★★★</span><span>Be one of the first to review us.</span></p>
                 )}
-                <p className="lx-review-ask">Happy with us? A short review on Google helps others find us.</p>
-                {/* Google only accepts reviews on its own site, so its review box opens in a small window over this page. */}
+                <p className="lx-review-ask">Share your experience on Google.</p>
                 <a
                   href={`/api/google-reviews/${encodeURIComponent(googleReview.slug)}/write?source=profile`}
                   target="_blank"
@@ -567,9 +566,9 @@ export function CardLanding(props: CardLandingProps) {
                     event.preventDefault();
                   }}
                 >
-                  ★ Write a review
+                  Write a review
                 </a>
-                <small className="lx-review-note">Opens Google's review box. This page stays open.</small>
+                <small className="lx-review-note">Opens Google's review form.</small>
               </div>
             ) : null}
           </>
