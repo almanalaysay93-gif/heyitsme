@@ -1595,16 +1595,18 @@ function BuilderView({
                   >
                     <ReferencesEditor cardId={draft.id} onAddReference={onAddReference} onDeleteReference={onDeleteReference} isAuthenticated={isAuthenticated} />
                   </Fold>
-                  <Fold
-                    title="Reviews"
-                    hint="Name the reviews section, and connect your Google business to show your rating and a review button on this card."
-                  >
-                    <Field id="field-referencesHeading" label="Section heading" value={panels.referencesHeading} onChange={(value: string) => panels.setReferencesHeading(value.slice(0, 60))} placeholder="Kind words" hint="Title shown above your client references and Google reviews." />
-                    {draft.id > 0 && isAuthenticated
-                      ? <a className="outline-button" href={`/app/google-reviews?card=${draft.id}`}><Star size={14} /> Set up Google Reviews</a>
-                      : <p className="editor-empty">Save this card first, then connect your Google business.</p>}
-                  </Fold>
                 </div>
+              </div>
+
+              <div className="form-section">
+                <div className="pd-block-head">
+                  <h3>Google Reviews</h3>
+                  <p>Connect your Google business to show your rating and a review button on this card.</p>
+                </div>
+                {draft.id > 0 && isAuthenticated
+                  ? <a className="outline-button builder-google" href={`/app/google-reviews?card=${draft.id}`}><Star size={14} /> Set up Google Reviews</a>
+                  : <p className="field-hint">Save this card first, then connect your Google business here.</p>}
+                <Field id="field-referencesHeading" label="Section heading" value={panels.referencesHeading} onChange={(value: string) => panels.setReferencesHeading(value.slice(0, 60))} placeholder="Kind words" hint="Title shown above your client references and Google reviews." />
               </div>
             </div>
             {stepNav("page")}

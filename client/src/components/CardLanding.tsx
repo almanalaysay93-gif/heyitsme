@@ -232,6 +232,11 @@ export function CardLanding(props: CardLandingProps) {
               : design.radius === "medium"
                 ? "16px"
                 : "24px",
+          ...(design.radius === "small"
+            ? { "--radius-panel": "10px", "--radius-media": "8px" }
+            : design.radius === "medium"
+              ? { "--radius-panel": "18px", "--radius-media": "14px" }
+              : {}),
         }
       : {}),
     ["--accent" as string]: accent,
