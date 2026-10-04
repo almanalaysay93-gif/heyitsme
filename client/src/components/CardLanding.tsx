@@ -73,7 +73,7 @@ export type CardLandingProps = {
   card: CardDraft;
   config: PageConfig;
   references: ReferenceRow[];
-  googleReview?: { slug: string; rating?: string | null; reviewCount?: number | null; showOnCard?: boolean } | null;
+  googleReview?: { slug: string; businessName?: string | null; rating?: string | null; reviewCount?: number | null; showOnCard?: boolean } | null;
   /** false = builder preview: no nav, dock, QR or motion, and nothing inside can be focused or clicked. */
   interactive: boolean;
   canExchange: boolean;
@@ -529,16 +529,47 @@ export function CardLanding(props: CardLandingProps) {
               </div>
             ) : null}
             {googleReview && googleReview.showOnCard !== false ? (
-              <div className="lx-google-review-box" style={{ marginTop: references.length > 0 ? "1.25rem" : 0, textAlign: "center", padding: "1.25rem", borderRadius: "1rem", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }}>
-                <strong style={{ display: "block", fontSize: "1rem", marginBottom: "0.25rem" }}>Review us on Google</strong>
-                <p style={{ margin: "0 0 0.75rem", fontSize: "0.85rem", opacity: 0.8 }}>
-                  {googleReview.rating ? `★ ${googleReview.rating} on Google` : ""}
-                  {googleReview.reviewCount != null ? ` · ${googleReview.reviewCount} reviews` : ""}
-                </p>
-                {/* Straight to Google's review box in a new tab, so the visitor keeps this page open. */}
-                <a href={`/api/google-reviews/${encodeURIComponent(googleReview.slug)}/write?source=profile`} target="_blank" rel="noopener noreferrer" className="lx-btn lx-btn-outline" style={{ display: "inline-block", textDecoration: "none" }}>
-                  Leave a Google review
+              <div className={`lx-review${references.length > 0 ? " has-quotes" : ""}`}>
+                <div className="lx-review-head">
+                  <svg className="lx-review-mark" viewBox="0 0 48 48" width="28" height="28" aria-hidden="true">
+                    <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z" />
+                    <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.500-4.800 7.200l7.700 6c4.500-4.200 6.900-10.300 6.900-17.700z" />
+                    <path fill="#FBBC05" d="M10.500 28.700c-.5-1.500-.8-3.100-.8-4.700s.3-3.200.8-4.700l-7.900-6.100C.900 16.500 0 20.100 0 24s.9 7.500 2.600 10.800l7.900-6.100z" />
+                    <path fill="#34A853" d="M24 48c6.500 0 11.900-2.100 15.900-5.800l-7.700-6c-2.200 1.500-5 2.300-8.200 2.300-6.300 0-11.600-4.100-13.500-9.800l-7.900 6.100C6.500 42.600 14.600 48 24 48z" />
+                  </svg>
+                  <div>
+                    <strong>{googleReview.businessName || "Review us on Google"}</strong>
+                    <span>Google reviews</span>
+                  </div>
+                </div>
+                {googleReview.rating ? (
+                  <p className="lx-review-score">
+                    <b>{googleReview.rating}</b>
+                    <span className="lx-stars" style={{ "--fill": `${Math.min(100, Number(googleReview.rating) / 5 * 100)}%` } as React.CSSProperties} role="img" aria-label={`${googleReview.rating} out of 5 stars`}>★★★★★</span>
+                    {googleReview.reviewCount != null ? <span>{googleReview.reviewCount} {googleReview.reviewCount === 1 ? "review" : "reviews"}</span> : null}
+                  </p>
+                ) : (
+                  <p className="lx-review-score"><span className="lx-stars" style={{ "--fill": "100%" } as React.CSSProperties} aria-hidden="true">★★★★★</span><span>Be one of the first to review us.</span></p>
+                )}
+                <p className="lx-review-ask">Happy with us? A short review on Google helps others find us.</p>
+                {/* Google only accepts reviews on its own site, so its review box opens in a small window over this page. */}
+                <a
+                  href={`/api/google-reviews/${encodeURIComponent(googleReview.slug)}/write?source=profile`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="lx-btn lx-btn-primary"
+                  onClick={(event) => {
+                    if (!interactive || !window.matchMedia("(min-width: 700px)").matches) return;
+                    const width = 520, height = 720;
+                    const popup = window.open(event.currentTarget.href, "google-review", `popup=yes,width=${width},height=${height},left=${Math.max(0, window.screenX + (window.outerWidth - width) / 2)},top=${Math.max(0, window.screenY + (window.outerHeight - height) / 2)}`);
+                    if (!popup) return;
+                    popup.opener = null;
+                    event.preventDefault();
+                  }}
+                >
+                  ★ Write a review
                 </a>
+                <small className="lx-review-note">Opens Google's review box. This page stays open.</small>
               </div>
             ) : null}
           </>
