@@ -406,10 +406,19 @@ Owner asked: "add custom colors, QR styling and animation in the templates add a
 - Gates: `pnpm check` clean, `pnpm test` 517 passed (54 files), `pnpm build` clean. New tests in `server/eventPage.test.ts`, `server/teams/teamEventPage.test.ts`, `client/src/lib/eventQr.test.ts`. Browser pass on the throwaway PGlite harness at 1280 and 390 wide: every Design control, notes for unreadable picks, save, reopen, public page, Share QR; no console errors, no sideways scroll, no control under 44px.
 - Not checked: scanning a styled code with a real phone, Sunset theme in the flat style, a background image together with own colors.
 
-## 2026-10-04 — Teams capability for event colors and QR styling (Claude, branch `feat/event-style-capability`, NOT committed)
+## 2026-10-04 — Teams capability for event colors and QR styling (Claude, merged to `main` 2026-10-04)
 Owner picked "New Teams capability" for gating event custom colors and QR styling.
 - `shared/teams.ts`: new capability `canStyleEventPages`. Resolved in `server/teams/entitlements.ts` like the others (Teams on, plan not ended) and also needs the new launch flag `TEAM_EVENT_STYLING_ENABLED` (on by default, in `.env.example`). The flag is for every team; a per-workspace switch would need a column and was not built.
 - It covers the event page's `colors` and `qr` only. Theme, accent, page style and animation stay open to every team.
 - `teamEvents.savePage` refuses a save that picks a new color or QR look while the capability is off (`eventStylingAdded` in `shared/eventPage.ts`). A saved look stays, visitors keep seeing it, the rest of the page can be edited around it, and going back to the standard look is always allowed. Nothing is deleted.
 - Builder: with the capability off the color and QR pickers are disabled with a line saying why; Reset stays usable. The browser copy is a hint only, the server decides.
 - Gates: `pnpm check` clean, `pnpm test` 519 passed (54 files), `pnpm build` clean. Browser pass on the throwaway PGlite harness with the flag off, 1280 and 390 wide: pickers disabled, notes shown, other design changes still save, no console errors, no sideways scroll.
+
+## 2026-10-05 — Event QR logo upload (Claude, merged to `main` 2026-10-05)
+Owner asked for an option in the event builder to upload a logo for the QR code.
+- `shared/eventPage.ts`: `qr.logoUrl` (same `/storage/` image rule as the other event images) and it is listed in `eventPageImages`, so `teamEvents.savePage` checks it belongs to the event and deletes the file once the page drops it. No migration: the page is JSON.
+- It is part of the QR look, so it sits under `canStyleEventPages`: with styling off a saved logo stays, a new one is refused, removing is allowed.
+- Builder, Design tab, QR code block: "Logo in the code" picker (needs a created event, like the background). The preview draws the event's logo, or the company logo from Brand when there is none.
+- Share section: the event's logo wins over the company logo in the downloaded code. Toggle now reads "Show the logo in the middle".
+- `eventBuilder.css`: logo thumbnails in the builder now fit the tile instead of being cropped.
+- Gates: `pnpm check` clean, `pnpm test` 520 passed (54 files), `pnpm build` clean. Browser pass on the throwaway PGlite harness (upload and `/storage` mocked), 1280 and 390 wide: upload, save, reopen, Share, remove; no console errors, no sideways scroll.

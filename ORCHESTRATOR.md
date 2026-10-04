@@ -329,3 +329,18 @@ Owner: "custom colors/QR build", then chose "New Teams capability" when asked wh
 - Gates: `pnpm check` clean, `pnpm test` 519 passed (54 files), `pnpm build` clean. Two new tests.
 - Browser pass on a throwaway PGlite harness (deleted after) with the flag off, 1280 and 390 wide. No console errors, no sideways scroll.
 - Not done: per-workspace switch, an admin screen for it.
+
+## 2026-10-05 — Buildme run: event QR logo upload
+
+### Design Read
+Owner: "in the events builde add a option to add and upload a logo to the qr code".
+
+### Decisions
+- D1: The logo is stored on the event page as `qr.logoUrl`, uploaded through the existing `teamEvents.uploadImage`.
+- D2: It counts as QR styling, so the existing Teams capability covers it. No new flag.
+- D3: Without an event logo the code keeps using the company logo from Brand.
+
+### Result (2026-10-05)
+- Gates: `pnpm check` clean, `pnpm test` 520 passed (54 files), `pnpm build` clean. One new test.
+- Browser pass on a throwaway PGlite harness (deleted after), 1280 and 390 wide. No console errors, no sideways scroll.
+- Not done: cropping or resizing the logo in the builder; it is fitted into a square as uploaded.

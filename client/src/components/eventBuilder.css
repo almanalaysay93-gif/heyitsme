@@ -48,6 +48,7 @@
 /* The card builder's picture tile, eye toggle and accent chip, at the event builder's sizes. */
 .event-builder .link-button{min-height:44px;color:#5f6377}
 .event-builder .image-picker{margin:4px 0}
+.event-builder .image-picker-logo .image-picker-drop{grid-template:minmax(0,1fr)/minmax(0,1fr)}
 .event-builder .image-picker-logo .image-picker-drop img{object-fit:contain;padding:6px}
 .event-builder .image-picker.is-disabled .image-picker-drop{opacity:.55;cursor:not-allowed;transform:none}
 .event-builder .image-picker.is-disabled input{cursor:not-allowed}

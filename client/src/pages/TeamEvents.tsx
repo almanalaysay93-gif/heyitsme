@@ -274,7 +274,8 @@ function Share({ workspaceId, slug, isPublic, page }: { workspaceId: number; slu
   const [cta, setCta] = useState("Scan to RSVP");
   const [withLogo, setWithLogo] = useState(true);
   const [logo, setLogo] = useState<string | null>(null);
-  const logoUrl = brand.data?.logoUrl ?? null;
+  // The event's own logo wins over the company's.
+  const logoUrl = page.qr.logoUrl || (brand.data?.logoUrl ?? null);
   const look = eventQr(page, brand.data?.primary);
 
   useEffect(() => {
@@ -310,10 +311,10 @@ function Share({ workspaceId, slug, isPublic, page }: { workspaceId: number; slu
     <label className="gr-field">Event link<input type="text" readOnly value={url} onFocus={event => event.target.select()} /></label>
     <div className="gr-actions"><button type="button" className="gr-secondary" onClick={() => void navigator.clipboard.writeText(url).then(() => toast.success("Link copied."), failed)}>Copy link</button></div>
     <h2 className="event-subhead">QR code</h2>
-    <p>The frame uses your company color from Brand unless the event has its own. Colors and dot shape are set under Edit event, in Design.</p>
+    <p>The frame uses your company color from Brand unless the event has its own. Colors, dot shape and the logo are set under Edit event, in Design.</p>
     <div className="event-qr" dangerouslySetInnerHTML={{ __html: svg }} />
     <label className="gr-field">Line under the code<input type="text" maxLength={24} value={cta} onChange={event => setCta(event.target.value)} /></label>
-    {logoUrl ? <label className="team-toggle"><input type="checkbox" checked={withLogo} disabled={!logo} onChange={event => setWithLogo(event.target.checked)} /> Show the company logo in the middle</label> : null}
+    {logoUrl ? <label className="team-toggle"><input type="checkbox" checked={withLogo} disabled={!logo} onChange={event => setWithLogo(event.target.checked)} /> Show the logo in the middle</label> : null}
     {logoUrl && !logo ? <p className="gr-attribution">The logo could not be added to the code.</p> : null}
     <div className="gr-actions">
       <button type="button" className="gr-primary" onClick={png}>Download PNG</button>
