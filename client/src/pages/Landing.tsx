@@ -87,7 +87,7 @@ function KineticLine({ words, delay = 0 }: { words: string[]; delay?: number }) 
           <motion.span
             initial={{ y: "115%", rotate: 7 }}
             animate={{ y: "0%", rotate: 0 }}
-            transition={{ type: "spring", stiffness: 110, damping: 16, delay: delay + index * 0.08 }}
+            transition={{ type: "spring", stiffness: 220, damping: 24, delay: delay + index * 0.05 }}
           >
             {word}
           </motion.span>
@@ -147,7 +147,7 @@ const reveal = {
   hidden: { opacity: 0, y: 32 },
   show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 120, damping: 20 } },
 };
-const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.09 } } };
+const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.055 } } };
 
 function HeroStage({ theme }: { theme: string }) {
   const reduceMotion = useReducedMotion();
@@ -178,7 +178,7 @@ function HeroStage({ theme }: { theme: string }) {
         style={{ y: frontY }}
         initial={{ opacity: 0, y: 80, rotate: 8 }}
         animate={{ opacity: 1, y: 0, rotate: 0 }}
-        transition={{ type: "spring", stiffness: 90, damping: 14, delay: 0.25 }}
+        transition={{ type: "spring", stiffness: 180, damping: 22, delay: 0.1 }}
       >
         <TiltCard><CardVisual card={{ ...demoCard, theme }} /></TiltCard>
       </motion.div>
@@ -201,7 +201,7 @@ function HeroStage({ theme }: { theme: string }) {
         className="lp-qr-float"
         initial={{ opacity: 0, scale: 0.6, rotate: -14 }}
         animate={{ opacity: 1, scale: 1, rotate: 6 }}
-        transition={{ type: "spring", stiffness: 160, damping: 12, delay: 0.7 }}
+        transition={{ type: "spring", stiffness: 260, damping: 22, delay: 0.25 }}
         aria-hidden="true"
       >
         <QrCode size={30} />
@@ -445,7 +445,7 @@ export default function Landing() {
           </div>
         </motion.section>
 
-        <motion.section id="free" className="lp-free" initial={{ opacity: 0, y: 60 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-100px" }} transition={{ type: "spring", stiffness: 80, damping: 18 }}>
+        <motion.section id="free" className="lp-free" initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-100px" }} transition={{ type: "spring", stiffness: 180, damping: 24 }}>
           <div>
             <span className="section-kicker">Pricing</span>
             <h2>Start free.<br /><em>Upgrade when it pays.</em></h2>
@@ -471,7 +471,7 @@ export default function Landing() {
         <section className="lp-final">
           <LoopVideo className="lp-final-video" src={landingMedia.finalLoop} />
           <div className="lp-final-veil" aria-hidden="true" />
-          <motion.h2 initial={{ opacity: 0, scale: 0.94 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ type: "spring", stiffness: 100, damping: 16 }}>
+          <motion.h2 initial={{ opacity: 0, scale: 0.98 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ type: "spring", stiffness: 200, damping: 24 }}>
             Next time someone asks<br /><em>“how do I reach you?”</em>
           </motion.h2>
           <p>Send them your page.</p>

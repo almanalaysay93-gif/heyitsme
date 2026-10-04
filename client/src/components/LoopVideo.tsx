@@ -44,7 +44,7 @@ export function LoopVideo({ src, className = "", fallback = null, lazy = true }:
   // Unmount the fallback once the clip has faded over it, so its own animation stops costing frames.
   useEffect(() => {
     if (!ready) return;
-    const timer = window.setTimeout(() => setFallbackGone(true), 800);
+    const timer = window.setTimeout(() => setFallbackGone(true), 300);
     return () => window.clearTimeout(timer);
   }, [ready]);
 

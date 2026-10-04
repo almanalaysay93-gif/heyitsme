@@ -3,7 +3,7 @@ import { Check, Download, QrCode, ScanLine, UserRoundPlus } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useRef, useState } from "react";
 
-const BEAT_MS = 2800;
+const BEAT_MS = 2200;
 
 const beats = [
   { title: "Show your code", copy: "Your page, one QR away." },
@@ -45,7 +45,7 @@ export function ShareDemo() {
               d="M60 100 C 140 -10, 260 -10, 340 100"
               initial={false}
               animate={{ pathLength: beat >= 1 ? 1 : 0, opacity: beat >= 1 ? 1 : 0 }}
-              transition={{ duration: reduceMotion ? 0 : 0.9, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: reduceMotion ? 0 : 0.55, ease: [0.22, 1, 0.36, 1] }}
             />
           </svg>
           {beat === 1 && !reduceMotion ? (
@@ -53,7 +53,7 @@ export function ShareDemo() {
               className="sd-spark"
               initial={{ left: "15%", top: "83%", opacity: 0 }}
               animate={{ left: ["15%", "32%", "50%", "68%", "85%"], top: ["83%", "30%", "15%", "30%", "83%"], opacity: [0, 1, 1, 1, 0] }}
-              transition={{ duration: 1.1, ease: "easeInOut", delay: 0.15 }}
+              transition={{ duration: 0.7, ease: "easeInOut", delay: 0.1 }}
             />
           ) : null}
         </div>
@@ -70,7 +70,7 @@ export function ShareDemo() {
             </motion.div>
             <AnimatePresence>
               {beat === 3 ? (
-                <motion.div className="sd-toast sd-toast-in" initial={{ opacity: 0, y: -18, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -10 }} transition={{ ...spring, delay: 0.5 }}>
+                <motion.div className="sd-toast sd-toast-in" initial={{ opacity: 0, y: -18, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -10 }} transition={{ ...spring, delay: 0.2 }}>
                   <span><UserRoundPlus size={12} /></span> Jordan sent their details
                 </motion.div>
               ) : null}

@@ -287,24 +287,24 @@
   --glow-size: 20px;
 }
 .lx-designed[data-animation="fade-in"] .lx-main {
-  animation: pro-rise 0.5s both;
+  animation: pro-rise 0.3s both;
   --motion-distance: 0px;
 }
 .lx-designed[data-animation="fade-up"] .lx-main,
 .lx-designed[data-animation="slide-up"] .lx-main {
-  animation: pro-rise 0.65s both;
+  animation: pro-rise 0.4s both;
 }
 .lx-designed[data-animation="soft-scale"] .lx-main {
-  animation: pro-scale 0.65s both;
+  animation: pro-scale 0.4s both;
 }
 .lx-designed[data-animation="staggered-content"] .lx-hero > * {
-  animation: pro-rise 0.7s both;
+  animation: pro-rise 0.42s both;
 }
 .lx-designed[data-animation="staggered-content"] .lx-hero > *:nth-child(2) {
-  animation-delay: 0.12s;
+  animation-delay: 0.07s;
 }
 .lx-designed[data-animation="staggered-content"] .lx-hero > *:nth-child(3) {
-  animation-delay: 0.24s;
+  animation-delay: 0.14s;
 }
 .lx-designed[data-animation="floating-profile"] .lx-photo-wrap {
   animation: pro-float 6s ease-in-out infinite;

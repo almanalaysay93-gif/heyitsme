@@ -44,7 +44,15 @@ const SCHEMA_INDEXES = [
   ],
 ] as const;
 
+// One row records that the runtime bootstrap completed. Bump this when ensureSchema gains a new step.
+const SCHEMA_BOOTSTRAP_KEY = "runtimeSchemaVersion";
+export const SCHEMA_BOOTSTRAP_VERSION = "0021_client_reviews";
+
 async function ensureSchema(client: postgres.Sql) {
+  const [current] = await client<{ value: { version?: string } }[]>`
+    select "value" from "appSettings" where "key" = ${SCHEMA_BOOTSTRAP_KEY}
+  `.catch(() => []);
+  if (current?.value?.version === SCHEMA_BOOTSTRAP_VERSION) return;
   await client`alter table "contacts" add column if not exists "status" varchar(16) not null default 'new'`;
   await client`alter table "contacts" add column if not exists "campaignId" varchar(32)`;
   // drizzle/0021_client_reviews.sql
@@ -175,6 +183,11 @@ async function ensureSchema(client: postgres.Sql) {
   if (teamSeats.length === 0) {
     for (const statement of TEAM_SEATS_SCHEMA_STATEMENTS) await client.unsafe(statement);
   }
+  await client`
+    insert into "appSettings" ("key", "value", "updatedAt")
+    values (${SCHEMA_BOOTSTRAP_KEY}, ${JSON.stringify({ version: SCHEMA_BOOTSTRAP_VERSION })}::jsonb, now())
+    on conflict ("key") do update set "value" = excluded."value", "updatedAt" = now()
+  `.catch(error => console.warn("[Database] Could not save schema version:", String(error)));
 }
 
 export async function getDb() {

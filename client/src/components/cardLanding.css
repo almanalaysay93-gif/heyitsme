@@ -82,7 +82,7 @@
   --ease-out: cubic-bezier(.22, 1, .36, 1);
   --ease-spring: cubic-bezier(.2, .9, .25, 1.12);
   --dur-fast: .22s;
-  --dur-slow: .6s;
+  --dur-slow: .32s;
 
   position: relative;
   isolation: isolate;
@@ -635,8 +635,8 @@
 }
 .lx-review .lx-stars { display: inline-block; animation: lx-review-stars-glow 3.6s ease-in-out infinite; }
 @keyframes lx-review-stars-glow {
-  0%, 65%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 transparent); }
-  78% { transform: scale(1.12); filter: drop-shadow(0 0 7px rgba(245, 166, 35, .7)); }
+  0%, 65%, 100% { transform: scale(1); opacity: 1; }
+  78% { transform: scale(1.12); opacity: .84; }
 }
 @media (prefers-reduced-motion: reduce) { .lx-review .lx-stars { animation: none; } }
 .lx-review-ask { max-width: 34ch; margin: 0; font-size: 15px; line-height: 1.45; }

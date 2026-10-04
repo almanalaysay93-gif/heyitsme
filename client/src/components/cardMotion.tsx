@@ -18,8 +18,8 @@ export const SPRING = {
   press: { type: "spring", stiffness: 600, damping: 31, mass: 0.8 },
   // zeta~0.75, ~0.3s: hover is seen tens of times per visit, so it stays quick and small.
   hoverLift: { type: "spring", stiffness: 400, damping: 30, mass: 1 },
-  // zeta~0.91, heavier mass, ~0.7s: big glass slabs should feel weighty and calm, not bouncy.
-  panel: { type: "spring", stiffness: 120, damping: 22, mass: 1.1 },
+  // Panels arrive promptly with a small, controlled settle.
+  panel: { type: "spring", stiffness: 220, damping: 28, mass: 1 },
   // zeta~1.22 overdamped: smoothing for scroll-linked values; never overshoots, never visibly lags.
   follow: { stiffness: 150, damping: 30, mass: 1 },
 } as const;
@@ -52,9 +52,9 @@ export function useHeroEntrance(enabled: boolean) {
     const fade = { opacity: { duration: 0.32, ease: EASE_OUT, delay } };
     if (step === "photo") {
       return {
-        initial: { opacity: 0, transform: "scale(0.96)", filter: "blur(6px)" },
-        animate: { opacity: 1, transform: "scale(1)", filter: "blur(0px)" },
-        transition: { ...transition, ...fade, filter: { duration: 0.45, ease: EASE_OUT, delay } },
+        initial: { opacity: 0, transform: "scale(0.98)" },
+        animate: { opacity: 1, transform: "scale(1)" },
+        transition: { ...transition, ...fade },
       };
     }
     return {
@@ -125,10 +125,10 @@ export function GlassPanel({ enabled, light = true, className, children, ...rest
   const cls = ["lx-glass", className].filter(Boolean).join(" ");
   const motionProps: HTMLMotionProps<"section"> = on
     ? {
-        initial: { opacity: 0, transform: "translateY(24px) scale(0.98)" },
+        initial: { opacity: 0, transform: "translateY(16px) scale(0.99)" },
         whileInView: { opacity: 1, transform: "translateY(0px) scale(1)" },
         viewport: { once: true, amount: 0.15 },
-        transition: { ...SPRING.panel, opacity: { duration: 0.4, ease: EASE_OUT } },
+        transition: { ...SPRING.panel, opacity: { duration: 0.24, ease: EASE_OUT } },
       }
     : {};
   return <motion.section ref={ref} className={cls} {...motionProps} {...rest}>{children}</motion.section>;
