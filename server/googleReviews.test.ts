@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canConnectBusiness, mapsDestination, reviewDestination, setupAllowance, setupTier } from "./googleReviews";
+import { canConnectBusiness, directReviewLink, mapsDestination, reviewDestination, ReviewLinkRequiredError, reviewLinkForSetup, setupAllowance, setupTier } from "./googleReviews";
 
 describe("Google business connection limit", () => {
   it("lets a free account connect its first business", () => {
@@ -21,17 +21,34 @@ describe("Google business connection limit", () => {
 
 describe("Stored Google destinations", () => {
   it("uses the review link saved at setup", () => {
-    expect(reviewDestination({ placeId: "abc", reviewUrl: "https://www.google.com/maps/place//data=x" })).toBe("https://www.google.com/maps/place//data=x");
+    expect(reviewDestination({ placeId: "abc", reviewUrl: "https://www.google.com/maps/place//data=!4m3!3m2!1splace!12e1" })).toBe("https://www.google.com/maps/place//data=!4m3!3m2!1splace!12e1");
   });
 
-  it("builds the review link from the place ID when none was saved", () => {
-    expect(reviewDestination({ placeId: "a b", reviewUrl: null })).toBe("https://search.google.com/local/writereview?placeid=a%20b");
+  it("never creates a review destination from a Maps listing or place ID", () => {
+    expect(reviewDestination({ placeId: "abc", reviewUrl: null, mapsUrl: "https://maps.google.com/?cid=123" })).toBe(null);
+    expect(reviewDestination({ placeId: "a b", reviewUrl: null })).toBe(null);
   });
 
   it("never redirects to a link outside Google", () => {
-    expect(reviewDestination({ placeId: "abc", reviewUrl: "https://evil.example/google.com/" })).toBe("https://search.google.com/local/writereview?placeid=abc");
+    expect(reviewDestination({ placeId: "abc", reviewUrl: "https://evil.example/google.com/" })).toBe(null);
     expect(reviewDestination({ placeId: null, reviewUrl: "https://evil.example/" })).toBe(null);
     expect(mapsDestination({ placeId: "abc", mapsUrl: "javascript:alert(1)", businessName: "Clinic" })).toBe("https://www.google.com/maps/search/?api=1&query=Clinic&query_place_id=abc");
+  });
+
+  it("accepts Google's direct review links and rejects listing and search links", () => {
+    expect(directReviewLink("https://g.page/r/abc/review")).toBe("https://g.page/r/abc/review");
+    expect(directReviewLink("https://www.google.com/maps/place//data=!4m3!3m2!1splace!12e1")).toContain("!12e1");
+    expect(directReviewLink("https://maps.google.com/?cid=123")).toBe(null);
+    expect(directReviewLink("https://search.google.com/local/writereview?placeid=abc")).toBe(null);
+    expect(directReviewLink("https://g.page.evil.example/r/abc/review")).toBe(null);
+  });
+
+  it("refuses a new review page without a direct review link", () => {
+    const place = { id: "abc", googleMapsLinks: { placeUri: "https://maps.google.com/?cid=123" } };
+    expect(() => reviewLinkForSetup(place)).toThrow(ReviewLinkRequiredError);
+    expect(reviewLinkForSetup(place, "https://g.page/r/abc/review")).toBe("https://g.page/r/abc/review");
+    expect(reviewLinkForSetup(place, undefined, { placeId: "abc", reviewUrl: "https://g.page/r/abc/review" })).toBe("https://g.page/r/abc/review");
+    expect(() => reviewLinkForSetup(place, undefined, { placeId: "different", reviewUrl: "https://g.page/r/abc/review" })).toThrow(ReviewLinkRequiredError);
   });
 });
 

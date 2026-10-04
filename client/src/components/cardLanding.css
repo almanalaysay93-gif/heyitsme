@@ -633,6 +633,12 @@
   background: linear-gradient(90deg, #f5a623 var(--fill, 100%), color-mix(in srgb, var(--ink) 22%, transparent) var(--fill, 100%));
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
+.lx-review .lx-stars { display: inline-block; animation: lx-review-stars-glow 3.6s ease-in-out infinite; }
+@keyframes lx-review-stars-glow {
+  0%, 65%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 transparent); }
+  78% { transform: scale(1.12); filter: drop-shadow(0 0 7px rgba(245, 166, 35, .7)); }
+}
+@media (prefers-reduced-motion: reduce) { .lx-review .lx-stars { animation: none; } }
 .lx-review-ask { max-width: 34ch; margin: 0; font-size: 15px; line-height: 1.45; }
 .lx-review .lx-btn { text-decoration: none; margin-top: 4px; }
 
