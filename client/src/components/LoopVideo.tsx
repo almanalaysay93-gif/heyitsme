@@ -33,7 +33,7 @@ export function LoopVideo({ src, className = "", fallback = null, lazy = true }:
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [fallbackGone, setFallbackGone] = useState(false);
-  const enabled = Boolean(src) && !reduceMotion && !failed && !prefersSavedData();
+  const enabled = Boolean(src) && !failed && !prefersSavedData();
 
   useEffect(() => {
     setReady(false);

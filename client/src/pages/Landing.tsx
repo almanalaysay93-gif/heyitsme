@@ -82,14 +82,13 @@ function StepArt({ kind }: { kind: (typeof steps)[number]["art"] }) {
 }
 
 function KineticLine({ words, delay = 0 }: { words: string[]; delay?: number }) {
-  const reduceMotion = useReducedMotion();
   return (
     <>
       {words.map((word, index) => (
         <span className="lp-word" key={`${word}-${index}`}>
           <motion.span
-            initial={reduceMotion ? false : { y: "45%", rotate: 4 }}
-            animate={reduceMotion ? undefined : { y: "0%", rotate: 0 }}
+            initial={{ y: "45%", rotate: 4 }}
+            animate={{ y: "0%", rotate: 0 }}
             transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1], delay: delay + index * 0.025 }}
           >
             {word}
@@ -153,16 +152,14 @@ const reveal = {
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.055 } } };
 
 function HeroStage({ theme }: { theme: string }) {
-  const reduceMotion = useReducedMotion();
   const { scrollY } = useScroll();
-  const backY = useTransform(scrollY, [0, 600], [0, reduceMotion ? 0 : -110]);
-  const frontY = useTransform(scrollY, [0, 600], [0, reduceMotion ? 0 : -75]);
+  const backY = useTransform(scrollY, [0, 600], [0, -110]);
+  const frontY = useTransform(scrollY, [0, 600], [0, -75]);
   const [chip, setChip] = useState(0);
   useEffect(() => {
-    if (reduceMotion) return;
     const timer = window.setInterval(() => setChip((value) => (value + 1) % 3), 2600);
     return () => window.clearInterval(timer);
-  }, [reduceMotion]);
+  }, []);
   const chips = [
     { icon: Download, text: "Saved to contacts" },
     { icon: UserRoundPlus, text: "Jordan sent their details" },
@@ -176,7 +173,7 @@ function HeroStage({ theme }: { theme: string }) {
       <motion.div
         className="lp-stage-back"
         style={{ y: backY }}
-        initial={reduceMotion ? false : { opacity: 0, x: 110, rotateY: -48, rotateZ: 24, scale: 0.76 }}
+        initial={{ opacity: 0, x: 110, rotateY: -48, rotateZ: 24, scale: 0.76 }}
         animate={{ opacity: 1, x: 0, rotateY: -23, rotateZ: 17, scale: 1 }}
         transition={{ type: "spring", stiffness: 240, damping: 26 }}
         aria-hidden="true"
@@ -187,7 +184,7 @@ function HeroStage({ theme }: { theme: string }) {
       <motion.div
         className="lp-stage-front"
         style={{ y: frontY }}
-        initial={reduceMotion ? false : { opacity: 0, x: 180, rotateY: -55, rotateX: 19, rotateZ: 12, scale: 0.7 }}
+        initial={{ opacity: 0, x: 180, rotateY: -55, rotateX: 19, rotateZ: 12, scale: 0.7 }}
         animate={{ opacity: 1, x: 0, rotateY: -12, rotateX: 7, rotateZ: -6, scale: 1 }}
         transition={{ type: "spring", stiffness: 240, damping: 26, delay: 0.04 }}
       >
@@ -210,7 +207,7 @@ function HeroStage({ theme }: { theme: string }) {
       </div>
       <motion.div
         className="lp-qr-float"
-        initial={reduceMotion ? false : { opacity: 0, scale: 0.6, rotate: -18 }}
+        initial={{ opacity: 0, scale: 0.6, rotate: -18 }}
         animate={{ opacity: 1, scale: 1, rotate: 9 }}
         transition={{ type: "spring", stiffness: 300, damping: 26, delay: 0.08 }}
         aria-hidden="true"
@@ -235,7 +232,8 @@ export default function Landing() {
 
   usePageMeta({ title: "Free Digital Business Card with QR Code | heyitsme", canonicalPath: "/" });
 
-  const start = () => navigate("/app/cards/new");
+  // Sign-in comes first: Google sends a new visitor back to the builder once they are in.
+  const start = () => (isAuthenticated ? navigate("/app/cards/new") : startGoogleLogin("/app/cards/new"));
   const openApp = () => navigate("/app");
 
   return (
@@ -329,7 +327,7 @@ export default function Landing() {
           <LoopVideo className="lp-hero-video" src={landingMedia.heroLoop} lazy={false} fallback={<div className="lp-hero-poster" />} />
           <div className="lp-hero-scrim" aria-hidden="true" />
           <div className="lp-hero-grid">
-          <motion.div className="lp-hero-copy" initial={reduceMotion ? false : "hidden"} animate="show" variants={stagger}>
+          <motion.div className="lp-hero-copy" initial="hidden" animate="show" variants={stagger}>
             <motion.span className="lp-pill" variants={reveal}><Sparkles size={13} /> Digital business card / Free to start</motion.span>
             <h1 className="lp-kinetic">
               <span className="sr-only">Meet once. Stay in touch.</span>
@@ -350,7 +348,7 @@ export default function Landing() {
                 View demo card
               </a>
             </motion.div>
-            <motion.p className="lp-micro" variants={reveal}>Build in preview mode. Sign in with Google to publish.</motion.p>
+            <motion.p className="lp-micro" variants={reveal}>Sign in with Google, then build your card.</motion.p>
             <motion.div className="lp-theme-row" variants={reveal} role="radiogroup" aria-label="Preview card theme">
               <span>Try a palette</span>
               {themeOptions.map((option) => (

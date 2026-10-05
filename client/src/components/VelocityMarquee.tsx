@@ -1,70 +1,45 @@
-import {
-  motion,
-  useAnimationFrame,
-  useInView,
-  useMotionValue,
-  useReducedMotion,
-  useScroll,
-  useSpring,
-  useTransform,
-  useVelocity,
-} from "framer-motion";
-import { useRef, type ReactNode } from "react";
-
-const wrap = (min: number, max: number, value: number) => {
-  const range = max - min;
-  return ((((value - min) % range) + range) % range) + min;
-};
+import { type ReactNode } from "react";
 
 type VelocityMarqueeProps = {
   children: ReactNode;
-  /** Percent of one copy's width per second. Negative runs right-to-left reversed. */
+  /** Speed factor or duration in seconds. Positive drifts left, negative drifts right. */
   speed?: number;
+  reverse?: boolean;
   className?: string;
 };
 
 /**
- * Endless row that drifts on its own, speeds up and skews with page scroll velocity,
- * and flips direction when the reader scrolls back up. Hovering slows it to a crawl.
- * Reduced motion holds the row still.
+ * High-performance, GPU-accelerated endless ticker row.
+ * Runs on compositor thread via CSS keyframes with 100% smooth looping and zero hitching.
+ * Pauses gracefully on hover so users can interact with pills.
  */
-export function VelocityMarquee({ children, speed = 3, className = "" }: VelocityMarqueeProps) {
-  const reduceMotion = useReducedMotion();
-  const rootRef = useRef<HTMLDivElement>(null);
-  const inView = useInView(rootRef, { margin: "100px 0px" });
-  const hovered = useRef(false);
-  const direction = useRef(1);
-
-  const baseX = useMotionValue(0);
-  const { scrollY } = useScroll();
-  const scrollVelocity = useVelocity(scrollY);
-  const smoothVelocity = useSpring(scrollVelocity, { damping: 50, stiffness: 400 });
-  const velocityFactor = useTransform(smoothVelocity, [0, 1000], [0, 4], { clamp: false });
-  const skewX = useTransform(smoothVelocity, [-2400, 2400], [10, -10]);
-  const x = useTransform(baseX, (value) => `${wrap(-50, 0, value)}%`);
-
-  useAnimationFrame((_, delta) => {
-    if (!inView || reduceMotion) return;
-    const factor = velocityFactor.get();
-    if (factor < -0.05) direction.current = -1;
-    else if (factor > 0.05) direction.current = 1;
-    let moveBy = direction.current * speed * (delta / 1000);
-    if (Math.abs(factor) > 0.05) moveBy += moveBy * Math.abs(factor);
-    if (hovered.current) moveBy *= 0.2;
-    baseX.set(baseX.get() - moveBy);
-  });
+export function VelocityMarquee({
+  children,
+  speed = 3,
+  reverse = false,
+  className = "",
+}: VelocityMarqueeProps) {
+  const isReverse = reverse || speed < 0;
+  // Map speed to clean duration in seconds (default ~30-36s for natural editorial reading pace)
+  const duration = Math.abs(speed) < 10
+    ? Math.round(96 / Math.max(0.6, Math.abs(speed)))
+    : Math.abs(speed);
 
   return (
-    <div
-      ref={rootRef}
-      className={`lp-marquee-track ${className}`}
-      onPointerEnter={() => { hovered.current = true; }}
-      onPointerLeave={() => { hovered.current = false; }}
-    >
-      <motion.div className="lp-marquee-row" style={reduceMotion ? { x } : { x, skewX }}>
-        <div className="lp-marquee-copy">{children}</div>
-        <div className="lp-marquee-copy" aria-hidden="true">{children}</div>
-      </motion.div>
+    <div className={`lp-marquee-track ${className}`}>
+      <div
+        className={`lp-marquee-row ${isReverse ? "is-reverse" : "is-forward"}`}
+        style={{ animationDuration: `${duration}s` }}
+      >
+        <div className="lp-marquee-copy">
+          {children}
+          {children}
+        </div>
+        <div className="lp-marquee-copy" aria-hidden="true">
+          {children}
+          {children}
+        </div>
+      </div>
     </div>
   );
 }

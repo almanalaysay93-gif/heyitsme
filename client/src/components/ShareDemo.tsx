@@ -19,9 +19,9 @@ export function ShareDemo() {
   const reduceMotion = useReducedMotion();
   const rootRef = useRef<HTMLDivElement>(null);
   const inView = useInView(rootRef, { margin: "-15% 0px" });
-  const [beat, setBeat] = useState(reduceMotion ? 2 : 0);
+  const [beat, setBeat] = useState(0);
   const [paused, setPaused] = useState(false);
-  const playing = inView && !paused && !reduceMotion;
+  const playing = inView && !paused;
 
   useEffect(() => {
     if (!playing) return;
@@ -45,10 +45,10 @@ export function ShareDemo() {
               d="M60 100 C 140 -10, 260 -10, 340 100"
               initial={false}
               animate={{ pathLength: beat >= 1 ? 1 : 0, opacity: beat >= 1 ? 1 : 0 }}
-              transition={{ duration: reduceMotion ? 0 : 0.55, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
             />
           </svg>
-          {beat === 1 && !reduceMotion ? (
+          {beat === 1 ? (
             <motion.span
               className="sd-spark"
               initial={{ left: "15%", top: "83%", opacity: 0 }}
@@ -87,7 +87,7 @@ export function ShareDemo() {
                   <motion.span className="sd-target" animate={{ opacity: beat === 1 ? 1 : 0.25, scale: beat === 1 ? 1 : 0.8 }} transition={spring}>
                     <QrCode size={44} />
                   </motion.span>
-                  {beat === 1 && !reduceMotion ? <span className="sd-scanline" /> : null}
+                  {beat === 1 ? <span className="sd-scanline" /> : null}
                 </div>
                 <small className="sd-camera-hint"><ScanLine size={12} /> {beat === 1 ? "heyitsme link found" : "Point at a code"}</small>
               </motion.div>

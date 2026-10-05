@@ -40,7 +40,6 @@ export function TiltCard({ children, className = "" }: { children: React.ReactNo
   const glareX = useTransform(px, [0, 1], ["0%", "100%"]);
   const glareY = useTransform(py, [0, 1], ["0%", "100%"]);
   const glare = useMotionTemplate`radial-gradient(circle at ${glareX} ${glareY}, rgba(255,255,255,.28), transparent 45%)`;
-  if (reduceMotion) return <div className={`tilt-card ${className}`}>{children}</div>;
   return (
     <motion.div
       className={`tilt-card ${className}`}
