@@ -437,3 +437,11 @@ Owner sent an RSVP on a live event and the Responses counts stayed at 0.
 - `client/src/pages/PublicEvent.tsx`: the hidden field has a meaningless name, no label, password-manager ignore marks, and a value the browser autofilled is not sent. Scripts that fill it are still dropped. Server unchanged.
 - Gates: `pnpm check` clean, `pnpm test` 520 passed (54 files), `pnpm build` clean. Browser pass on the throwaway PGlite harness, 1280 and 390 wide.
 - Same branch: the event QR code always opened the event page (`/event/<slug>?source=qr`); only its caption said "Scan to RSVP". Default caption is now "Scan to view event" in the builder preview and in Share (still editable there).
+
+## 2026-10-05 — Event QR: editable line under the code (Claude, merged to `main` 2026-10-05)
+- Owner: "i want an option to edit this" (the "Scan to view event" line under the event QR code).
+- `shared/eventPage.ts`: `page.qr.caption` (trimmed, up to `EVENT_QR_CAPTION_MAX` = 24 characters, default empty); `EVENT_QR_CAPTION` holds the fallback "Scan to view event".
+- `client/src/components/EventPageEditor.tsx`: "Line under the code" field in the Design tab QR block; the preview updates as you type; "Reset code" clears it.
+- `client/src/pages/TeamEvents.tsx`: Share starts from the saved line; its own field still changes the line for that download only.
+- The line counts as part of the QR look: a new one needs event styling (`canStyleEventPages`); a kept one and a reset always save.
+- Gates: `pnpm check` clean, `pnpm test` 521 passed (54 files), `pnpm build` clean. Browser pass on the throwaway PGlite harness, 1280 and 390 wide.

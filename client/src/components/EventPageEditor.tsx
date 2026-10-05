@@ -14,6 +14,8 @@ import {
   EVENT_THEMES,
   EVENT_THEME_LABELS,
   eventLook,
+  EVENT_QR_CAPTION,
+  EVENT_QR_CAPTION_MAX,
   EVENT_QR_ICON,
   eventQr,
   newSpeakerId,
@@ -335,7 +337,7 @@ export function EventPageLook({ page, brandColor, companyLogoUrl, canStyle, canU
   const qr = eventQr(page, brandColor);
   const shown = { background: look.paper, text: look.ink, button: look.button, buttonText: look.onButton };
   const ownColors = COLOR_FIELDS.some(([key]) => page.colors[key]);
-  const ownQr = QR_FIELDS.some(([key]) => page.qr[key]) || page.qr.rounded || Boolean(page.qr.logoUrl);
+  const ownQr = QR_FIELDS.some(([key]) => page.qr[key]) || page.qr.rounded || Boolean(page.qr.logoUrl) || Boolean(page.qr.caption);
   // The event's own logo, or the company's: the same one the Share section puts in the download.
   const logoUrl = page.qr.logoUrl || companyLogoUrl || "";
   const [logo, setLogo] = useState<string | null>(null);
@@ -348,8 +350,8 @@ export function EventPageLook({ page, brandColor, companyLogoUrl, canStyle, canU
   const logoInput = useRef<HTMLInputElement>(null);
   const setLogoUrl = (next: string) => onChange(current => ({ ...current, qr: { ...current.qr, logoUrl: next } }));
   const code = useMemo(
-    () => eventQrSvg(url, { dots: qr.dots, background: qr.background, frame: qr.frame, rounded: qr.rounded }, "Scan to view event", logo),
-    [url, qr.dots, qr.background, qr.frame, qr.rounded, logo],
+    () => eventQrSvg(url, { dots: qr.dots, background: qr.background, frame: qr.frame, rounded: qr.rounded }, page.qr.caption.trim() || EVENT_QR_CAPTION, logo),
+    [url, qr.dots, qr.background, qr.frame, qr.rounded, page.qr.caption, logo],
   );
   return <>
     <div className="form-section">
@@ -451,7 +453,12 @@ export function EventPageLook({ page, brandColor, companyLogoUrl, canStyle, canU
               <input ref={logoInput} type="file" hidden accept="image/png,image/jpeg,image/webp" aria-label="QR logo file"
                 onChange={event => { onPickLogo(event.target.files?.[0]); event.target.value = ""; }} />
             </div>
-            {ownQr ? <button type="button" className="outline-button pd-small-button event-qr-reset" onClick={() => onChange(current => ({ ...current, qr: { dots: "", background: "", frame: "", rounded: false, logoUrl: "" } }))}><RotateCcw size={13} aria-hidden="true" /> Reset code</button> : null}
+            <label className="field-label qr-field">
+              <span className="qr-field-title">Line under the code</span>
+              <input type="text" maxLength={EVENT_QR_CAPTION_MAX} placeholder={EVENT_QR_CAPTION} disabled={!canStyle} value={page.qr.caption} onChange={event => onChange(current => ({ ...current, qr: { ...current.qr, caption: event.target.value } }))} />
+              <small>Up to {EVENT_QR_CAPTION_MAX} characters. Left empty, it reads "{EVENT_QR_CAPTION}".</small>
+            </label>
+            {ownQr ? <button type="button" className="outline-button pd-small-button event-qr-reset" onClick={() => onChange(current => ({ ...current, qr: { dots: "", background: "", frame: "", rounded: false, logoUrl: "", caption: "" } }))}><RotateCcw size={13} aria-hidden="true" /> Reset code</button> : null}
           </div>
         </div>
         {canStyle ? null : <p className="field-hint event-look-note">{STYLING_OFF}</p>}
