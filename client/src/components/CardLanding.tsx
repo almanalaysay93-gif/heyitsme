@@ -253,6 +253,8 @@ export function CardLanding(props: CardLandingProps) {
   const address = config.address || card.location;
   // The builder preview sits inside the builder's own <main>: one main landmark per page.
   const MainTag = interactive ? "main" : "div";
+  // Likewise one page heading: in the preview the card's name is not the builder's <h1>.
+  const nameRole = interactive ? undefined : "presentation";
   const firstName = card.displayName.split(" ")[0] || card.displayName;
   const cta = config.cta?.label && config.cta.url ? config.cta : null;
 
@@ -411,7 +413,7 @@ export function CardLanding(props: CardLandingProps) {
             {card.avatarUrl ? <img className="lx-logo" src={card.avatarUrl} alt="" /> : null}
             {address ? <a href={mapLink(address)} target="_blank" rel="noreferrer">{address}</a> : card.title}
           </motion.p>
-          <motion.h1 className="lx-masthead" style={fitName(brand)} {...enter("name")}>{brand}</motion.h1>
+          <motion.h1 className="lx-masthead" role={nameRole} style={fitName(brand)} {...enter("name")}>{brand}</motion.h1>
           {heroPanel(
             <>
               {card.bio ? <p className="lx-lead">{card.bio}</p> : null}
@@ -429,7 +431,7 @@ export function CardLanding(props: CardLandingProps) {
           <motion.p className="lx-eyebrow" {...enter("eyebrow")}>
             {card.displayName}{config.headline && card.title ? ` · ${card.title}` : card.company ? ` · ${card.company}` : ""}
           </motion.p>
-          <motion.h1 className="lx-masthead" style={fitName(config.headline || card.title || card.displayName)} {...enter("name")}>{config.headline || card.title || card.displayName}</motion.h1>
+          <motion.h1 className="lx-masthead" role={nameRole} style={fitName(config.headline || card.title || card.displayName)} {...enter("name")}>{config.headline || card.title || card.displayName}</motion.h1>
           {heroPanel(
             <>
               {card.bio ? <p className="lx-lead">{card.bio}</p> : null}
@@ -450,7 +452,7 @@ export function CardLanding(props: CardLandingProps) {
             <motion.p className="lx-eyebrow" {...enter("eyebrow")}>
               {card.title}{card.company ? <> <span>at</span> {card.company}</> : null}
             </motion.p>
-            <motion.h1 className="lx-masthead" style={fitName(card.displayName)} {...enter("name")}>{card.displayName}</motion.h1>
+            <motion.h1 className="lx-masthead" role={nameRole} style={fitName(card.displayName)} {...enter("name")}>{card.displayName}</motion.h1>
             {heroPanel(
               <>
                 {card.bio ? <p className="lx-lead">{card.bio}</p> : null}

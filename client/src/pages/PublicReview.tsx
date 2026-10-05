@@ -1,3 +1,4 @@
+import { usePageMeta } from "@/hooks/usePageMeta";
 import { trpc } from "@/lib/trpc";
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "wouter";
@@ -27,8 +28,14 @@ export default function PublicReview() {
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [slug]);
-  if (page.isLoading) return <main className="gr-public">Loading review page...</main>;
-  if (!page.data?.reviewUrl) return <main className="gr-public"><h1>Review page unavailable</h1><p>This link is no longer active.</p><Link href="/">Go to heyitsme</Link></main>;
+  const business = page.data?.reviewUrl ? page.data.businessName : null;
+  usePageMeta({
+    title: business ? `Review ${business} — heyitsme` : page.isLoading ? "Review — heyitsme" : "Review page unavailable — heyitsme",
+    description: business ? `Leave a Google review for ${business}.` : undefined,
+    noindex: !page.isLoading && !business,
+  });
+  if (page.isLoading) return <main className="gr-public" role="status">Loading review page...</main>;
+  if (!page.data?.reviewUrl) return <main className="gr-public" id="main"><h1>Review page unavailable</h1><p>This link is no longer active.</p><Link href="/" className="link-button">Go to heyitsme</Link></main>;
   const p = page.data;
   const logo = typeof p.logoUrl === "string" && /^(https?:\/\/|\/(?!\/))/.test(p.logoUrl) ? p.logoUrl : null;
   return <main className="gr-public" id="main"><div className="gr-public-card">

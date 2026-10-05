@@ -2,6 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { BrandMark } from "@/components/BrandMark";
 import { LegalLinks } from "@/components/LegalLinks";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
+import { usePageMeta } from "@/hooks/usePageMeta";
 import { getInitials } from "@/lib/cardKit";
 import { BarChart3, ChevronRight, CircleUserRound, CreditCard, LayoutGrid, LogOut, Menu, QrCode, UsersRound, type LucideIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -32,6 +33,7 @@ export function AppShell({ area = "Workspace", crumb, current = "personal", nav,
   const { user, isAuthenticated, logout } = useAuth();
   const [, navigate] = useLocation();
   const [open, setOpen] = useState(false);
+  usePageMeta({ title: `${crumb === area ? crumb : `${crumb} · ${area}`} — heyitsme`, noindex: true });
   const name = user?.name || (isAuthenticated ? "You" : "Guest");
   const go = (path: string) => () => { navigate(path); setOpen(false); };
   const item = ({ label, icon: Icon, active: on, onClick }: ShellNavItem) => (
@@ -89,8 +91,7 @@ export function AppShell({ area = "Workspace", crumb, current = "personal", nav,
             <Menu size={20} />
           </button>
           <div className="crumbs">
-            <span>{area}</span>
-            <ChevronRight size={14} />
+            {crumb === area ? null : <><span>{area}</span><ChevronRight size={14} /></>}
             <strong>{crumb}</strong>
           </div>
         </header>

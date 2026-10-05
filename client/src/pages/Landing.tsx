@@ -242,7 +242,7 @@ export default function Landing() {
       <div className="ambient ambient-one" /><div className="ambient ambient-two" /><div className="ambient ambient-three" />
 
       <header className="lp-nav">
-        <a className="brand-lockup" href="/"><BrandMark /><span>heyitsme</span></a>
+        <a className="brand-lockup" href="/" aria-label="heyitsme home"><BrandMark /><span>heyitsme</span></a>
         <nav className="lp-nav-links" aria-label="Page sections">
           <a href="#film">See it</a>
           <a href="#how">How it works</a>
@@ -324,7 +324,7 @@ export default function Landing() {
 
       <main id="main" tabIndex={-1}>
         <section className="lp-hero" aria-label="Create your digital business card">
-          <LoopVideo className="lp-hero-video" src={landingMedia.heroLoop} lazy={false} fallback={<div className="lp-hero-poster" />} />
+          <LoopVideo className="lp-hero-video" src={landingMedia.heroLoop} lazy={false} fallback={<div className="lp-hero-poster"><img src={landingMedia.heroPoster} alt="" fetchPriority="high" decoding="async" /></div>} />
           <div className="lp-hero-scrim" aria-hidden="true" />
           <div className="lp-hero-grid">
           <motion.div className="lp-hero-copy" initial="hidden" animate="show" variants={stagger}>
@@ -498,7 +498,7 @@ export default function Landing() {
       </main>
 
       <footer className="lp-footer">
-        <a className="brand-lockup" href="/"><BrandMark /><span>heyitsme</span></a>
+        <a className="brand-lockup" href="/" aria-label="heyitsme home"><BrandMark /><span>heyitsme</span></a>
         <span>Start free</span>
         <LegalLinks />
       </footer>

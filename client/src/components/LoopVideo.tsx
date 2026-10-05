@@ -6,7 +6,7 @@ type LoopVideoProps = {
   className?: string;
   /** Shown until the clip can play, and kept if it never loads (missing file, reduced motion, Save-Data). */
   fallback?: ReactNode;
-  /** Load and play only while on screen. Off for above-the-fold clips. */
+  /** Load and play only while on screen. Off for above-the-fold clips, which start once the page has loaded. */
   lazy?: boolean;
 };
 
@@ -29,7 +29,7 @@ export function LoopVideo({ src, className = "", fallback = null, lazy = true }:
   const wrapRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [inView, setInView] = useState(!lazy);
-  const [armed, setArmed] = useState(!lazy);
+  const [armed, setArmed] = useState(false);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [fallbackGone, setFallbackGone] = useState(false);
@@ -52,6 +52,19 @@ export function LoopVideo({ src, className = "", fallback = null, lazy = true }:
     const timer = window.setTimeout(() => setFallbackGone(true), 300);
     return () => window.clearTimeout(timer);
   }, [ready]);
+
+  // An above-the-fold clip is decoration: it waits for the page's own fonts, styles and scripts to finish
+  // so a large video never holds them back.
+  useEffect(() => {
+    if (lazy || !enabled) return;
+    if (document.readyState === "complete") {
+      setArmed(true);
+      return;
+    }
+    const arm = () => setArmed(true);
+    window.addEventListener("load", arm, { once: true });
+    return () => window.removeEventListener("load", arm);
+  }, [lazy, enabled]);
 
   useEffect(() => {
     if (!lazy || !enabled || !wrapRef.current) return;
