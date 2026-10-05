@@ -422,3 +422,10 @@ Owner asked for an option in the event builder to upload a logo for the QR code.
 - Share section: the event's logo wins over the company logo in the downloaded code. Toggle now reads "Show the logo in the middle".
 - `eventBuilder.css`: logo thumbnails in the builder now fit the tile instead of being cropped.
 - Gates: `pnpm check` clean, `pnpm test` 520 passed (54 files), `pnpm build` clean. Browser pass on the throwaway PGlite harness (upload and `/storage` mocked), 1280 and 390 wide: upload, save, reopen, Share, remove; no console errors, no sideways scroll.
+
+## 2026-10-05 — Event QR logo, card-builder style (Claude, merged to `main` 2026-10-05)
+Owner clarified: the QR logo control should work like the one in the card builder.
+- Event builder, Design, QR code block now mirrors the card builder's QR editor: code on one side, settings on the other, a "Center logo" row with thumbnail, "Upload your logo" / "Replace logo", "Use heyitsme icon" and "Remove". The drop-tile picker from the first pass is gone.
+- `shared/eventPage.ts`: `qr.logoUrl` also accepts the heyitsme icon (`EVENT_QR_ICON`, `/favicon.svg`). It is not an uploaded file, so `eventPageImages` leaves it out of the ownership check and file cleanup.
+- Still under `canStyleEventPages`. Uploading still needs a created event; the icon can be picked before that.
+- Gates: `pnpm check` clean, `pnpm test` 520 passed (54 files), `pnpm build` clean. Browser pass on the throwaway PGlite harness (upload and `/storage` mocked), 1280 and 390 wide: upload, icon, save, reopen, Share, remove, new event; no console errors, no sideways scroll.

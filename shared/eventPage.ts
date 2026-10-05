@@ -65,6 +65,17 @@ const image = z
   .optional()
   .default("");
 
+/** The heyitsme icon, offered for the middle of the QR code as it is in the card builder. */
+export const EVENT_QR_ICON = "/favicon.svg";
+// The logo in the QR code: an uploaded file, or the heyitsme icon.
+const qrLogo = z
+  .string()
+  .trim()
+  .max(600)
+  .regex(/^(\/favicon\.svg|\/storage\/(?!.*\.\.)[A-Za-z0-9._/-]+)?$/, "Upload the image again.")
+  .optional()
+  .default("");
+
 /** A #rrggbb color, or empty for "not set". */
 const color = (what: string) => z.string().trim().regex(/^(#[0-9a-fA-F]{6})?$/, `${what} must be a #rrggbb color`).optional().default("");
 
@@ -102,7 +113,7 @@ export const eventPageSchema = z.object({
     .prefault({}),
   /** The look of the QR code on the Share tab. An empty frame means the team's brand color (see eventQr). */
   qr: z
-    .object({ dots: color("QR dots"), background: color("QR background"), frame: color("QR frame"), rounded: z.boolean().optional().default(false), logoUrl: image })
+    .object({ dots: color("QR dots"), background: color("QR background"), frame: color("QR frame"), rounded: z.boolean().optional().default(false), logoUrl: qrLogo })
     .prefault({}),
   /** Display order. Hidden sections stay in the list so their position survives being turned back on. */
   sections: z
@@ -336,7 +347,7 @@ export function rowSpeakers(page: Pick<EventPage, "speakers">, row: Pick<EventPa
 export function eventPageImages(page: EventPage): string[] {
   return [
     page.backgroundUrl,
-    page.qr.logoUrl,
+    page.qr.logoUrl === EVENT_QR_ICON ? "" : page.qr.logoUrl,
     ...page.speakers.map((speaker) => speaker.photoUrl),
     ...page.gallery.map((photo) => photo.url),
     ...page.sponsors.map((sponsor) => sponsor.logoUrl),

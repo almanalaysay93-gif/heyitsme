@@ -253,8 +253,13 @@ describe("team event page", () => {
       ENV.teamEventStylingEnabled = true;
     }
 
-    expect((await team.asOwner.teamEvents.savePage({ ...event.target, page: { qr: { rounded: true } } })).page.qr.logoUrl).toBe("");
+    // The heyitsme icon is not an uploaded file: it replaces the logo, whose file is then deleted.
+    expect((await team.asOwner.teamEvents.savePage({ ...event.target, page: { qr: { logoUrl: "/favicon.svg", rounded: true } } })).page.qr.logoUrl).toBe("/favicon.svg");
     expect(storageDelete).toHaveBeenCalledWith([logo.url.slice("/storage/".length)]);
+    expect((await visitor().publicEvent.get({ slug: event.slug })).page.qr.logoUrl).toBe("/favicon.svg");
+    await expect(team.asOwner.teamEvents.savePage({ ...event.target, page: { qr: { logoUrl: "/favicon.ico" } } })).rejects.toThrow("Upload the image again.");
+    expect((await team.asOwner.teamEvents.savePage({ ...event.target, page: { qr: { rounded: true } } })).page.qr.logoUrl).toBe("");
+    expect(storageDelete).toHaveBeenCalledTimes(1);
   });
 
   it("saves the page style, animation, colors and QR look, and shows them to visitors", async () => {
