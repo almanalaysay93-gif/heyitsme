@@ -46,7 +46,7 @@
 .event-builder .event-questions li>.sort-grip+.event-question-main{flex:1 1 0;min-width:180px}
 
 /* The card builder's picture tile, eye toggle and accent chip, at the event builder's sizes. */
-.event-builder .link-button{min-height:44px;color:#5f6377}
+.event-builder .link-button{min-height:44px}
 .event-builder .qr-editor .event-qr-preview{flex:0 0 auto}
 .event-builder .qr-editor .pd-accent{margin:0}
 .event-builder .event-qr-reset{justify-self:start}

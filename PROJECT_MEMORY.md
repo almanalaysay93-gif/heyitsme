@@ -451,3 +451,11 @@ Owner sent an RSVP on a live event and the Responses counts stayed at 0.
 - `client/src/pages/Landing.tsx`: every "Create your card" button sends a signed-out visitor to Google sign-in with `returnTo` `/app/cards/new`; a signed-in visitor goes straight to the builder. Line under the hero buttons now reads "Sign in with Google, then build your card."
 - No server change: `/api/oauth/callback` already honors a same-site `returnTo`. Guest preview is still reachable by opening `/app/cards/new` directly; `Home.tsx` untouched.
 - Gates: `pnpm check` clean, `pnpm test` 521 passed (54 files), `pnpm build` clean. Browser pass on the throwaway PGlite harness, 1280 and 390 wide.
+
+## 2026-10-05 — Every action is a visible button (Claude, merged to `main` 2026-10-05)
+- Owner, on the public card footer's "Make yours, free": "i dont want buttons like this in the entire app its not a clear button design a premium button in line with the theme".
+- New `client/src/buttons.css`, imported in `main.tsx` after `index.css`. `.text-button`, `.link-button` and `.back-button` now have a tinted purple fill, a hairline edge, 14px corners and a 44px target; `.danger-text` keeps the shape in the warning color. No markup changed, so `Home.tsx` and `CardLanding.tsx` are untouched.
+- Public card and event page footer (`footer.lx-footer > a`): "Make yours, free" is a pill in the page's own accent, like the page's main button.
+- Landing nav "Sign in" (`landing3d.css`): outlined pill on desktop; still hidden on mobile, where the menu has its own.
+- Rule from here: text with no shape is for navigation links only (footer legal links, nav anchors).
+- Gates: `pnpm check` clean, `pnpm test` 525 passed (54 files), `pnpm build` clean, run on a tree that also held another session's uncommitted work. Browser pass on the throwaway PGlite harness, 1280 and 390 wide.

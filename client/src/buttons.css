@@ -1,0 +1,115 @@
+/*
+ * Quiet buttons. Every action in the app has a visible shape: a tinted fill, a hairline edge and a
+ * 44px target. Text with no shape is for navigation links only.
+ * Loaded after index.css, so these win over the older text-only rules there.
+ */
+.text-button,
+.link-button,
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: fit-content;
+  min-height: 44px;
+  padding: 0 15px;
+  color: var(--purple-deep);
+  background: rgba(107, 92, 255, .09);
+  border: 1px solid rgba(107, 92, 255, .22);
+  border-radius: 14px;
+  box-shadow: inset 0 1px rgba(255, 255, 255, .7);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform .2s cubic-bezier(.2, .8, .2, 1), background-color .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+.text-button:hover,
+.link-button:hover,
+.back-button:hover {
+  color: var(--purple-deep);
+  background: rgba(107, 92, 255, .16);
+  border-color: rgba(107, 92, 255, .38);
+  box-shadow: inset 0 1px rgba(255, 255, 255, .7), 0 8px 18px rgba(74, 61, 198, .12);
+}
+.text-button:active,
+.link-button:active,
+.back-button:active { transform: scale(.96); }
+.text-button:focus-visible,
+.link-button:focus-visible,
+.back-button:focus-visible { outline: 2px solid var(--purple); outline-offset: 2px; }
+.text-button:disabled,
+.link-button:disabled,
+.back-button:disabled { cursor: not-allowed; opacity: .5; box-shadow: none; }
+.back-button { align-self: flex-start; }
+
+/* Destructive actions keep the shape and take the warning color. */
+.text-button.danger-text,
+.link-button.danger-text {
+  color: #96304a;
+  background: rgba(176, 74, 92, .08);
+  border-color: rgba(176, 74, 92, .24);
+}
+.text-button.danger-text:hover,
+.link-button.danger-text:hover {
+  color: #7d2239;
+  background: rgba(176, 74, 92, .15);
+  border-color: rgba(176, 74, 92, .4);
+  box-shadow: inset 0 1px rgba(255, 255, 255, .7), 0 8px 18px rgba(142, 44, 63, .12);
+}
+
+/* Places that used to strip the padding from a text-only button. */
+.image-picker-copy .link-button { justify-self: start; padding: 0 13px; font-size: 12px; }
+.builder-toolbar .text-button,
+.builder-panel-nav .text-button { min-height: 44px; font-size: 12px; }
+.builder-save-actions .text-button { flex: none; padding: 0 15px; }
+
+/* Public card footer: the invitation to make a card is a button in the page's own accent. */
+footer.lx-footer > a {
+  gap: 7px;
+  min-height: 44px;
+  padding: 0 18px;
+  color: var(--on-accent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, #fff 22%, transparent), transparent 55%),
+    var(--accent);
+  border: 1px solid color-mix(in srgb, #fff 26%, var(--accent));
+  border-radius: 999px;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 40%, transparent),
+    0 8px 22px -6px color-mix(in srgb, var(--accent) 55%, transparent);
+  font-weight: 650;
+  letter-spacing: -.012em;
+  text-decoration: none;
+  transition: transform .2s cubic-bezier(.2, .8, .2, 1), box-shadow .16s ease;
+}
+footer.lx-footer > a:hover {
+  color: var(--on-accent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 45%, transparent),
+    0 12px 30px -6px color-mix(in srgb, var(--accent) 65%, transparent);
+}
+footer.lx-footer > a svg { transition: transform .2s cubic-bezier(.2, .8, .2, 1); }
+footer.lx-footer > a:hover svg { transform: translate(2px, -2px); }
+footer.lx-footer > a:active { transform: scale(.96); }
+footer.lx-footer > a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .text-button:hover,
+  .link-button:hover,
+  .back-button:hover,
+  footer.lx-footer > a:hover { transform: translateY(-1px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .text-button,
+  .link-button,
+  .back-button,
+  footer.lx-footer > a,
+  footer.lx-footer > a svg { transition: none; }
+  .text-button:active,
+  .link-button:active,
+  .back-button:active,
+  footer.lx-footer > a:active,
+  footer.lx-footer > a:hover svg { transform: none; }
+}
