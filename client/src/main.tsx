@@ -2,8 +2,9 @@ import { trpc } from "@/lib/trpc";
 import { COOKIE_NAME, UNAUTHED_ERR_MSG } from "@shared/const";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink, TRPCClientError } from "@trpc/client";
-import { createRoot } from "react-dom/client";
+import { createRoot, hydrateRoot } from "react-dom/client";
 import superjson from "superjson";
+import { Router } from "wouter";
 import App from "./App";
 import { startLogin } from "./const";
 import { installGlobalErrorReporting } from "./lib/reportError";
@@ -76,10 +77,24 @@ const trpcClient = trpc.createClient({
   ],
 });
 
-createRoot(document.getElementById("root")!).render(
+const container = document.getElementById("root")!;
+// The same tree entry-prerender.tsx renders, so the public pages' markup can be adopted as it is.
+const app = (
   <trpc.Provider client={trpcClient} queryClient={queryClient}>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <Router>
+        <App />
+      </Router>
     </QueryClientProvider>
   </trpc.Provider>
 );
+
+// Public pages ship their markup in the HTML (scripts/prerender.mjs). Adopt it only when it is this
+// page's markup; any other file that reaches this URL is cleared and drawn from scratch.
+const currentPath = window.location.pathname.replace(/\/+$/, "") || "/";
+if (container.dataset.prerendered === currentPath) {
+  hydrateRoot(container, app);
+} else {
+  container.replaceChildren();
+  createRoot(container).render(app);
+}

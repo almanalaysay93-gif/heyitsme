@@ -1,7 +1,7 @@
 /**
  * Paths the React app renders. Anything else is a real 404 with a 404 status,
  * so crawlers never index "soft 404" pages. Keep in sync with client/src/App.tsx
- * and the index.html rewrites in vercel.json.
+ * and the app.html / page rewrites in vercel.json.
  */
 export const SPA_ROUTES: readonly RegExp[] = [
   /^\/$/,

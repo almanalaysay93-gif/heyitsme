@@ -1,8 +1,9 @@
 import { EventAnswerInput, type EventAnswer } from "@/components/EventAnswerInput";
 import { EventLanding } from "@/components/EventLanding";
+import { usePageMeta } from "@/hooks/usePageMeta";
 import { trpc } from "@/lib/trpc";
 import { RSVP_STATUS_LABELS, formatEventTime, type RsvpStatus } from "@shared/events";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { Link, useParams } from "wouter";
 import "./google-reviews.css";
 import "./event.css";
@@ -29,23 +30,29 @@ export default function PublicEvent() {
   const [sent, setSent] = useState<RsvpStatus | null>(null);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (page.data) document.title = `${page.data.title} · ${page.data.company.name}`;
-  }, [page.data]);
+  const loading = valid && page.isLoading;
+  const found = page.data && page.data.slug === slug ? page.data : null;
+  // A link that shows no event must not be indexed under the site's own title.
+  usePageMeta({
+    title: found ? `${found.title} · ${found.company.name}` : loading ? "Event — heyitsme" : "Event unavailable — heyitsme",
+    description: found ? `${found.title}, hosted by ${found.company.name}. See the details and RSVP.` : undefined,
+    canonicalPath: found && !target ? `/event/${slug}` : undefined,
+    noindex: !loading && (!found || Boolean(target)),
+  });
 
-  if (valid && page.isLoading) return <main className="gr-public" role="status">Loading event...</main>;
+  if (loading) return <main className="gr-public" role="status">Loading event...</main>;
   // A preview link only shows the event it was made for.
-  if (!page.data || page.data.slug !== slug) {
+  if (!found) {
     return (
       <main className="gr-public" id="main">
         <h1>Event unavailable</h1>
         <p>{target ? "Sign in as a team admin to preview this event." : "This link is not active."}</p>
-        <Link href="/">Go to heyitsme</Link>
+        <Link href="/" className="link-button">Go to heyitsme</Link>
       </main>
     );
   }
 
-  const event = page.data;
+  const event = found;
   const zone = event.timezone;
   const full = event.rsvpState === "full";
   const formOpen = event.rsvpState === "open" || full;

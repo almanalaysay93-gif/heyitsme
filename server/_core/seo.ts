@@ -21,17 +21,18 @@ export function siteOrigin(req: Request): string {
 let templateCache: string | null = null;
 
 /**
- * The built index.html. Read from disk when it ships with the function (vercel.json
+ * The built empty shell, app.html (index.html carries the landing page's own markup, see
+ * scripts/prerender.mjs). Read from disk when it ships with the function (vercel.json
  * includeFiles) or when running locally; otherwise fetched once from the static CDN,
- * which serves /index.html before any rewrite applies.
+ * which serves /app.html before any rewrite applies.
  */
 async function loadTemplate(req: Request): Promise<string | null> {
   if (templateCache) return templateCache;
   const here = path.dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    path.resolve(process.cwd(), "dist", "public", "index.html"),
-    path.resolve(here, "..", "public", "index.html"),
-    path.resolve(here, "..", "..", "dist", "public", "index.html"),
+    path.resolve(process.cwd(), "dist", "public", "app.html"),
+    path.resolve(here, "..", "public", "app.html"),
+    path.resolve(here, "..", "..", "dist", "public", "app.html"),
   ];
   for (const candidate of candidates) {
     try {
@@ -43,9 +44,9 @@ async function loadTemplate(req: Request): Promise<string | null> {
   }
   try {
     // The deployment's own host, not SITE_URL: preview builds have different asset hashes.
-    const response = await fetch(`${req.protocol}://${req.get("host")}/index.html`, { signal: AbortSignal.timeout(2000) });
+    const response = await fetch(`${req.protocol}://${req.get("host")}/app.html`, { signal: AbortSignal.timeout(2000) });
     const html = response.ok ? await response.text() : "";
-    if (html.includes('<div id="root">')) templateCache = html;
+    if (html.includes('<div id="root"></div>')) templateCache = html;
   } catch {
     // fall through to the client-rendered page
   }

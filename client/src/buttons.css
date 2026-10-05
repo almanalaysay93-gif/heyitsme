@@ -95,6 +95,34 @@ footer.lx-footer > a:hover svg { transform: translate(2px, -2px); }
 footer.lx-footer > a:active { transform: scale(.96); }
 footer.lx-footer > a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 
+/* Dead-end pages (missing card, missing page): the way out is the page's one action, so it is a button too. */
+.public-loading > a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  color: #dcd7ff;
+  background: rgba(184, 177, 255, .12);
+  border: 1px solid rgba(184, 177, 255, .32);
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background-color .16s ease, border-color .16s ease;
+}
+.public-loading > a:hover { color: #fff; background: rgba(184, 177, 255, .2); border-color: rgba(184, 177, 255, .5); }
+.public-loading > a:focus-visible { outline: 2px solid #c2b7ff; outline-offset: 3px; }
+
+/* Touch targets that were under 44px. Small swatches keep their size and grow an invisible hit area. */
+.google-button { min-height: 44px; }
+.mobile-menu-button { min-width: 44px; min-height: 44px; }
+.sidebar-toggle.icon-button { width: 44px; height: 44px; }
+.lp-mobile-menu-trigger { width: 44px; height: 44px; }
+.lx-demo-banner a { min-height: 44px; }
+.lp-swatch { position: relative; }
+.lp-swatch::after { content: ""; position: absolute; inset: -7px -4px; }
+
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .text-button:hover,
   .link-button:hover,
