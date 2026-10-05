@@ -429,3 +429,11 @@ Owner clarified: the QR logo control should work like the one in the card builde
 - `shared/eventPage.ts`: `qr.logoUrl` also accepts the heyitsme icon (`EVENT_QR_ICON`, `/favicon.svg`). It is not an uploaded file, so `eventPageImages` leaves it out of the ownership check and file cleanup.
 - Still under `canStyleEventPages`. Uploading still needs a created event; the icon can be picked before that.
 - Gates: `pnpm check` clean, `pnpm test` 520 passed (54 files), `pnpm build` clean. Browser pass on the throwaway PGlite harness (upload and `/storage` mocked), 1280 and 390 wide: upload, icon, save, reopen, Share, remove, new event; no console errors, no sideways scroll.
+
+## 2026-10-05 — Event RSVP hidden field hardened (Claude, merged to `main` 2026-10-05)
+Owner sent an RSVP on a live event and the Responses counts stayed at 0.
+- Reproduced locally: a normal RSVP is saved and counted. An RSVP whose hidden spam field has a value shows the same thank-you but is dropped by `publicEvent.rsvp` on purpose. The field was a text input named `website` with a "Website" label, which browsers and password managers can fill for a real guest.
+- Not confirmed on the owner's browser; this is the only path found where a reply shows as sent and is not saved.
+- `client/src/pages/PublicEvent.tsx`: the hidden field has a meaningless name, no label, password-manager ignore marks, and a value the browser autofilled is not sent. Scripts that fill it are still dropped. Server unchanged.
+- Gates: `pnpm check` clean, `pnpm test` 520 passed (54 files), `pnpm build` clean. Browser pass on the throwaway PGlite harness, 1280 and 390 wide.
+- Same branch: the event QR code always opened the event page (`/event/<slug>?source=qr`); only its caption said "Scan to RSVP". Default caption is now "Scan to view event" in the builder preview and in Share (still editable there).

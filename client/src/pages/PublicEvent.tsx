@@ -2,7 +2,7 @@ import { EventAnswerInput, type EventAnswer } from "@/components/EventAnswerInpu
 import { EventLanding } from "@/components/EventLanding";
 import { trpc } from "@/lib/trpc";
 import { RSVP_STATUS_LABELS, formatEventTime, type RsvpStatus } from "@shared/events";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useParams } from "wouter";
 import "./google-reviews.css";
 import "./event.css";
@@ -25,6 +25,7 @@ export default function PublicEvent() {
   const [status, setStatus] = useState<RsvpStatus | "">("");
   const [answers, setAnswers] = useState<Record<string, EventAnswer>>({});
   const [website, setWebsite] = useState("");
+  const trap = useRef<HTMLInputElement>(null);
   const [sent, setSent] = useState<RsvpStatus | null>(null);
   const [error, setError] = useState("");
 
@@ -56,7 +57,10 @@ export default function PublicEvent() {
     if (target) { setError("Replies are turned off in the preview."); return; }
     if (!status) { setError("Choose whether you are coming."); return; }
     try {
-      await rsvp.mutateAsync({ slug, status, answers, website: website || undefined });
+      // A browser or password manager that fills the hidden field for a real guest must not cost them their reply.
+      let autofilled = false;
+      try { autofilled = Boolean(trap.current?.matches(":autofill, :-webkit-autofill")); } catch { autofilled = false; }
+      await rsvp.mutateAsync({ slug, status, answers, website: autofilled ? undefined : website || undefined });
       setSent(status);
     } catch (problem) {
       setError(problem instanceof Error ? problem.message : "That did not work. Please try again.");
@@ -79,7 +83,8 @@ export default function PublicEvent() {
             {choices.map(choice => <label key={choice}><input type="radio" name="status" value={choice} checked={status === choice} required onChange={() => setStatus(choice)} /> {RSVP_STATUS_LABELS[choice]}</label>)}
           </fieldset>
           {event.fields.map(field => <EventAnswerInput key={field.id} field={field} value={answers[String(field.id)]} onChange={value => setAnswers(current => ({ ...current, [String(field.id)]: value }))} />)}
-          <div className="event-trap" aria-hidden="true"><label>Website<input type="text" name="website" tabIndex={-1} autoComplete="off" value={website} onChange={inputEvent => setWebsite(inputEvent.target.value)} /></label></div>
+          {/* Hidden from people. Named and marked so autofill and password managers leave it alone; only scripts fill it. */}
+          <div className="event-trap" aria-hidden="true"><input ref={trap} type="text" name="event-check-9f2" tabIndex={-1} autoComplete="off" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" data-form-type="other" value={website} onChange={inputEvent => setWebsite(inputEvent.target.value)} /></div>
           {error ? <p role="alert" className="gr-error">{error}</p> : null}
           <button type="submit" className="lx-btn lx-btn-primary ev-send" disabled={rsvp.isPending}>{rsvp.isPending ? "Sending..." : "Send RSVP"}</button>
         </> : null}
