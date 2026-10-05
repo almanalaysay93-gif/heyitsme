@@ -348,7 +348,7 @@ export function EventPageLook({ page, brandColor, companyLogoUrl, canStyle, canU
   const logoInput = useRef<HTMLInputElement>(null);
   const setLogoUrl = (next: string) => onChange(current => ({ ...current, qr: { ...current.qr, logoUrl: next } }));
   const code = useMemo(
-    () => eventQrSvg(url, { dots: qr.dots, background: qr.background, frame: qr.frame, rounded: qr.rounded }, "Scan to RSVP", logo),
+    () => eventQrSvg(url, { dots: qr.dots, background: qr.background, frame: qr.frame, rounded: qr.rounded }, "Scan to view event", logo),
     [url, qr.dots, qr.background, qr.frame, qr.rounded, logo],
   );
   return <>

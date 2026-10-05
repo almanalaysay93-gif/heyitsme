@@ -271,7 +271,7 @@ function ResponseEditor({ target, row, fields, onClose, onChanged }: { target: {
 function Share({ workspaceId, slug, isPublic, page }: { workspaceId: number; slug: string; isPublic: boolean; page: Pick<EventPage, "qr"> }) {
   const brand = trpc.teamBrand.get.useQuery({ workspaceId });
   const url = eventUrl(slug);
-  const [cta, setCta] = useState("Scan to RSVP");
+  const [cta, setCta] = useState("Scan to view event");
   const [withLogo, setWithLogo] = useState(true);
   const [logo, setLogo] = useState<string | null>(null);
   // The event's own logo wins over the company's.
