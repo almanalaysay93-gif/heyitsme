@@ -65,6 +65,9 @@ const image = z
   .optional()
   .default("");
 
+/** The line under the QR code when the event has none of its own. */
+export const EVENT_QR_CAPTION = "Scan to view event";
+export const EVENT_QR_CAPTION_MAX = 24;
 /** The heyitsme icon, offered for the middle of the QR code as it is in the card builder. */
 export const EVENT_QR_ICON = "/favicon.svg";
 // The logo in the QR code: an uploaded file, or the heyitsme icon.
@@ -113,7 +116,7 @@ export const eventPageSchema = z.object({
     .prefault({}),
   /** The look of the QR code on the Share tab. An empty frame means the team's brand color (see eventQr). */
   qr: z
-    .object({ dots: color("QR dots"), background: color("QR background"), frame: color("QR frame"), rounded: z.boolean().optional().default(false), logoUrl: qrLogo })
+    .object({ dots: color("QR dots"), background: color("QR background"), frame: color("QR frame"), rounded: z.boolean().optional().default(false), logoUrl: qrLogo, caption: z.string().trim().max(EVENT_QR_CAPTION_MAX, "Keep the line under the QR code to 24 characters.").optional().default("") })
     .prefault({}),
   /** Display order. Hidden sections stay in the list so their position survives being turned back on. */
   sections: z

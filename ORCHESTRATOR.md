@@ -359,3 +359,17 @@ Owner: "i ment i want to upload my logo and integrate it to the qr like the card
 - Gates: `pnpm check` clean, `pnpm test` 520 passed (54 files), `pnpm build` clean.
 - Browser pass on a throwaway PGlite harness (deleted after), 1280 and 390 wide. No console errors, no sideways scroll.
 - Not done: uploading a logo before the event exists.
+
+## Run: event QR caption field (branch `feat/event-qr-caption`)
+
+### Design Read
+Owner: "i want an option to edit this" (the line under the event QR code).
+
+### Decisions
+- D1: One saved text field, "Line under the code", in the Design tab QR block, next to the other QR settings. Replaces D3 of the previous run.
+- D2: 24 characters at most so the line fits the frame; empty falls back to "Scan to view event".
+- D3: Share keeps its own field, pre-filled from the saved line, for a one-off download.
+
+### Result (2026-10-05)
+- Gates: `pnpm check` clean, `pnpm test` 521 passed (54 files), `pnpm build` clean.
+- Browser pass on a throwaway PGlite harness (deleted after), 1280 and 390 wide. No console errors, no sideways scroll, no control under 44px.

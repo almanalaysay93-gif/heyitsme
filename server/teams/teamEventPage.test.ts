@@ -262,6 +262,24 @@ describe("team event page", () => {
     expect(storageDelete).toHaveBeenCalledTimes(1);
   });
 
+  it("saves the line under the QR code, within its length, as part of the QR look", async () => {
+    const team = await makeTeam();
+    const event = await makeEvent(team, true);
+    expect((await team.asOwner.teamEvents.get(event.target)).page.qr.caption).toBe("");
+    const saved = await team.asOwner.teamEvents.savePage({ ...event.target, page: { qr: { caption: "  See you there  " } } });
+    expect(saved.page.qr.caption).toBe("See you there");
+    await expect(team.asOwner.teamEvents.savePage({ ...event.target, page: { qr: { caption: "x".repeat(25) } } })).rejects.toThrow("24 characters");
+
+    ENV.teamEventStylingEnabled = false;
+    try {
+      await expect(team.asOwner.teamEvents.savePage({ ...event.target, page: { qr: { caption: "Join us" } } })).rejects.toMatchObject({ code: "FORBIDDEN" });
+      expect((await team.asOwner.teamEvents.savePage({ ...event.target, page: { qr: { caption: "See you there" }, theme: "midnight" } })).page.qr.caption).toBe("See you there");
+      expect((await team.asOwner.teamEvents.savePage({ ...event.target, page: {} })).page.qr.caption).toBe("");
+    } finally {
+      ENV.teamEventStylingEnabled = true;
+    }
+  });
+
   it("saves the page style, animation, colors and QR look, and shows them to visitors", async () => {
     const team = await makeTeam();
     const event = await makeEvent(team, true);
