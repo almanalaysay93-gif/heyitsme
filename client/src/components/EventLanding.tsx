@@ -19,7 +19,7 @@ import {
 } from "@shared/eventPage";
 import { formatEventTime } from "@shared/events";
 import { mapLink } from "@shared/pageConfig";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
 import { ArrowUpRight, CalendarPlus, Clock, Globe2, MapPin, Share2 } from "lucide-react";
 import type { inferRouterOutputs } from "@trpc/server";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -104,6 +104,11 @@ export function EventLanding({ event, pageUrl, preview = false, children }: Prop
   const actionsRef = useRef<HTMLDivElement>(null);
   const [dockShown, setDockShown] = useState(false);
   const [photoIndex, setPhotoIndex] = useState<number | null>(null);
+  // The banner drifts down and fades as the page scrolls, as the cover does on a card page.
+  const { scrollY } = useScroll();
+  const coverY = useTransform(scrollY, [0, 500], [0, 160]);
+  const coverScale = useTransform(scrollY, [0, 500], [1, 1.12]);
+  const coverFade = useTransform(scrollY, [0, 420], [1, 0.35]);
 
   const when = eventWhen(event);
   const canReply = event.rsvpState === "open" || event.rsvpState === "full";
@@ -340,6 +345,7 @@ export function EventLanding({ event, pageUrl, preview = false, children }: Prop
         `lx lx-business lx-event lx-theme-${look.theme} ev-font-${page.font}`,
         page.style === "flat" ? "ev-flat" : "",
         look.ownPaper ? "ev-own-paper" : "",
+        cover ? "lx-has-cover" : "",
         moves ? "" : "ev-still",
       ].filter(Boolean).join(" ")}
       style={{
@@ -356,7 +362,20 @@ export function EventLanding({ event, pageUrl, preview = false, children }: Prop
       {/* A page background of its own takes the place of the theme's aurora, as on a card page. */}
       {background
         ? <div className="lx-bg" aria-hidden="true"><img src={background} alt="" decoding="async" /></div>
-        : <div className="lx-aurora" aria-hidden="true"><i /><i /><i /><i /></div>}
+        : (
+          <div className="lx-aurora" aria-hidden="true">
+            {cover ? <div className="lx-aurora-photo"><img src={cover} alt="" decoding="async" /></div> : null}
+            <i /><i /><i /><i />
+          </div>
+        )}
+      {/* The banner sits across the top of the page and fades into it, in the same place as a card's cover. */}
+      {cover ? (
+        <div className="lx-cover-top" aria-hidden="true">
+          <motion.div className="lx-cover-top-inner" style={motionOn && lively ? { y: coverY, scale: coverScale, opacity: coverFade } : undefined}>
+            <img className="lx-cover-media" src={cover} alt="" />
+          </motion.div>
+        </div>
+      ) : null}
 
       <header className="lx-nav">
         <a className="lx-brand" href="/"><BrandMark /><span>heyitsme</span></a>
@@ -395,8 +414,6 @@ export function EventLanding({ event, pageUrl, preview = false, children }: Prop
             </div>
           </motion.div>
         </section>
-
-        {cover ? <div className="lx-band ev-band"><img className="lx-cover-media" src={cover} alt="" /></div> : null}
 
         {sections.map((section) => (
           <GlassPanel enabled={moves} light={lively} key={section.id} className={`lx-section ev-section-${section.id}`}>

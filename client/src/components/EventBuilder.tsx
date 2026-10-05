@@ -414,7 +414,7 @@ function Builder({ workspaceId, initial, company, zone, canStyle, onClose }: { w
                 <label className="field-label"><span>Description</span><textarea rows={5} maxLength={5000} value={details.description} onChange={event => setDetail("description", event.target.value)} /></label>
               </div>
               <div className="form-section">
-                <div className="pd-block-head"><h3>Banner</h3><p>The wide picture at the top of the event page.</p></div>
+                <div className="pd-block-head"><h3>Banner</h3><p>The wide picture across the top of the event page. It fades into the page, and the event title sits on its lower edge.</p></div>
                 <EventImagePicker label="Event banner" shape="wide" url={meta.cover ?? ""} busy={uploadCover.isPending || removeCover.isPending} disabled={!target}
                   hint={target ? "JPG, PNG or WebP, up to 3MB. Saved as soon as you pick it." : "Add it once the event is created."}
                   onPick={file => void pickCover(file)} onClear={() => void clearCover()} />

@@ -527,3 +527,10 @@ Owner sent an RSVP on a live event and the Responses counts stayed at 0.
 - Layout shift stays 0 at 1440, 390 and 320 on the landing page.
 - Gates: `pnpm check` clean, `pnpm build` clean, `pnpm test` 530 passed. Checked on a local static server, not on Vercel: the first deploy should be a preview, then open `/`, `/app`, `/c/demo`, one real card and one event page.
 - Shipped from a separate worktree (`heyitsme-ship`) on top of main, because the main working tree held an unfinished landing redesign (`lp2-` classes, new hero clip) from another session. That redesign is NOT in this commit. When it lands it must keep three things: the page still renders through `entry-prerender.tsx` without touching `window` during render, `hero-orbit-poster.webp` is re-made from the new clip, and the 44px tap-target rules in `buttons.css` get the new class names.
+
+## 2026-10-06 — Event banner placed like a card cover (Claude, branch `feat/event-cover-top`, not committed, not merged)
+
+- Before: the event banner was a boxed band (4:3 on phones, 21:9 on desktop) under the hero. Now it uses the card page's cover structure: `.lx-cover-top` across the top of the page, 54vh tall (240–580px), `object-fit: cover`, faded into the paper color, with the title on its lower edge (`.lx-has-cover .lx-hero` padding). No schema or server change; the same `coverImageUrl` is used.
+- `EventLanding.tsx`: root gets `lx-has-cover`; scroll drift and fade only when motion is "Lively" and the visitor has not asked for reduced motion; the banner also tints the aurora when there is no page background.
+- `eventLanding.css`: `.lx-event.lx-has-cover { display: flow-root; }` so the banner starts at the top edge (the nav's 10px margin otherwise pushes it down; card pages still have that 10px gap). The builder preview keeps the banner still.
+- Checked with mocked event data on a static build: Tide, Midnight, Sunset flat, with page background, without banner; phone and desktop; no console errors, no sideways scroll. Not checked against a real event or in the signed-in builder.
