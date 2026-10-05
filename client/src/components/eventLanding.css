@@ -82,7 +82,10 @@
 }
 .ev-calendar > div :is(a, button):hover { background: var(--tint); }
 
-.ev-band { margin-top: clamp(12px, 2cqi, 20px); }
+/* Keeps the nav's top margin inside the page, so the banner starts at the very top edge instead of 10px below it. */
+.lx-event.lx-has-cover { display: flow-root; }
+/* The builder preview scrolls inside its own box, so the banner does not follow the window's scroll there. */
+.lx-preview .lx-event .lx-cover-top-inner { transform: none !important; opacity: 1 !important; }
 
 /* ============ Details ============ */
 .ev-prose { max-width: 68ch; margin: 0; white-space: pre-line; line-height: 1.65; }
