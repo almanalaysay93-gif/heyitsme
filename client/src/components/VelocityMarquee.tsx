@@ -26,7 +26,7 @@ type VelocityMarqueeProps = {
 /**
  * Endless row that drifts on its own, speeds up and skews with page scroll velocity,
  * and flips direction when the reader scrolls back up. Hovering slows it to a crawl.
- * With reduced motion it still drifts at base speed, without scroll effects.
+ * Reduced motion holds the row still.
  */
 export function VelocityMarquee({ children, speed = 3, className = "" }: VelocityMarqueeProps) {
   const reduceMotion = useReducedMotion();
@@ -44,11 +44,7 @@ export function VelocityMarquee({ children, speed = 3, className = "" }: Velocit
   const x = useTransform(baseX, (value) => `${wrap(-50, 0, value)}%`);
 
   useAnimationFrame((_, delta) => {
-    if (!inView) return;
-    if (reduceMotion) {
-      baseX.set(baseX.get() - direction.current * speed * (delta / 1000));
-      return;
-    }
+    if (!inView || reduceMotion) return;
     const factor = velocityFactor.get();
     if (factor < -0.05) direction.current = -1;
     else if (factor > 0.05) direction.current = 1;

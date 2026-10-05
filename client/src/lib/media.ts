@@ -1,9 +1,10 @@
-// Marketing clips made in Google Flow live in client/public/media (shot list: docs/flow-shots.md).
-// Each slot falls back to code-made motion when its file is missing, so set a slot to null to skip the request.
+// The hero clip is rendered from motion/hero with HyperFrames.
+// The remaining slots use code-made art until their clips exist.
 export const landingMedia = {
-  filmBackdrop: "/media/film-backdrop.mp4",
-  stepBuild: "/media/step-build.mp4",
-  stepShare: "/media/step-share.mp4",
-  stepKeep: "/media/step-keep.mp4",
-  finalLoop: "/media/final-loop.mp4",
+  heroLoop: "/media/hero-orbit.mp4",
+  filmBackdrop: "/media/hero-orbit.mp4",
+  stepBuild: null,
+  stepShare: null,
+  stepKeep: null,
+  finalLoop: null,
 } as const satisfies Record<string, string | null>;

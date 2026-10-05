@@ -41,6 +41,11 @@ export function LoopVideo({ src, className = "", fallback = null, lazy = true }:
     setFallbackGone(false);
   }, [src]);
 
+  // A cached clip can be ready before React receives its loadeddata event.
+  useEffect(() => {
+    if (videoRef.current?.readyState && videoRef.current.readyState >= 2) setReady(true);
+  }, [src, enabled, armed]);
+
   // Unmount the fallback once the clip has faded over it, so its own animation stops costing frames.
   useEffect(() => {
     if (!ready) return;

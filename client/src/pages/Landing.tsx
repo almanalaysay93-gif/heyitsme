@@ -26,6 +26,7 @@ import {
   UserRoundPlus,
 } from "lucide-react";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { useLocation } from "wouter";
 import { CardVisual, TiltCard } from "@/components/CardVisual";
 import { LegalLinks } from "@/components/LegalLinks";
@@ -33,6 +34,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { themeOptions, type CardDraft } from "@/lib/card";
 import { formatPeso, PLAN_LIMITS, PRICES_MINOR } from "@shared/plans";
+import "./landing3d.css";
 
 const ShareDemo = lazy(() => import("@/components/ShareDemo").then((m) => ({ default: m.ShareDemo })));
 
@@ -80,14 +82,15 @@ function StepArt({ kind }: { kind: (typeof steps)[number]["art"] }) {
 }
 
 function KineticLine({ words, delay = 0 }: { words: string[]; delay?: number }) {
+  const reduceMotion = useReducedMotion();
   return (
     <>
       {words.map((word, index) => (
         <span className="lp-word" key={`${word}-${index}`}>
           <motion.span
-            initial={{ y: "115%", rotate: 7 }}
-            animate={{ y: "0%", rotate: 0 }}
-            transition={{ type: "spring", stiffness: 220, damping: 24, delay: delay + index * 0.05 }}
+            initial={reduceMotion ? false : { y: "45%", rotate: 4 }}
+            animate={reduceMotion ? undefined : { y: "0%", rotate: 0 }}
+            transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1], delay: delay + index * 0.025 }}
           >
             {word}
           </motion.span>
@@ -152,9 +155,8 @@ const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.055 } } }
 function HeroStage({ theme }: { theme: string }) {
   const reduceMotion = useReducedMotion();
   const { scrollY } = useScroll();
-  const backRotate = useTransform(scrollY, [0, 600], [-9, reduceMotion ? -9 : -22]);
-  const backX = useTransform(scrollY, [0, 600], [0, reduceMotion ? 0 : -60]);
-  const frontY = useTransform(scrollY, [0, 600], [0, reduceMotion ? 0 : -70]);
+  const backY = useTransform(scrollY, [0, 600], [0, reduceMotion ? 0 : -110]);
+  const frontY = useTransform(scrollY, [0, 600], [0, reduceMotion ? 0 : -75]);
   const [chip, setChip] = useState(0);
   useEffect(() => {
     if (reduceMotion) return;
@@ -169,20 +171,29 @@ function HeroStage({ theme }: { theme: string }) {
   const ChipIcon = chips[chip].icon;
   return (
     <div className="lp-stage">
-      <div className="lp-rings" aria-hidden="true"><i /><i /><i /></div>
-      <motion.div className="lp-stage-back" style={{ rotate: backRotate, x: backX }} aria-hidden="true">
+      <div className="lp-stage-halo" aria-hidden="true"><i /><i /><i /></div>
+      <div className="lp-stage-grid" aria-hidden="true" />
+      <motion.div
+        className="lp-stage-back"
+        style={{ y: backY }}
+        initial={reduceMotion ? false : { opacity: 0, x: 110, rotateY: -48, rotateZ: 24, scale: 0.76 }}
+        animate={{ opacity: 1, x: 0, rotateY: -23, rotateZ: 17, scale: 1 }}
+        transition={{ type: "spring", stiffness: 240, damping: 26 }}
+        aria-hidden="true"
+      >
         <CardVisual card={{ ...demoCard, theme: theme === "sunset" ? "tide" : "sunset", displayName: "Mina Park", title: "Founder", company: "Field Notes" }} compact />
       </motion.div>
+      <div className="lp-stage-edge" aria-hidden="true" />
       <motion.div
         className="lp-stage-front"
         style={{ y: frontY }}
-        initial={{ opacity: 0, y: 80, rotate: 8 }}
-        animate={{ opacity: 1, y: 0, rotate: 0 }}
-        transition={{ type: "spring", stiffness: 180, damping: 22, delay: 0.1 }}
+        initial={reduceMotion ? false : { opacity: 0, x: 180, rotateY: -55, rotateX: 19, rotateZ: 12, scale: 0.7 }}
+        animate={{ opacity: 1, x: 0, rotateY: -12, rotateX: 7, rotateZ: -6, scale: 1 }}
+        transition={{ type: "spring", stiffness: 240, damping: 26, delay: 0.04 }}
       >
         <TiltCard><CardVisual card={{ ...demoCard, theme }} /></TiltCard>
       </motion.div>
-      <div className="lp-chip-slot" aria-live="polite">
+      <div className="lp-chip-slot" aria-hidden="true">
         <AnimatePresence mode="wait">
           <motion.div
             key={chip}
@@ -199,14 +210,15 @@ function HeroStage({ theme }: { theme: string }) {
       </div>
       <motion.div
         className="lp-qr-float"
-        initial={{ opacity: 0, scale: 0.6, rotate: -14 }}
-        animate={{ opacity: 1, scale: 1, rotate: 6 }}
-        transition={{ type: "spring", stiffness: 260, damping: 22, delay: 0.25 }}
+        initial={reduceMotion ? false : { opacity: 0, scale: 0.6, rotate: -18 }}
+        animate={{ opacity: 1, scale: 1, rotate: 9 }}
+        transition={{ type: "spring", stiffness: 300, damping: 26, delay: 0.08 }}
         aria-hidden="true"
       >
-        <QrCode size={30} />
-        <small>scan me</small>
+        <QRCodeSVG value="https://heyitsme.fyi/c/demo" size={74} marginSize={0} />
+        <small>Scan the demo</small>
       </motion.div>
+      <span className="lp-stage-label" aria-hidden="true">HEYITSME / DIGITAL PRESENCE / 001</span>
     </div>
   );
 }
@@ -216,6 +228,7 @@ export default function Landing() {
   const { isAuthenticated } = useAuth();
   const [theme, setTheme] = useState("midnight");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const reduceMotion = useReducedMotion();
   const { scrollYProgress } = useScroll();
   const progress = useSpring(scrollYProgress, { stiffness: 140, damping: 26 });
   const howRef = useRef<HTMLElement>(null);
@@ -312,19 +325,22 @@ export default function Landing() {
       </header>
 
       <main id="main" tabIndex={-1}>
-        <section className="lp-hero">
-          <motion.div className="lp-hero-copy" initial="hidden" animate="show" variants={stagger}>
-            <motion.span className="lp-pill" variants={reveal}><Sparkles size={13} /> Start free · No app to install</motion.span>
+        <section className="lp-hero" aria-label="Create your digital business card">
+          <LoopVideo className="lp-hero-video" src={landingMedia.heroLoop} lazy={false} fallback={<div className="lp-hero-poster" />} />
+          <div className="lp-hero-scrim" aria-hidden="true" />
+          <div className="lp-hero-grid">
+          <motion.div className="lp-hero-copy" initial={reduceMotion ? false : "hidden"} animate="show" variants={stagger}>
+            <motion.span className="lp-pill" variants={reveal}><Sparkles size={13} /> Digital business card / Free to start</motion.span>
             <h1 className="lp-kinetic">
-              <span className="sr-only">Your introduction, one link away.</span>
+              <span className="sr-only">Meet once. Stay in touch.</span>
               <span aria-hidden="true">
-                <KineticLine words={["Your", "introduction,"]} delay={0.1} />
+                <KineticLine words={["Meet", "once."]} delay={0.02} />
                 <br />
-                <em><KineticLine words={["one", "link", "away."]} delay={0.32} /></em>
+                <em><KineticLine words={["Stay", "in", "touch."]} delay={0.1} /></em>
               </span>
             </h1>
             <motion.p className="lp-lede" variants={reveal}>
-              heyitsme turns your name, your work, and the ways to reach you into a personal page. People open it from a QR code or a link, save you in one tap, and send their details back.
+              Your name, work, and ways to connect in one striking page. Share a QR code or link. They save your contact in one tap and can send theirs back.
             </motion.p>
             <motion.div className="lp-hero-actions" variants={reveal}>
               <motion.button whileHover={{ y: -3 }} whileTap={{ scale: 0.96 }} className="lp-btn lp-btn-primary" onClick={start}>
@@ -334,7 +350,7 @@ export default function Landing() {
                 View demo card
               </a>
             </motion.div>
-            <motion.p className="lp-micro" variants={reveal}>Try it in preview mode. Sign in with Google when you’re ready to publish.</motion.p>
+            <motion.p className="lp-micro" variants={reveal}>Build in preview mode. Sign in with Google to publish.</motion.p>
             <motion.div className="lp-theme-row" variants={reveal} role="radiogroup" aria-label="Preview card theme">
               <span>Try a palette</span>
               {themeOptions.map((option) => (
@@ -351,6 +367,8 @@ export default function Landing() {
             </motion.div>
           </motion.div>
           <HeroStage theme={theme} />
+          </div>
+          <div className="lp-hero-footer" aria-hidden="true"><span>01 / INTRODUCE</span><span>THE NEXT HELLO STARTS HERE</span><span>SCROLL TO EXPLORE ↓</span></div>
         </section>
 
         <section className="lp-marquee" aria-label="Supported channels">
