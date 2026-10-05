@@ -373,3 +373,20 @@ Owner: "i want an option to edit this" (the line under the event QR code).
 ### Result (2026-10-05)
 - Gates: `pnpm check` clean, `pnpm test` 521 passed (54 files), `pnpm build` clean.
 - Browser pass on a throwaway PGlite harness (deleted after), 1280 and 390 wide. No console errors, no sideways scroll, no control under 44px.
+
+## Run: clear buttons app-wide (branch `feat/clear-buttons`)
+
+### Design Read
+Reading this as: a button-clarity pass across the heyitsme app and public pages, for card owners and their visitors, in the existing glass and purple language, using the current React and CSS stack.
+
+### Decisions
+- D1: One quiet button style replaces every text-only action: tinted fill, hairline edge, 44px target. Primary and outline buttons are unchanged.
+- D2: Styles live in a new `buttons.css` loaded after `index.css`. No markup changes; `Home.tsx` and `CardLanding.tsx` stay untouched.
+- D3: The public footer invitation uses the page's own accent so it fits every card theme.
+- D4: Navigation links (legal links, nav anchors) stay plain text.
+- D5: Run inline, no subagents, no reference teardown or llms.txt: a styling pass, not a new build.
+
+### Result (2026-10-05)
+- Gates: `pnpm check` clean, `pnpm test` 525 passed (54 files), `pnpm build` clean.
+- Browser pass on a throwaway PGlite harness (deleted after), 1280 and 390 wide: landing, demo card footer, overview, card builder, event builder. Every quiet button has a fill and is 44px tall. No console errors, no sideways scroll.
+- Not seen in the browser: contacts and billing quiet buttons (the harness account has no contacts or paid plan). Same classes, same rules.

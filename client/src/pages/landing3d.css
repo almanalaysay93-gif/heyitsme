@@ -16,6 +16,17 @@
 .lp-nav .lp-mobile-menu-trigger {
   color: #f4f3ff;
 }
+/* Sign in is an action, so it gets a button shape; the nav links beside it stay plain. */
+.lp-nav .lp-signin {
+  min-height: 44px;
+  padding: 0 17px;
+  border: 1px solid rgba(193, 186, 255, .32);
+  background: rgba(187, 173, 255, .09);
+  box-shadow: inset 0 1px rgba(255, 255, 255, .1);
+  transition: background-color .16s ease, border-color .16s ease;
+}
+.lp-nav .lp-signin:hover { border-color: rgba(193, 186, 255, .55); }
+.lp-nav .lp-signin:focus-visible { outline: 2px solid #c2b7ff; outline-offset: 3px; }
 .lp-nav .lp-nav-links a:hover,
 .lp-nav .lp-signin:hover,
 .lp-nav .lp-mobile-menu-trigger:hover {
