@@ -36,11 +36,13 @@ export type PlanLimits = {
   monthlyLeads: number | null;
   /** Longest insights range, in days. */
   analyticsDays: number;
+  /** Maximum portfolio photos allowed per card. */
+  portfolioImages: number;
 };
 
 export const PLAN_LIMITS: Record<PlanCode, PlanLimits> = {
-  free: { cards: 1, monthlyLeads: 10, analyticsDays: 7 },
-  pro: { cards: 5, monthlyLeads: null, analyticsDays: 365 },
+  free: { cards: 1, monthlyLeads: 10, analyticsDays: 7, portfolioImages: 2 },
+  pro: { cards: 5, monthlyLeads: null, analyticsDays: 365, portfolioImages: 20 },
 };
 
 export const PLAN_FEATURES = {
@@ -74,11 +76,11 @@ export type GoogleSetupTier = keyof typeof GOOGLE_SETUPS_PER_WEEK;
 export const GOOGLE_SETUP_WINDOW_DAYS = 7;
 
 /** What every account had before paid plans. Applies while PLAN_LIMITS_ENABLED is off. */
-export const LEGACY_LIMITS: PlanLimits = { cards: TECHNICAL_CARD_LIMIT, monthlyLeads: null, analyticsDays: 90,
+export const LEGACY_LIMITS: PlanLimits = { cards: TECHNICAL_CARD_LIMIT, monthlyLeads: null, analyticsDays: 90, portfolioImages: 20,
 };
 
 /** Complimentary accounts: every feature, no expiry, technical ceilings only. */
-export const COMPLIMENTARY_LIMITS: PlanLimits = { cards: TECHNICAL_CARD_LIMIT, monthlyLeads: null, analyticsDays: 365,
+export const COMPLIMENTARY_LIMITS: PlanLimits = { cards: TECHNICAL_CARD_LIMIT, monthlyLeads: null, analyticsDays: 365, portfolioImages: 20,
 };
 
 export const PRICES_MINOR = {
@@ -185,7 +187,21 @@ const widest = (a: PlanLimits, b: PlanLimits): PlanLimits => ({
       ? null
       : Math.max(a.monthlyLeads, b.monthlyLeads),
   analyticsDays: Math.max(a.analyticsDays, b.analyticsDays),
+  portfolioImages: Math.max(a.portfolioImages, b.portfolioImages),
 });
+
+/** Counts portfolio photo items in raw JSON. */
+export function countPortfolioImages(raw: string | null | undefined): number {
+  try {
+    const parsed = JSON.parse(raw || "[]");
+    if (!Array.isArray(parsed)) return 0;
+    return parsed.filter(
+      (item) => item && typeof item === "object" && item.url && (!item.kind || item.kind === "image")
+    ).length;
+  } catch {
+    return 0;
+  }
+}
 
 /** Resolves one account's entitlements. Pure, so the same rules run in tests and on the server. */
 export function resolveEntitlements(input: EntitlementInput): Entitlements {

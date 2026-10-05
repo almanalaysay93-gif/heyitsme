@@ -6,7 +6,7 @@ import type { PlanCode } from "@shared/plans";
 // Plan state for the workspace. Everything shown here comes from billing.me; the server enforces the same rules.
 
 export type UpgradeReason =
-  | "lead_warning" | "lead_limit" | "analytics" | "card_limit" | "branding" | "general";
+  | "lead_warning" | "lead_limit" | "analytics" | "card_limit" | "branding" | "portfolio_images" | "general";
 
 const UpgradeDialog = lazy(() => import("@/components/billing/UpgradeDialog"));
 

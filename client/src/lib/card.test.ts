@@ -542,6 +542,59 @@ describe("executeBatchUpload", () => {
     expect(uploader).not.toHaveBeenCalled();
   });
 
+  it("enforces maxImages limit on Free plan, rejecting further image uploads", async () => {
+    const existingImages: PortfolioItem[] = [
+      { id: "img-1", kind: "image", title: "", url: "/storage/7-portfolio/pic-1.jpg" },
+      { id: "img-2", kind: "image", title: "", url: "/storage/7-portfolio/pic-2.jpg" },
+    ];
+    const uploader = vi.fn();
+    const result = await executeBatchUpload(
+      existingImages,
+      [{ name: "pic-3.png", type: "image/png" }],
+      uploader,
+      { maxImages: 2 }
+    );
+    expect(result.error).toContain("Photo limit reached (maximum 2 on Free)");
+    expect(result.newItems).toHaveLength(0);
+    expect(uploader).not.toHaveBeenCalled();
+  });
+
+  it("slices incoming photos to remaining maxImages allowance with descriptive warning", async () => {
+    const existingImages: PortfolioItem[] = [
+      { id: "img-1", kind: "image", title: "", url: "/storage/7-portfolio/pic-1.jpg" },
+    ];
+    const files = [
+      { name: "pic-2.png", type: "image/png" },
+      { name: "pic-3.png", type: "image/png" },
+    ];
+    const uploader = vi.fn().mockImplementation(async (f) => `/storage/7-portfolio/${f.name}`);
+    const result = await executeBatchUpload(existingImages, files, uploader, { maxImages: 2 });
+
+    expect(result.warning).toContain("Only 1 photo(s) can be added (maximum 2 on Free)");
+    expect(result.newItems).toHaveLength(1);
+    expect(result.newItems[0].url).toBe("/storage/7-portfolio/pic-2.png");
+    expect(uploader).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows non-image uploads even when photo quota is exhausted", async () => {
+    const existingImages: PortfolioItem[] = [
+      { id: "img-1", kind: "image", title: "", url: "/storage/7-portfolio/pic-1.jpg" },
+      { id: "img-2", kind: "image", title: "", url: "/storage/7-portfolio/pic-2.jpg" },
+    ];
+    const files = [
+      { name: "pic-3.png", type: "image/png" },
+      { name: "doc.pdf", type: "application/pdf" },
+    ];
+    const uploader = vi.fn().mockImplementation(async (f) => `/storage/7-portfolio/${f.name}`);
+    const result = await executeBatchUpload(existingImages, files, uploader, { maxImages: 2 });
+
+    expect(result.warning).toContain("Photo limit reached (maximum 2 on Free). Uploading non-photo file(s) only");
+    expect(result.newItems).toHaveLength(1);
+    expect(result.newItems[0].kind).toBe("file");
+    expect(result.newItems[0].url).toBe("/storage/7-portfolio/doc.pdf");
+    expect(uploader).toHaveBeenCalledTimes(1);
+  });
+
   it("slices batch files and issues a warning when selection exceeds remaining slots", async () => {
     const items: PortfolioItem[] = Array.from({ length: 18 }, (_, i) => ({
       id: `item-${i}`,

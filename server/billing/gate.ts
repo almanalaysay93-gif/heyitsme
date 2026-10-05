@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import type { Entitlements } from "@shared/plans";
+import { countPortfolioImages, type Entitlements } from "@shared/plans";
 import { parsePageConfig } from "@shared/pageConfig";
 import { designReadable, premiumDesign, premiumQr } from "@shared/design";
 import type { InsertCard } from "../../drizzle/schema";
@@ -17,6 +17,8 @@ export const UPGRADE_MESSAGES = {
   lead_limit: "Lead capture is paused for this month.",
   analytics_range: "That insights range is part of Pro.",
   branding: "Removing heyitsme branding is part of Pro.",
+  portfolio_images:
+    "Your plan allows up to 2 photos per card. Upgrade to Pro for up to 20 photos.",
 } as const;
 
 export function upgradeError(reason: keyof typeof UPGRADE_MESSAGES) {
@@ -91,6 +93,20 @@ export async function assertBrandingAllowed(user: { id: number; email: string | 
   if (previousPage !== undefined && parsePageConfig(previousPage).hideBranding) return;
   const ent = await entitlementsFor(user);
   if (!ent.canRemoveBranding) throw upgradeError("branding");
+}
+
+/** Enforces photo upload limits per card according to plan. Cards with existing photos above limit stay safe. */
+export async function assertPortfolioAllowed(
+  user: { id: number; email: string | null },
+  nextPortfolio: string | null | undefined,
+  previousPortfolio?: string | null | undefined
+) {
+  if (!ENV.planLimitsEnabled) return;
+  const nextCount = countPortfolioImages(nextPortfolio);
+  const previousCount = countPortfolioImages(previousPortfolio);
+  if (nextCount <= previousCount) return;
+  const ent = await entitlementsFor(user);
+  if (nextCount > ent.limits.portfolioImages) throw upgradeError("portfolio_images");
 }
 
 export async function assertPro(user: { id: number; email: string | null }) {

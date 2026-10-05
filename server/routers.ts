@@ -57,7 +57,7 @@ import {
 import { assertPro } from "./billing/gate";
 import { ENV } from "./_core/env";
 import {
-  assertBrandingAllowed, assertInsightRange, createCardForOwner, leadCaptureOpen, withLeadQuota,
+  assertBrandingAllowed, assertInsightRange, assertPortfolioAllowed, createCardForOwner, leadCaptureOpen, withLeadQuota,
 } from "./billing/gate";
 import { getPlaceDetails, searchBusinesses, signSelection, verifyConfirmedPlace, verifySelection } from "./googlePlaces";
 import { PlacesCapError, placesUsageReport, savePlacesSettings } from "./googlePlacesUsage";
@@ -430,6 +430,7 @@ export const appRouter = router({
         // Set once here. update never touches slug, so shared links and printed QR codes survive renames.
         const slug = makeCardSlug(input.displayName, nanoid(6));
         await assertBrandingAllowed(ctx.user, input.page);
+        await assertPortfolioAllowed(ctx.user, input.portfolio);
         const created = await createCardForOwner(ctx.user, {
           ...input,
           title: input.title ?? "",
@@ -468,6 +469,8 @@ export const appRouter = router({
         }
         if (rest.page !== undefined)
           await assertBrandingAllowed(ctx.user, rest.page, before.page);
+        if (rest.portfolio !== undefined)
+          await assertPortfolioAllowed(ctx.user, rest.portfolio, before.portfolio);
         const updated = await updateCard(id, ctx.user.id, {
           ...rest,
           title: rest.title ?? "",

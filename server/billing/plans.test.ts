@@ -25,8 +25,7 @@ describe("plan resolution", () => {
     const ent = resolveEntitlements({ limitsEnabled: true, complimentary: false, subscriptions: [], now: NOW,
     });
     expect(ent.plan).toBe("free");
-    expect(ent.limits).toEqual({ cards: 1, monthlyLeads: 10, analyticsDays: 7,
-    });
+    expect(ent.limits).toEqual({ cards: 1, monthlyLeads: 10, analyticsDays: 7, portfolioImages: 2 });
     expect(ent.canRemoveBranding).toBe(false);
   });
 
@@ -35,18 +34,17 @@ describe("plan resolution", () => {
     });
     const pro = resolveEntitlements({ limitsEnabled: false, complimentary: false, subscriptions: [sub()], now: NOW,
     });
-    expect(free.limits).toEqual({ cards: 500, monthlyLeads: null, analyticsDays: 90,
-    });
+    expect(free.limits).toEqual({ cards: 500, monthlyLeads: null, analyticsDays: 90, portfolioImages: 20 });
     expect(pro.limits.cards).toBe(500);
     expect(pro.limits.analyticsDays).toBe(365);
+    expect(pro.limits.portfolioImages).toBe(20);
   });
 
   it("gives Pro unlimited leads and a year of insights", () => {
     const ent = resolveEntitlements({ limitsEnabled: true, complimentary: false, subscriptions: [sub()], now: NOW,
     });
     expect(ent.plan).toBe("pro");
-    expect(ent.limits).toEqual({ cards: 5, monthlyLeads: null, analyticsDays: 365,
-    });
+    expect(ent.limits).toEqual({ cards: 5, monthlyLeads: null, analyticsDays: 365, portfolioImages: 20 });
     expect(ent.canRemoveBranding).toBe(true);
   });
 

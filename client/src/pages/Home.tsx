@@ -940,7 +940,10 @@ function Workspace() {
                 isDirty={isDirty}
                 onPagePending={setPagePending}
                 canRemoveBranding={Boolean(billing.data?.entitlements.canRemoveBranding)}
+                isPro={Boolean(billing.data?.entitlements.canRemoveBranding)}
+                maxImages={billing.data?.entitlements.limits.portfolioImages ?? (billing.data?.entitlements.canRemoveBranding ? 20 : 2)}
                 onLockedBranding={() => openUpgrade("branding")}
+                onOpenUpgradePortfolio={() => openUpgrade("portfolio_images")}
                 onSetupGoogle={async () => {
                   const saved = await saveDraft({ redirect: false });
                   if (saved) navigate(`/app/google-reviews?card=${saved.id}`);
@@ -1313,7 +1316,10 @@ function BuilderView({
   isDirty = false,
   onPagePending,
   canRemoveBranding = false,
+  isPro = false,
+  maxImages = 2,
   onLockedBranding,
+  onOpenUpgradePortfolio,
   onSetupGoogle,
 }: any) {
   const [tab, setTab] = useState<BuilderTab>("profile");
@@ -1592,6 +1598,9 @@ function BuilderView({
                       onUpdateHeading={(field, val) => update(field, val)}
                       onChange={(value: string) => { update("portfolio", value); onClearError?.("portfolio"); }}
                       onUpload={onUpload}
+                      maxImages={maxImages}
+                      isPro={isPro}
+                      onOpenUpgrade={onOpenUpgradePortfolio}
                     />
                   </Fold>
                   <Fold
@@ -1739,6 +1748,9 @@ function PortfolioEditor({
   galleryHeading,
   portfolioHeading,
   onUpdateHeading,
+  maxImages = 2,
+  isPro = false,
+  onOpenUpgrade,
 }: {
   raw: string;
   onChange: (value: string) => void;
@@ -1746,10 +1758,17 @@ function PortfolioEditor({
   galleryHeading: string;
   portfolioHeading: string;
   onUpdateHeading: (field: "galleryHeading" | "portfolioHeading", value: string) => void;
+  maxImages?: number;
+  isPro?: boolean;
+  onOpenUpgrade?: () => void;
 }) {
   const items = parsePortfolio(raw);
   const latestItems = useRef(items);
   latestItems.current = items;
+
+  const imageItems = items.filter((item) => !item.kind || item.kind === "image");
+  const imageCount = imageItems.length;
+  const atImageLimit = !isPro && imageCount >= maxImages;
 
   const [mode, setMode] = useState<"photos" | "projects">("photos");
   const [projectKind, setProjectKind] = useState<"link" | "video" | "file">("link");
@@ -1800,6 +1819,11 @@ function PortfolioEditor({
       toast.error(`Portfolio is full (maximum ${MAX_PORTFOLIO_ITEMS} items).`);
       return;
     }
+    if (!isPro && imageCount >= maxImages) {
+      toast.error(`Free cards can only have ${maxImages} photos. Upgrade to Pro for up to 20 photos.`);
+      onOpenUpgrade?.();
+      return;
+    }
     const newItem: PortfolioItem = {
       id: crypto.randomUUID(),
       kind: "image",
@@ -1822,6 +1846,12 @@ function PortfolioEditor({
     const files = Array.from(fileList);
     if (!files.length) return;
 
+    if (atImageLimit && files.every((f) => f.type.startsWith("image/"))) {
+      toast.error(`Photo limit reached (maximum ${maxImages} on Free). Upgrade to Pro for up to 20 photos.`);
+      onOpenUpgrade?.();
+      return;
+    }
+
     setBusy(true);
     try {
       const result = await executeBatchUpload(
@@ -1830,6 +1860,7 @@ function PortfolioEditor({
         onUpload,
         {
           description: "",
+          maxImages,
           onProgress: setUploadProgress,
           onError: (name, error) => toast.error(`Failed to upload ${name}: ${error?.message || "Upload error"}`),
         }
@@ -1837,6 +1868,9 @@ function PortfolioEditor({
 
       if (result.error) {
         toast.error(result.error);
+        if (/upgrade to pro/i.test(result.error)) {
+          onOpenUpgrade?.();
+        }
       } else {
         if (result.warning) toast.warning(result.warning);
         if (result.newItems.length > 0) {
@@ -1900,12 +1934,29 @@ function PortfolioEditor({
 
         {mode === "photos" && (
           <div className="portfolio-photos-pane">
+            <div className="portfolio-quota-bar">
+              <span className="portfolio-quota-text">
+                <strong>{imageCount} of {maxImages}</strong> photos used {!isPro && "(Free plan)"}
+              </span>
+              {!isPro && onOpenUpgrade && (
+                <button type="button" className="portfolio-upgrade-btn" onClick={onOpenUpgrade}>
+                  Upgrade to Pro for 20 photos →
+                </button>
+              )}
+            </div>
             <label
-              className={`upload-drop upload-drop-rich ${isDragging ? "is-dragover" : ""}`}
+              className={`upload-drop upload-drop-rich ${isDragging ? "is-dragover" : ""} ${atImageLimit ? "is-limited" : ""}`}
+              onClick={(e) => {
+                if (atImageLimit) {
+                  e.preventDefault();
+                  toast.error(`Photo limit reached (${imageCount} of ${maxImages} used). Upgrade to Pro for up to 20 photos.`);
+                  onOpenUpgrade?.();
+                }
+              }}
               onDragOver={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                setIsDragging(true);
+                if (!atImageLimit) setIsDragging(true);
               }}
               onDragLeave={(e) => {
                 e.preventDefault();
@@ -1916,19 +1967,24 @@ function PortfolioEditor({
                 e.preventDefault();
                 e.stopPropagation();
                 setIsDragging(false);
+                if (atImageLimit) {
+                  toast.error(`Photo limit reached (${imageCount} of ${maxImages} used). Upgrade to Pro for up to 20 photos.`);
+                  onOpenUpgrade?.();
+                  return;
+                }
                 if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
                   void handleFiles(e.dataTransfer.files);
                 }
               }}
             >
               <Upload size={20} />
-              <strong>{busy ? (uploadProgress || "Uploading photos…") : "Drop photos here or click to browse"}</strong>
-              <small>Upload multiple images · JPG, PNG, WebP up to 3MB each</small>
+              <strong>{busy ? (uploadProgress || "Uploading photos…") : atImageLimit ? "Photo limit reached (2 of 2 photos)" : "Drop photos here or click to browse"}</strong>
+              <small>{atImageLimit ? "Upgrade to Pro to upload up to 20 photos" : "Upload multiple images · JPG, PNG, WebP up to 3MB each"}</small>
               <input
                 type="file"
                 multiple
                 accept="image/*"
-                disabled={busy}
+                disabled={busy || atImageLimit}
                 onChange={(event) => {
                   if (event.target.files && event.target.files.length > 0) {
                     void handleFiles(event.target.files);

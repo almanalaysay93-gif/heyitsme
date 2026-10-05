@@ -298,6 +298,7 @@ export async function executeBatchUpload<T extends UploadableFile>(
   options?: {
     description?: string;
     maxItems?: number;
+    maxImages?: number;
     maxLength?: number;
     onProgress?: (message: string) => void;
     onError?: (fileName: string, err: any) => void;
@@ -309,6 +310,7 @@ export async function executeBatchUpload<T extends UploadableFile>(
   error?: string;
 }> {
   const maxItems = options?.maxItems ?? MAX_PORTFOLIO_ITEMS;
+  const maxImages = options?.maxImages;
   const maxLength = options?.maxLength ?? MAX_PORTFOLIO_LENGTH;
 
   if (currentItems.length >= maxItems) {
@@ -319,13 +321,65 @@ export async function executeBatchUpload<T extends UploadableFile>(
     };
   }
 
+  const currentImageCount = currentItems.filter((item) => !item.kind || item.kind === "image").length;
+  let warning: string | undefined;
+
+  if (maxImages !== undefined && currentImageCount >= maxImages) {
+    const hasImage = files.some((f) => f.type.startsWith("image/"));
+    if (hasImage) {
+      const nonImages = files.filter((f) => !f.type.startsWith("image/"));
+      if (nonImages.length === 0) {
+        return {
+          newItems: [],
+          updatedItems: currentItems,
+          error: `Photo limit reached (maximum ${maxImages} on Free). Upgrade to Pro for up to 20 photos.`,
+        };
+      }
+      warning = `Photo limit reached (maximum ${maxImages} on Free). Uploading non-photo file(s) only. Upgrade to Pro for up to 20 photos.`;
+      files = nonImages;
+    }
+  }
+
   const remainingSlots = maxItems - currentItems.length;
   let filesToUpload = files;
-  let warning: string | undefined;
 
   if (files.length > remainingSlots) {
     warning = `Only ${remainingSlots} item(s) can be added (maximum ${maxItems}). Uploading the first ${remainingSlots}.`;
     filesToUpload = files.slice(0, remainingSlots);
+  }
+
+  if (maxImages !== undefined) {
+    const remainingImageSlots = Math.max(0, maxImages - currentImageCount);
+    let allowedImages = 0;
+    const filtered: T[] = [];
+    let excessImages = false;
+
+    for (const f of filesToUpload) {
+      if (f.type.startsWith("image/")) {
+        if (allowedImages < remainingImageSlots) {
+          allowedImages++;
+          filtered.push(f);
+        } else {
+          excessImages = true;
+        }
+      } else {
+        filtered.push(f);
+      }
+    }
+
+    if (excessImages) {
+      const imageMsg = `Only ${remainingImageSlots} photo(s) can be added (maximum ${maxImages} on Free). Uploading the first ${remainingImageSlots}. Upgrade to Pro for up to 20 photos.`;
+      warning = warning ? `${warning} ${imageMsg}` : imageMsg;
+      filesToUpload = filtered;
+    }
+  }
+
+  if (filesToUpload.length === 0) {
+    return {
+      newItems: [],
+      updatedItems: currentItems,
+      error: `Photo limit reached (maximum ${maxImages} on Free). Upgrade to Pro for up to 20 photos.`,
+    };
   }
 
   const newItems: PortfolioItem[] = [];

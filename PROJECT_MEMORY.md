@@ -1,5 +1,23 @@
 # PROJECT_MEMORY
 
+## 2026-10-05: Free Card 2 Image Limit and Mobile Image Enlargement
+
+- **Free Tier Image Limit**:
+  - Added `portfolioImages: number` to `PlanLimits` in `shared/plans.ts`: Free set to 2 images, Pro set to 20 images.
+  - Implemented `assertPortfolioAllowed` in `server/billing/gate.ts` and wired into `cards.create` and `cards.update` in `server/routers.ts`. Existing cards above limit remain safe; only adding new images above plan limit is blocked with `FORBIDDEN`.
+  - Added `maxImages` enforcement in `executeBatchUpload` (`client/src/lib/card.ts`): slices batch uploads, blocks uploads when capped, and preserves non-image file uploads with helpful warnings.
+  - Updated `PortfolioEditor` in `client/src/pages/Home.tsx` to display real-time photo quota (`X of 2 photos used (Free plan)`), pro upgrade prompts, and dropzone quota indicators.
+  - Added `"portfolio_images"` to `UpgradeReason` in `client/src/lib/billing.tsx` and `client/src/components/billing/UpgradeDialog.tsx`.
+- **Mobile Image Visibility & Sizing**:
+  - Updated `.photo-carousel-card` in `client/src/index.css`: on mobile (<640px), set `aspect-ratio: 4 / 5; min-height: 360px;` (desktop: `aspect-ratio: 16 / 10; min-height: 280px;`).
+  - Updated `.public-portfolio-item` and `.public-portfolio-item > img` in `client/src/index.css`: on mobile (<=760px), set height to 280px.
+  - Updated `.lx-photo` and `.lx-services-image` in `client/src/components/cardLanding.css`: mobile portrait width increased to `min(220px, 60cqi)` and services image to `aspect-ratio: 1 / 1; min-height: 280px;`.
+  - Increased builder `.portfolio-item-thumb` from 44px to 56px.
+- **Verification**:
+  - `tsc --noEmit`: 0 errors.
+  - `vitest run`: all targeted tests pass.
+  - `npm run build`: built cleanly.
+
 ## 2026-09-26: Planning review & workspace setup
 
 - Cloned repository `almanalaysay93-gif/heyitsme` to `D:\ai mem\heyitsme` at commit `380f5f0dc5f3d3479f0d615f57a1745856dc1b17` (main).

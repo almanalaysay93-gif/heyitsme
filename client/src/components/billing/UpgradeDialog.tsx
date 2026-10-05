@@ -16,6 +16,7 @@ const reasons: Record<UpgradeReason, string> = {
   branding: "Make your card your own",
   card_limit: "Create more cards with Pro",
   analytics: "Unlock long-term analytics with Pro",
+  portfolio_images: "Upload up to 20 photos with Pro",
   lead_warning: "Keep every contact exchange",
   lead_limit: "You've received 10 contact exchanges this month",
 };

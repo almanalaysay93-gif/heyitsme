@@ -438,6 +438,48 @@ describe("free plan enforcement", () => {
       })
     ).resolves.toBeTruthy();
   });
+
+  it("allows up to 2 portfolio photos on Free and refuses a 3rd photo, but keeps existing photos above limit", async () => {
+    const { owner, card } = await ownerWithCard("photo-free@example.com");
+    const twoPhotos = JSON.stringify([
+      { id: "1", kind: "image", url: "https://example.com/1.jpg" },
+      { id: "2", kind: "image", url: "https://example.com/2.jpg" },
+    ]);
+    const threePhotos = JSON.stringify([
+      { id: "1", kind: "image", url: "https://example.com/1.jpg" },
+      { id: "2", kind: "image", url: "https://example.com/2.jpg" },
+      { id: "3", kind: "image", url: "https://example.com/3.jpg" },
+    ]);
+    await expect(
+      callerFor(owner).cards.update({
+        id: card.id,
+        displayName: "Ada Lane",
+        portfolio: twoPhotos,
+      })
+    ).resolves.toBeTruthy();
+
+    await expect(
+      callerFor(owner).cards.update({
+        id: card.id,
+        displayName: "Ada Lane",
+        portfolio: threePhotos,
+      })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    // Existing cards above limit (e.g. from previous Pro subscription) stay safe
+    await db
+      .update(cards)
+      .set({ portfolio: threePhotos })
+      .where(eq(cards.id, card.id));
+
+    await expect(
+      callerFor(owner).cards.update({
+        id: card.id,
+        displayName: "Ada Lane Updated",
+        portfolio: threePhotos,
+      })
+    ).resolves.toBeTruthy();
+  });
 });
 
 describe("Pro 299 tools", () => {

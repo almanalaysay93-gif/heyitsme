@@ -766,9 +766,9 @@
 /* Phones: the portrait supports the name rather than competing with it. */
 @container (max-width: 719px) {
   .lx-photo-wrap { order: -1; }
-  .lx-photo, .lx .lx-photo.lx-frame-portrait { width: 168px; }
+  .lx-photo, .lx .lx-photo.lx-frame-portrait { width: min(220px, 60cqi); }
   .lx-hero-professional, .lx-hero-services { gap: 24px; }
-  .lx-services-image { width: 100%; aspect-ratio: 4 / 3; }
+  .lx-services-image { width: 100%; aspect-ratio: 1 / 1; min-height: 280px; }
   .lx .lx-frame-portrait { padding: 5px; border-radius: calc(var(--radius-media) + 5px); }
   .lx .lx-frame-portrait::after { inset: 5px; }
 }
