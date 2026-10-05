@@ -445,3 +445,9 @@ Owner sent an RSVP on a live event and the Responses counts stayed at 0.
 - `client/src/pages/TeamEvents.tsx`: Share starts from the saved line; its own field still changes the line for that download only.
 - The line counts as part of the QR look: a new one needs event styling (`canStyleEventPages`); a kept one and a reset always save.
 - Gates: `pnpm check` clean, `pnpm test` 521 passed (54 files), `pnpm build` clean. Browser pass on the throwaway PGlite harness, 1280 and 390 wide.
+
+## 2026-10-05 — Landing: "Create your card" signs in first (Claude, merged to `main` 2026-10-05)
+- Owner: "create my card from the landing page i want it lead 1st in the sign in page then lead to the card builder".
+- `client/src/pages/Landing.tsx`: every "Create your card" button sends a signed-out visitor to Google sign-in with `returnTo` `/app/cards/new`; a signed-in visitor goes straight to the builder. Line under the hero buttons now reads "Sign in with Google, then build your card."
+- No server change: `/api/oauth/callback` already honors a same-site `returnTo`. Guest preview is still reachable by opening `/app/cards/new` directly; `Home.tsx` untouched.
+- Gates: `pnpm check` clean, `pnpm test` 521 passed (54 files), `pnpm build` clean. Browser pass on the throwaway PGlite harness, 1280 and 390 wide.
