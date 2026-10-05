@@ -344,3 +344,18 @@ Owner: "in the events builde add a option to add and upload a logo to the qr cod
 - Gates: `pnpm check` clean, `pnpm test` 520 passed (54 files), `pnpm build` clean. One new test.
 - Browser pass on a throwaway PGlite harness (deleted after), 1280 and 390 wide. No console errors, no sideways scroll.
 - Not done: cropping or resizing the logo in the builder; it is fitted into a square as uploaded.
+
+## 2026-10-05 — Buildme run: event QR logo, card-builder style
+
+### Design Read
+Owner: "i ment i want to upload my logo and integrate it to the qr like the card builder".
+
+### Decisions
+- D1: Reuse the card builder's QR editor layout and its "Center logo" row, wording included, in the event Design tab.
+- D2: Offer the heyitsme icon as the card builder does; it is stored as `/favicon.svg`, never as an uploaded file.
+- D3: The card builder's Frame and Caption selects are not copied: events already have a frame color and the caption is set in Share.
+
+### Result (2026-10-05)
+- Gates: `pnpm check` clean, `pnpm test` 520 passed (54 files), `pnpm build` clean.
+- Browser pass on a throwaway PGlite harness (deleted after), 1280 and 390 wide. No console errors, no sideways scroll.
+- Not done: uploading a logo before the event exists.

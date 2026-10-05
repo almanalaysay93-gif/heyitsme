@@ -14,6 +14,7 @@ import {
   EVENT_THEMES,
   EVENT_THEME_LABELS,
   eventLook,
+  EVENT_QR_ICON,
   eventQr,
   newSpeakerId,
   resolveEventSections,
@@ -24,8 +25,9 @@ import {
 } from "@shared/eventPage";
 import { EVENT_FONTS, EVENT_FONT_LABELS, type EventFont } from "@shared/events";
 import { Check, Eye, EyeOff, Image as ImageIcon, RotateCcw, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
+import "./proDesign.css";
 
 type Target = { workspaceId: number; eventId: number };
 export type EventPageChange = (change: (current: EventPage) => EventPage) => void;
@@ -343,6 +345,8 @@ export function EventPageLook({ page, brandColor, companyLogoUrl, canStyle, canU
     else setLogo(null);
     return () => { live = false; };
   }, [logoUrl]);
+  const logoInput = useRef<HTMLInputElement>(null);
+  const setLogoUrl = (next: string) => onChange(current => ({ ...current, qr: { ...current.qr, logoUrl: next } }));
   const code = useMemo(
     () => eventQrSvg(url, { dots: qr.dots, background: qr.background, frame: qr.frame, rounded: qr.rounded }, "Scan to RSVP", logo),
     [url, qr.dots, qr.background, qr.frame, qr.rounded, logo],
@@ -416,18 +420,40 @@ export function EventPageLook({ page, brandColor, companyLogoUrl, canStyle, canU
     <div className="form-section">
       <div className="pd-block">
         <div className="pd-block-head"><h3>QR code</h3><p>The code people scan to open this page. Download it from the event's Share section after you save.</p></div>
-        <div className="event-qr-preview" dangerouslySetInnerHTML={{ __html: code }} />
-        <div className="pd-accent">
-          {QR_FIELDS.map(([key, label]) => <label className="pd-swatch" key={key}>
-            <input type="color" aria-label={`QR ${label.toLowerCase()} color`} disabled={!canStyle} value={page.qr[key] || qr[key]} onChange={event => onChange(current => ({ ...current, qr: { ...current.qr, [key]: event.target.value } }))} />
-            <span>{label}: {page.qr[key] ? page.qr[key].toUpperCase() : key === "frame" ? "Company color" : "Standard"}</span>
-          </label>)}
-          {ownQr ? <button type="button" className="outline-button pd-small-button" onClick={() => onChange(current => ({ ...current, qr: { dots: "", background: "", frame: "", rounded: false, logoUrl: "" } }))}><RotateCcw size={13} aria-hidden="true" /> Reset code</button> : null}
+        {/* Laid out like the QR editor in the card builder: the code on one side, its settings on the other. */}
+        <div className="qr-editor">
+          <div className="event-qr-preview" dangerouslySetInnerHTML={{ __html: code }} />
+          <div className="qr-editor-fields">
+            <div className="qr-field">
+              <span className="qr-field-title">Colors</span>
+              <div className="pd-accent">
+                {QR_FIELDS.map(([key, label]) => <label className="pd-swatch" key={key}>
+                  <input type="color" aria-label={`QR ${label.toLowerCase()} color`} disabled={!canStyle} value={page.qr[key] || qr[key]} onChange={event => onChange(current => ({ ...current, qr: { ...current.qr, [key]: event.target.value } }))} />
+                  <span>{label}: {page.qr[key] ? page.qr[key].toUpperCase() : key === "frame" ? "Company color" : "Standard"}</span>
+                </label>)}
+              </div>
+              <label className="pd-check"><input type="checkbox" checked={page.qr.rounded} disabled={!canStyle && !page.qr.rounded} onChange={event => onChange(current => ({ ...current, qr: { ...current.qr, rounded: event.target.checked } }))} /> Rounded dots</label>
+            </div>
+            <div className="qr-field">
+              <span className="qr-field-title">Center logo</span>
+              <div className="qr-field-row">
+                {page.qr.logoUrl ? <img className="qr-logo-thumb" src={page.qr.logoUrl} alt="" /> : null}
+                <button type="button" className="outline-button pd-small-button" disabled={!canStyle || !canUpload || logoBusy} onClick={() => logoInput.current?.click()}>
+                  {logoBusy ? "Uploading…" : page.qr.logoUrl && page.qr.logoUrl !== EVENT_QR_ICON ? "Replace logo" : "Upload your logo"}
+                </button>
+                {page.qr.logoUrl === EVENT_QR_ICON ? null : <button type="button" className="outline-button pd-small-button" disabled={!canStyle} onClick={() => setLogoUrl(EVENT_QR_ICON)}>Use heyitsme icon</button>}
+                {page.qr.logoUrl ? <button type="button" className="outline-button pd-small-button" onClick={() => setLogoUrl("")}><Trash2 size={13} aria-hidden="true" /> Remove</button> : null}
+              </div>
+              <small>
+                {canUpload ? "A square PNG, JPG or WebP works best, up to 3MB. Test the code with your phone after you add a logo." : "You can upload your own logo once the event is created."}
+                {!page.qr.logoUrl && companyLogoUrl ? " Without one, the code uses your company logo from Brand." : ""}
+              </small>
+              <input ref={logoInput} type="file" hidden accept="image/png,image/jpeg,image/webp" aria-label="QR logo file"
+                onChange={event => { onPickLogo(event.target.files?.[0]); event.target.value = ""; }} />
+            </div>
+            {ownQr ? <button type="button" className="outline-button pd-small-button event-qr-reset" onClick={() => onChange(current => ({ ...current, qr: { dots: "", background: "", frame: "", rounded: false, logoUrl: "" } }))}><RotateCcw size={13} aria-hidden="true" /> Reset code</button> : null}
+          </div>
         </div>
-        <EventImagePicker label="Logo in the code" shape="wide" contain url={page.qr.logoUrl} busy={logoBusy} disabled={!canUpload || !canStyle}
-          hint={!canUpload ? "Add it once the event is created." : companyLogoUrl ? "JPG, PNG or WebP, up to 3MB. Square logos fit best. Without one, the code uses your company logo from Brand." : "JPG, PNG or WebP, up to 3MB. Square logos fit best."}
-          onPick={onPickLogo} onClear={() => onChange(current => ({ ...current, qr: { ...current.qr, logoUrl: "" } }))} />
-        <label className="pd-check"><input type="checkbox" checked={page.qr.rounded} disabled={!canStyle && !page.qr.rounded} onChange={event => onChange(current => ({ ...current, qr: { ...current.qr, rounded: event.target.checked } }))} /> Rounded dots</label>
         {canStyle ? null : <p className="field-hint event-look-note">{STYLING_OFF}</p>}
         {qr.note ? <p className="field-hint event-look-note" role="status">{qr.note}</p> : null}
       </div>
