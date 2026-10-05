@@ -477,3 +477,10 @@ Owner sent an RSVP on a live event and the Responses counts stayed at 0.
 - Landing nav "Sign in" (`landing3d.css`): outlined pill on desktop; still hidden on mobile, where the menu has its own.
 - Rule from here: text with no shape is for navigation links only (footer legal links, nav anchors).
 - Gates: `pnpm check` clean, `pnpm test` 525 passed (54 files), `pnpm build` clean, run on a tree that also held another session's uncommitted work. Browser pass on the throwaway PGlite harness, 1280 and 390 wide.
+
+## 2026-10-05 — Contact-person title badge readable (Claude, branch `fix/designed-accent-text`, not merged)
+- Owner: "i cant see my title because of the effect". Role badge under "Contact persons & office in-charge" was pale blue on a pale pill.
+- Cause: a custom Pro design keeps its palette class; Midnight lifts accent text toward white, unreadable on a light design.
+- `proDesign.css`: `.lx.lx-designed` sets `--accent-ink: var(--accent-text)` (checked against the design's base color). Covers all accent text on designed cards.
+- `cardLanding.css`: `.lx-officer-badge` text is `--ink`, with an accent tint and hairline edge.
+- Gates: `pnpm check` clean, `pnpm test` 525 passed, `pnpm build` clean. Measured 11.4:1 or better in every palette. Not checked against a real saved Pro design.

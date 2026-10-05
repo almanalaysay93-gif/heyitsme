@@ -194,6 +194,9 @@
   --sheen: color-mix(in srgb, var(--design-ink) 14%, transparent);
   --pill-fill: color-mix(in srgb, var(--design-base) 62%, transparent);
   --pill-hover: color-mix(in srgb, var(--design-base) 80%, transparent);
+  /* Accent-colored text is checked against the design's base color. Without this the dark palette lifts the
+     accent toward white, which disappears on a light design. */
+  --accent-ink: var(--accent-text);
 }
 .lx-designed .lx-aurora {
   display: none;

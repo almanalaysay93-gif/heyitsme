@@ -390,3 +390,18 @@ Reading this as: a button-clarity pass across the heyitsme app and public pages,
 - Gates: `pnpm check` clean, `pnpm test` 525 passed (54 files), `pnpm build` clean.
 - Browser pass on a throwaway PGlite harness (deleted after), 1280 and 390 wide: landing, demo card footer, overview, card builder, event builder. Every quiet button has a fill and is 44px tall. No console errors, no sideways scroll.
 - Not seen in the browser: contacts and billing quiet buttons (the harness account has no contacts or paid plan). Same classes, same rules.
+
+## Run: contact-person title badge readable (branch `fix/designed-accent-text`)
+
+### Cause
+A card with a custom Pro design keeps its palette class. Under the Midnight palette, accent-colored text is lifted toward white, which is right on dark glass and unreadable on a light design. The role badge showed pale blue text on a pale pill.
+
+### Decisions
+- D1: `.lx.lx-designed` resets `--accent-ink` to `--accent-text`, which is already checked at 4.5:1 against the design's base color. Fixes every accent-colored text on designed cards, not only the badge.
+- D2: `.lx-officer-badge` text uses `--ink`; the accent stays as the tint and a hairline edge. Accent text on an accent tint measured 4.63:1, too close to the limit.
+- D3: CSS only. `CardLanding.tsx` untouched.
+
+### Result (2026-10-05)
+- Gates: `pnpm check` clean, `pnpm test` 525 passed (54 files), `pnpm build` clean.
+- Browser pass on a throwaway PGlite harness (deleted after), 390 wide, demo card with a badge injected: 11.4:1 on a light design under all three palettes; 11.7:1 to 13.1:1 on plain Tide, Sunset and Midnight.
+- Not seen in the browser: a real saved Pro design with contact persons (the harness has none; the design variables were set by hand).
