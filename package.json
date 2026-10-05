@@ -63,6 +63,7 @@
     "dotenv": "^17.2.2",
     "drizzle-orm": "^0.45.3",
     "embla-carousel-react": "^8.6.0",
+    "embla-carousel-wheel-gestures": "^8.1.0",
     "express": "^4.22.3",
     "fflate": "^0.8.2",
     "framer-motion": "^12.23.22",

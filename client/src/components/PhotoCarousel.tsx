@@ -1,5 +1,6 @@
 import type { PortfolioItem } from "@/lib/card";
 import useEmblaCarousel from "embla-carousel-react";
+import { WheelGesturesPlugin } from "embla-carousel-wheel-gestures";
 import { ChevronLeft, ChevronRight, Maximize2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -9,11 +10,15 @@ interface PhotoCarouselProps {
 }
 
 export function PhotoCarousel({ items, onSelectPhoto }: PhotoCarouselProps) {
-  const [emblaRef, emblaApi] = useEmblaCarousel({
-    loop: items.length > 1,
-    align: "start",
-    skipSnaps: false,
-  });
+  const isLoop = items.length > 1;
+  const [emblaRef, emblaApi] = useEmblaCarousel(
+    {
+      loop: isLoop,
+      align: "start",
+      skipSnaps: false,
+    },
+    [WheelGesturesPlugin()]
+  );
 
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [scrollSnaps, setScrollSnaps] = useState<number[]>([]);
@@ -42,8 +47,16 @@ export function PhotoCarousel({ items, onSelectPhoto }: PhotoCarouselProps) {
     setCanScrollNext(emblaApi.canScrollNext());
   }, [emblaApi]);
 
+  const onSlideClick = useCallback(
+    (index: number) => {
+      onSelectPhoto(index);
+    },
+    [onSelectPhoto]
+  );
+
   useEffect(() => {
     if (!emblaApi) return;
+    emblaApi.reInit();
     setScrollSnaps(emblaApi.scrollSnapList());
     onSelect();
     emblaApi.on("select", onSelect);
@@ -52,7 +65,7 @@ export function PhotoCarousel({ items, onSelectPhoto }: PhotoCarouselProps) {
       emblaApi.off("select", onSelect);
       emblaApi.off("reInit", onSelect);
     };
-  }, [emblaApi, onSelect]);
+  }, [emblaApi, items, onSelect]);
 
   if (!items.length) return null;
 
@@ -74,7 +87,7 @@ export function PhotoCarousel({ items, onSelectPhoto }: PhotoCarouselProps) {
             <div
               className="photo-carousel-slide"
               key={item.id || index}
-              onClick={() => onSelectPhoto(index)}
+              onClick={() => onSlideClick(index)}
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
@@ -90,6 +103,7 @@ export function PhotoCarousel({ items, onSelectPhoto }: PhotoCarouselProps) {
                   src={item.url}
                   alt={item.description || "Photo"}
                   loading="lazy"
+                  draggable={false}
                   className="photo-carousel-img"
                 />
                 {item.description ? (
@@ -135,7 +149,7 @@ export function PhotoCarousel({ items, onSelectPhoto }: PhotoCarouselProps) {
               type="button"
               className="photo-carousel-arrow"
               onClick={scrollPrev}
-              disabled={!canScrollPrev && !emblaApi?.canScrollPrev()}
+              disabled={!isLoop && !canScrollPrev}
               aria-label="Previous slide"
             >
               <ChevronLeft size={18} />
@@ -144,7 +158,7 @@ export function PhotoCarousel({ items, onSelectPhoto }: PhotoCarouselProps) {
               type="button"
               className="photo-carousel-arrow"
               onClick={scrollNext}
-              disabled={!canScrollNext && !emblaApi?.canScrollNext()}
+              disabled={!isLoop && !canScrollNext}
               aria-label="Next slide"
             >
               <ChevronRight size={18} />

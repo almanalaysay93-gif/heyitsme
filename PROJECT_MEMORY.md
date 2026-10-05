@@ -1,6 +1,24 @@
 # PROJECT_MEMORY
 
-## 2026-10-05: Free Card 2 Image Limit and Mobile Image Enlargement
+## 2026-10-05: Photo Carousel Gestures, Dragging and Infinite Loop Fix
+
+- **Root Causes**:
+  1. HTML5 native image drag (`dragstart`) triggered whenever user clicked and dragged photos, cancelling pointermove/drag events in the browser.
+  2. Embla Carousel flex container `gap: 16px` caused slide spacing desync and snapping locks during loop transitions.
+  3. No wheel / touchpad gesture handling for desktop trackpads and mouse wheel.
+  4. Slide `onClick` lacked drag-vs-click separation, intercepting swipes with lightbox modals.
+  5. Arrow buttons conditionally disabled despite infinite loop being enabled.
+- **Fixes**:
+  - Installed and configured `embla-carousel-wheel-gestures` for smooth trackpad and mouse wheel navigation.
+  - Set `draggable={false}`, `user-select: none`, `-webkit-user-drag: none`, and `pointer-events: none` on `.photo-carousel-img` to eliminate ghost image dragging.
+  - Converted container from CSS `gap: 16px` to Embla-standard `margin-left: -16px` on container and `padding-left: 16px` on slides.
+  - Added `touch-action: pan-y pinch-zoom` and `user-select: none` across viewport, container, and slides.
+  - Updated previous/next buttons to never lock disabled when looping (`!isLoop && !canScrollNext`).
+  - Added `emblaApi.reInit()` when `items` change and wrapped dots with `flex-wrap: wrap`.
+- **Verification**:
+  - `tsc --noEmit`: 0 errors.
+  - `vitest run`: all 525 tests pass.
+  - Chrome DevTools tests: mouse drag, chevron clicks, dot jumps, and loop wrap end-to-end verified.
 
 - **Free Tier Image Limit**:
   - Added `portfolioImages: number` to `PlanLimits` in `shared/plans.ts`: Free set to 2 images, Pro set to 20 images.
@@ -484,3 +502,8 @@ Owner sent an RSVP on a live event and the Responses counts stayed at 0.
 - `proDesign.css`: `.lx.lx-designed` sets `--accent-ink: var(--accent-text)` (checked against the design's base color). Covers all accent text on designed cards.
 - `cardLanding.css`: `.lx-officer-badge` text is `--ink`, with an accent tint and hairline edge.
 - Gates: `pnpm check` clean, `pnpm test` 525 passed, `pnpm build` clean. Measured 11.4:1 or better in every palette. Not checked against a real saved Pro design.
+
+## 2026-10-05 — "Ask for <name>" line removed from Business cards (Claude, branch `fix/remove-ask-for-byline`, not merged)
+- Owner: "remove the ask for share". Business hero showed "Ask for <display name>, <title>" under the action buttons whenever a company was set.
+- `CardLanding.tsx`: line removed from the Business hero. `cardLanding.css`: the two `.lx-byline` rules it used are gone; `.lx-byline-*` roster rules stay.
+- Gates: `pnpm check` clean, `pnpm test` 525 passed, `pnpm build` clean. Not opened in a browser.

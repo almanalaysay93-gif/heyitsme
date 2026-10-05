@@ -840,6 +840,9 @@ main[tabindex="-1"]:focus { outline: 0; }
   border-radius: 24px;
   cursor: grab;
   outline: none;
+  touch-action: pan-y pinch-zoom;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .photo-carousel-viewport:active {
   cursor: grabbing;
@@ -850,15 +853,19 @@ main[tabindex="-1"]:focus { outline: 0; }
 }
 .photo-carousel-container {
   display: flex;
-  gap: 16px;
+  margin-left: -16px;
   touch-action: pan-y pinch-zoom;
 }
 .photo-carousel-slide {
   flex: 0 0 100%;
   min-width: 0;
+  padding-left: 16px;
   position: relative;
   outline: none;
   cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 /* One photo fills the row, so no sliver of the next one shows. Taller on phones, where the row is narrow. */
 .photo-carousel-card {
@@ -871,6 +878,8 @@ main[tabindex="-1"]:focus { outline: 0; }
   box-shadow: 0 16px 36px rgba(15, 20, 40, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.18);
   transition: transform 0.35s var(--ease-out), box-shadow 0.35s var(--ease-out);
+  user-select: none;
+  -webkit-user-select: none;
 }
 @media (min-width: 640px) {
   .photo-carousel-card {
@@ -887,6 +896,10 @@ main[tabindex="-1"]:focus { outline: 0; }
   height: 100%;
   object-fit: cover;
   display: block;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
   transition: transform 0.7s var(--ease-out);
 }
 .photo-carousel-slide:hover .photo-carousel-img {
@@ -960,6 +973,8 @@ main[tabindex="-1"]:focus { outline: 0; }
   display: flex;
   gap: 6px;
   align-items: center;
+  flex-wrap: wrap;
+  max-width: calc(100% - 90px);
 }
 .photo-carousel-dot {
   width: 8px;
