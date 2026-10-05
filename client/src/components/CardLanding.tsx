@@ -416,11 +416,6 @@ export function CardLanding(props: CardLandingProps) {
             <>
               {card.bio ? <p className="lx-lead">{card.bio}</p> : null}
               {actions}
-              {card.company ? (
-                <p className="lx-byline">
-                  Ask for <strong>{card.displayName}</strong>{card.title ? `, ${card.title}` : ""}
-                </p>
-              ) : null}
               {socials}
             </>,
           )}

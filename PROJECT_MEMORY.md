@@ -503,7 +503,7 @@ Owner sent an RSVP on a live event and the Responses counts stayed at 0.
 - `cardLanding.css`: `.lx-officer-badge` text is `--ink`, with an accent tint and hairline edge.
 - Gates: `pnpm check` clean, `pnpm test` 525 passed, `pnpm build` clean. Measured 11.4:1 or better in every palette. Not checked against a real saved Pro design.
 
-## 2026-10-05 — "Ask for <name>" line removed from Business cards (Claude, branch `fix/remove-ask-for-byline`, not merged)
+## 2026-10-05 — "Ask for <name>" line removed from Business cards (Claude, merged to `main` 2026-10-05)
 - Owner: "remove the ask for share". Business hero showed "Ask for <display name>, <title>" under the action buttons whenever a company was set.
 - `CardLanding.tsx`: line removed from the Business hero. `cardLanding.css`: the two `.lx-byline` rules it used are gone; `.lx-byline-*` roster rules stay.
 - Gates: `pnpm check` clean, `pnpm test` 525 passed, `pnpm build` clean. Not opened in a browser.
