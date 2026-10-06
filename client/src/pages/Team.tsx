@@ -1,3 +1,5 @@
+import TeamPay from "@/components/billing/TeamPay";
+import { formatPeso } from "@shared/plans";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { AppShell } from "@/components/AppShell";
 import { startGoogleLogin } from "@/const";
@@ -70,6 +72,8 @@ export function TeamHome() {
   const teams = trpc.teams.list.useQuery(undefined, { enabled: signedIn && !blocked, retry: false });
   const utils = trpc.useUtils();
   const create = trpc.teams.create.useMutation();
+  const offer = trpc.billing.offer.useQuery(undefined, { enabled: signedIn && !blocked, staleTime: 5 * 60_000, retry: false });
+  const paid = offer.data?.teams.checkoutOpen ? offer.data.teams : null;
   const [form, setForm] = useState(EMPTY_FORM);
   if (blocked) return blocked;
 
@@ -92,6 +96,7 @@ export function TeamHome() {
       <h2>Start a new team</h2>
       <form onSubmit={submit}>
         <WorkspaceFields form={form} onChange={setForm} full={false} />
+        {paid ? <p>Teams is {formatPeso(paid.priceMinor)} a month for each team, with {paid.seats} seats. Creating the team charges nothing. You pay on its Billing tab, and the team opens for changes once it is paid.</p> : null}
         <div className="gr-actions"><button className="gr-primary" disabled={create.isPending}>{create.isPending ? "Creating..." : "Create team"}</button></div>
         {create.error ? <p role="alert" className="gr-error">{create.error.message}</p> : null}
       </form>
@@ -105,6 +110,7 @@ const ACTIVITY: Record<string, string> = {
   "workspace.closed": "closed the team",
   "workspace.ownership_transferred": "made someone else the owner",
   "plan.updated": "changed the team's seats or plan date",
+  "plan.paid": "paid for the team's plan",
   "member.invited": "invited",
   "member.invite_resent": "sent an invitation again",
   "member.invite_cancelled": "cancelled the invitation for",
@@ -207,7 +213,8 @@ export function TeamWorkspace() {
 
   return <AppShell area={workspace.name} crumb={tab} current={workspace.id} navLabel="Team" nav={nav} profileNote={ROLE_LABELS[me.role]}>
     <header className="gr-heading"><div><span className="section-kicker">Team · {ROLE_LABELS[me.role]}</span><h1>{workspace.name}</h1>{workspace.description ? <p>{workspace.description}</p> : null}</div></header>
-    {team.data.planEnded ? <section className="team-notice" role="status"><p><strong>This team's plan has ended.</strong> Everything is still here to view and download, and company cards stay online. Changes are paused until the plan is renewed.</p></section> : null}
+    {team.data.planState === "unpaid" ? <section className="team-notice" role="status"><p><strong>This team is not paid for yet.</strong> It is here to look at. It opens for changes as soon as its plan is paid.</p>{me.role === "owner" && tab !== "Billing" ? <div className="gr-actions"><button type="button" className="gr-primary" onClick={() => setTab("Billing")}>Go to Billing</button></div> : null}</section>
+      : team.data.planEnded ? <section className="team-notice" role="status"><p><strong>This team's plan has ended.</strong> Everything is still here to view and download, and company cards stay online. Changes are paused until the plan is renewed.</p>{me.role === "owner" && tab !== "Billing" ? <div className="gr-actions"><button type="button" className="gr-primary" onClick={() => setTab("Billing")}>Go to Billing</button></div> : null}</section> : null}
     {tab === "Overview" ? <Overview workspaceId={workspace.id} admin={admin} onOpen={setTab} /> : null}
     {tab === "Members" ? <Members workspaceId={workspace.id} /> : null}
     {tab === "Cards" ? <TeamCards workspaceId={workspace.id} companyName={workspace.name} /> : null}
@@ -390,15 +397,21 @@ function Billing({ workspaceId }: { workspaceId: number }) {
   const billing = trpc.teams.billing.useQuery({ workspaceId });
   if (billing.isLoading) return <section className="gr-panel" role="status">Loading...</section>;
   if (!billing.data) return <section className="gr-panel"><p role="alert" className="gr-error">{billing.error?.message ?? "Billing could not be loaded."}</p></section>;
-  const { seats, accessUntil, ended } = billing.data;
+  const { seats, accessUntil, ended, state, plan } = billing.data;
+  const price = `${formatPeso(plan.priceMinor)} a month`;
   const metrics: [string, number][] = [["Seats in use", seats.used], ["Seats on this team", seats.allowed], ["Free seats", seats.free]];
   return <section className="gr-panel">
     <h2>Billing</h2>
     <div className="gr-metrics team-metrics">{metrics.map(([label, value]) => <div key={label}><strong>{value}</strong><span>{label}</span></div>)}</div>
     <p>{seats.active} active, {seats.invited} invited, {seats.suspended} suspended. Each of them holds a seat. Removing a person or cancelling an invitation frees it.</p>
     {seats.used > seats.allowed ? <p role="status"><strong>This team has more people than seats.</strong> Nobody is removed, but new invitations wait until there is a free seat.</p> : null}
-    <p>{ended ? `The plan ended on ${day(accessUntil)}.` : accessUntil ? `The plan runs until ${day(accessUntil)}.` : "This team has no end date."}</p>
-    <p className="gr-attribution">Seat prices for Teams are not set yet, so there is nothing to pay here. To change the number of seats, contact heyitsme.</p>
+    <p>{state === "unpaid" ? "This team is not paid for yet." : ended ? `The plan ended on ${day(accessUntil)}.` : accessUntil ? `The plan runs until ${day(accessUntil)}.` : "This team has no end date."}</p>
+    {state === "free" ? <p className="gr-attribution">This team has no end date, so there is nothing to pay here. To change the number of seats, contact heyitsme.</p>
+      : plan.checkoutOpen ? <>
+        <p>Teams is {price} for each team, with {plan.seats} seats. {state === "active" ? "Paying now adds one month after the date above." : "Paying opens the team for one month from today."} If the plan runs out, nothing is deleted.</p>
+        <div className="gr-actions"><TeamPay workspaceId={workspaceId} channels={plan.channels} priceMinor={plan.priceMinor} verb={state === "active" ? "Renew early:" : "Pay"} buttonClass={state === "active" ? "gr-secondary" : "gr-primary"} /></div>
+        <p className="gr-attribution">You pay on the payment provider's page and come back to your Billing page. For more than {plan.seats} seats, contact heyitsme.</p>
+      </> : <p className="gr-attribution">Checkout for Teams is not open right now. To renew or change seats, contact heyitsme.</p>}
   </section>;
 }
 

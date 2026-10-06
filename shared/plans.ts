@@ -87,6 +87,12 @@ export const PRICES_MINOR = {
   pro: { monthly: 29900 },
 } as const;
 
+/**
+ * Teams is bought for a team, not for an account: one flat monthly price with seats included.
+ * More seats are set by heyitsme for a team. They are not sold at checkout.
+ */
+export const TEAMS_PLAN = { priceMinor: 149900, seats: 10 } as const;
+
 export function planPriceMinor(plan: PaidPlanCode, cycle: BillingCycle,
   _founding = false
 ): number {

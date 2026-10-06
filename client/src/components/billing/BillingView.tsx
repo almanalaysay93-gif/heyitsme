@@ -2,9 +2,11 @@ import { PLAN_LABELS, useBilling, useUpgrade } from "@/lib/billing";
 import { trpc } from "@/lib/trpc";
 import { formatPeso } from "@shared/plans";
 import { motion } from "framer-motion";
-import { CreditCard, Receipt, Sparkles } from "lucide-react";
+import { CreditCard, Receipt } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useLocation } from "wouter";
+import PlanCards from "./PlanCards";
 import "./billing.css";
 
 const dateText = (value: Date | string) => new Date(value).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric",
@@ -44,6 +46,7 @@ function usePaymentReturn() {
     if (status.data?.status === "succeeded") {
       void utils.billing.me.invalidate();
       void utils.billing.paymentHistory.invalidate();
+      void utils.billing.teamPlans.invalidate();
     }
   }, [status.data?.status, utils]);
   const dismiss = () => {
@@ -51,7 +54,7 @@ function usePaymentReturn() {
     url.searchParams.delete("payment");
     window.history.replaceState(null, "", url.pathname + url.search);
   };
-  return { valid, status: status.data?.status, gaveUp: attempts >= 40, dismiss, isError: status.isError,
+  return { valid, status: status.data?.status, teamId: status.data?.workspaceId ?? null, forTeam: status.data?.planCode === "teams", gaveUp: attempts >= 40, dismiss, isError: status.isError,
   };
 }
 
@@ -64,6 +67,7 @@ export default function BillingView() {
   const utils = trpc.useUtils();
   const { openUpgrade } = useUpgrade();
   const returned = usePaymentReturn();
+  const [, navigate] = useLocation();
 
   if (billing.isLoading) return (
       <div className="page-stack"><div className="glass-panel billing-panel" aria-busy="true">Loading your plan…</div></div>
@@ -107,14 +111,15 @@ export default function BillingView() {
     usage.leads.limit === null
       ? `${usage.leads.used} this month · unlimited`
       : `${usage.leads.used} / ${usage.leads.limit} this month`;
+  const bought = returned.forTeam ? "your team's plan" : "Pro";
   const returnMessage = !returned.valid
     ? ""
     : returned.status === "succeeded"
-      ? "Payment confirmed. Pro is on."
+      ? returned.forTeam ? "Payment confirmed. Your team's plan is on." : "Payment confirmed. Pro is on."
       : returned.status === "failed"
-        ? "The payment did not go through, so Pro is not on. You can try again."
+        ? `The payment did not go through, so ${bought} is not on. You can try again.`
         : returned.gaveUp || returned.isError
-          ? "We're still waiting for the payment result. If you paid, Pro turns on as soon as it arrives. Refresh this page in a few minutes."
+          ? `We're still waiting for the payment result. If you paid, ${bought} turns on as soon as it arrives. Refresh this page in a few minutes.`
           : "Confirming your payment…";
 
   return (
@@ -144,6 +149,9 @@ export default function BillingView() {
           aria-live="polite"
         >
           <span>{returnMessage}</span>
+          {returned.status === "succeeded" && returned.teamId ? (
+            <button type="button" className="outline-button" onClick={() => navigate(`/app/team/${returned.teamId}`)}>Open team</button>
+          ) : null}
           {returned.status &&
           returned.status !== "pending" &&
           returned.status !== "created" ? (
@@ -198,17 +206,7 @@ export default function BillingView() {
             </>
           ) : (
             <>
-              <p className="billing-meta">Your profile, QR code and card link stay free and never expire.
-                Pro includes 5 cards, unlimited contact exchanges, 365-day
-                analytics, premium colors, gradients, animations, advanced QR,
-                QR campaigns and branding removal.
-              </p>
-              <div className="billing-actions">
-                <button type="button" className="glass-button glass-button-primary" onClick={() => openUpgrade("general")}>
-                  <Sparkles size={15} aria-hidden="true" /> Upgrade to Pro ?
-                  ?299/month
-                </button>
-              </div>
+              <p className="billing-meta">Your profile, QR code and card link stay free and never expire. Every plan and its price is listed below.</p>
             </>
           )}
         </section>
@@ -238,6 +236,8 @@ export default function BillingView() {
         </section>
       </div>
 
+      <PlanCards plan={ent.plan} offer={billing.data} onUpgrade={() => openUpgrade("general")} />
+
       <section
         className="glass-panel billing-panel"
         aria-labelledby="billing-history-heading"
@@ -263,7 +263,7 @@ export default function BillingView() {
             {history.data.map(payment => (
               <li key={payment.invoiceNo}>
                 <span>
-                  <strong>Pro</strong>
+                  <strong>{payment.planCode === "teams" ? "Teams" : "Pro"}</strong>
                   <small>
                     {dateText(payment.createdAt)} ·{" "}
                     {payment.channel === "gcash" ? "GCash" : "Google Pay"} · #

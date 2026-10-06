@@ -13,12 +13,14 @@ import {
   type TeamCapability,
   type WorkspaceRole,
 } from "@shared/teams";
+import { TEAMS_PLAN } from "@shared/plans";
 import { cards, contacts, users, workspaceAuditLog, workspaceInvitations, workspaceMembers, workspaces } from "../../drizzle/schema";
 import { ENV } from "../_core/env";
 import { sendMail, teamInviteMail } from "../_core/mail";
 import { clientIp, hashIdentifier, rateLimit } from "../_core/rateLimit";
 import { siteOrigin } from "../_core/seo";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "../_core/trpc";
+import { enabledChannels, teamsCheckoutOpen } from "../billing/checkout";
 import type { Db } from "../billing/service";
 import { getDb } from "../db";
 import {
@@ -28,7 +30,7 @@ import {
   requireWorkspaceMember,
   requireWorkspaceOwner,
 } from "./access";
-import { assertTeamCapability, planEnded, runTeamCall, seatAllowance, teamEntitlements } from "./entitlements";
+import { assertTeamCapability, planEnded, runTeamCall, seatAllowance, teamEntitlements, teamPlanState } from "./entitlements";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -225,9 +227,12 @@ export const teamsRouter = router({
       if ((owned?.total ?? 0) >= MAX_OWNED_WORKSPACES) {
         throw new TRPCError({ code: "FORBIDDEN", message: `You can own up to ${MAX_OWNED_WORKSPACES} teams.` });
       }
+      // While Teams is sold, a new team starts unpaid: it is there to look at, and opens for changes once paid.
+      const now = new Date();
+      const plan = teamsCheckoutOpen() ? { seatLimit: TEAMS_PLAN.seats, accessUntil: now, createdAt: now } : {};
       const [workspace] = await tx
         .insert(workspaces)
-        .values({ ...input, timezone: input.timezone ?? "Asia/Manila", createdBy: ctx.user.id })
+        .values({ ...input, ...plan, timezone: input.timezone ?? "Asia/Manila", createdBy: ctx.user.id })
         .returning();
       await tx.insert(workspaceMembers).values({ workspaceId: workspace.id, userId: ctx.user.id, email, role: "owner", status: "active", joinedAt: new Date() });
       await recordAudit(tx, { workspaceId: workspace.id, actorUserId: ctx.user.id, action: "workspace.created", entityType: "workspace", entityId: workspace.id });
@@ -243,6 +248,7 @@ export const teamsRouter = router({
       me: { memberId: member.id, role: member.role, jobTitle: member.jobTitle },
       entitlements: teamEntitlements(workspace),
       planEnded: planEnded(workspace),
+      planState: teamPlanState(workspace),
     };
   }),
 
@@ -614,7 +620,7 @@ export const teamsRouter = router({
     return { ok: true } as const;
   }),
 
-  /** Seats and plan dates, for the owner. There is no price here: Teams pricing is not set. */
+  /** Seats, plan dates and what the plan costs, for the owner. Paying starts in billing.createTeamCheckout. */
   billing: memberProcedure.input(z.object({ workspaceId: id })).query(async ({ ctx, input }) => {
     const db = await requireDb();
     const { workspace } = await requireWorkspaceOwner(db, ctx.user.id, input.workspaceId);
@@ -624,6 +630,8 @@ export const teamsRouter = router({
       seats: { ...usage, allowed, free: Math.max(0, allowed - usage.used) },
       accessUntil: workspace.accessUntil,
       ended: planEnded(workspace),
+      state: teamPlanState(workspace),
+      plan: { checkoutOpen: teamsCheckoutOpen(), channels: teamsCheckoutOpen() ? enabledChannels() : [], priceMinor: TEAMS_PLAN.priceMinor, seats: TEAMS_PLAN.seats },
     };
   }),
 

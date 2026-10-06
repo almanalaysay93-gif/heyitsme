@@ -4,16 +4,20 @@ import { clientIp, hashIdentifier, rateLimit } from "../_core/rateLimit";
 import { logJson, siteOrigin } from "../_core/seo";
 import { getDb, getUserById } from "../db";
 import { getPaymentProvider, reconcileInvoice } from "./checkout";
-import { paymentSucceededMail } from "./mail";
+import { paymentSucceededMail, teamPaymentSucceededMail } from "./mail";
 import type { SettleOutcome } from "./service";
 
 const INVOICE = /^[A-Za-z0-9]{1,50}$/;
 
 export async function notifyActivation(outcome: SettleOutcome, origin: string) {
-  if (outcome.outcome !== "activated") return;
+  if (outcome.outcome !== "activated" && outcome.outcome !== "team_activated") return;
   try {
     const user = await getUserById(outcome.userId);
     if (!user?.email) return;
+    if (outcome.outcome === "team_activated") {
+      await sendMail(teamPaymentSucceededMail({ to: user.email, periodEnd: outcome.periodEnd, teamUrl: `${origin}/app/team/${outcome.workspaceId}` }));
+      return;
+    }
     await sendMail(paymentSucceededMail({ to: user.email, periodEnd: outcome.periodEnd, foundingNumber: outcome.foundingMemberNumber, billingUrl: `${origin}/app/billing` }));
   } catch (error) {
     console.error("[Mail] could not send payment confirmation:", error);
