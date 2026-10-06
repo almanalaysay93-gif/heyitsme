@@ -1,3 +1,5 @@
+import { PausedPage } from "@/components/PausedPage";
+import { isPausedError } from "@shared/hold";
 import { LogoLoader } from "@/components/BrandMark";
 import { CardLanding } from "@/components/CardLanding";
 import { InfoDialog } from "@/components/InfoDialog";
@@ -105,6 +107,8 @@ export default function PublicCardPage() {
       </div>
     );
   }
+  // On hold: the server sends nothing of the card, so there is nothing to fall back to.
+  if (isPausedError(cardQuery.error)) return <PausedPage what="card" />;
   // A guest preview lives in this browser, so it still opens when the lookup fails.
   if (cardQuery.isError && !card) {
     return (

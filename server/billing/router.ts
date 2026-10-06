@@ -21,6 +21,7 @@ import { requireWorkspaceOwner } from "../teams/access";
 import { assertTeamCapability, teamPlanState } from "../teams/entitlements";
 import { CheckoutClosedError, enabledChannels, enabledCycles, reconcileInvoice, startCheckout, startTeamCheckout, teamsCheckoutOpen,
 } from "./checkout";
+import { ownerCardHolds } from "./hold";
 import { notifyActivation } from "./paymentRoutes";
 import { PaymentProviderError } from "./provider";
 import {
@@ -90,10 +91,11 @@ export const billingRouter = router({
     const db = await requireDb();
     const now = new Date();
     const ent = await getUserEntitlements(db, ctx.user, now);
-    const [cardsUsed, leads, subs] = await Promise.all([
+    const [cardsUsed, leads, subs, cardHolds] = await Promise.all([
       countOwnedCards(db, ctx.user.id),
       getLeadUsage(db, ctx.user.id, ent.limits.monthlyLeads, now),
       getUserSubscriptions(db, ctx.user.id),
+      ownerCardHolds(db, ctx.user.id, now),
     ]);
     const current = subs.find(sub =>
       subscriptionGrantsAccess(
@@ -104,6 +106,8 @@ export const billingRouter = router({
     );
     return {
       entitlements: ent,
+      // After Pro ends: the cards that are paused, or will be, and what each one must drop. null otherwise.
+      cardHolds,
       insightRanges: allowedInsightRanges(ent),
       usage: {
         cards: { used: cardsUsed, limit: ent.limits.cards },

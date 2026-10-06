@@ -90,7 +90,7 @@ export default function BillingView() {
   const onCancel = async () => {
     try {
       const result = await cancel.mutateAsync();
-      toast.success(`Pro stays on until ${dateText(result.currentPeriodEnd)}. Nothing is deleted after that.`
+      toast.success(`Pro stays on until ${dateText(result.currentPeriodEnd)}. After that, cards that still use a Pro feature are paused 3 days later. Nothing is deleted.`
       );
       await refresh();
     } catch (error: any) {
@@ -190,7 +190,7 @@ export default function BillingView() {
               </p>
               <p className="billing-meta">
                 {subscription.cancelAtPeriodEnd
-                  ? `Canceled. Pro stays on until ${dateText(subscription.currentPeriodEnd)}, then your account moves to Free. Nothing is deleted.`
+                  ? `Canceled. Pro stays on until ${dateText(subscription.currentPeriodEnd)}, then your account moves to Free. Three days later, cards that still use a Pro feature are paused. Nothing is deleted.`
                   : `Paid through ${dateText(subscription.currentPeriodEnd)}. We'll remind you before it ends.`}
               </p>
               <div className="billing-actions">

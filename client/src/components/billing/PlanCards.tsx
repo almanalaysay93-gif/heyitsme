@@ -144,7 +144,7 @@ export default function PlanCards({ plan, offer, onUpgrade }: { plan: PlanCode; 
             featured={plan !== "free"}
             features={teamFeatures(teams.seats)}
             fine={teams.checkoutOpen
-              ? "Paid one month at a time by the team's owner. If it ends, the team can still be viewed and downloaded. Nothing is deleted."
+              ? "Paid one month at a time by the team's owner. If it ends and is not renewed within 3 days, the team is put on hold until it is paid. Nothing is deleted."
               : "Paid sign-up for Teams is not open yet, so starting a team costs nothing today."}
           >
             {!teams.checkoutOpen ? (

@@ -1,4 +1,6 @@
+import { PausedPage } from "@/components/PausedPage";
 import { usePageMeta } from "@/hooks/usePageMeta";
+import { isPausedError } from "@shared/hold";
 import { trpc } from "@/lib/trpc";
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "wouter";
@@ -35,6 +37,7 @@ export default function PublicReview() {
     noindex: !page.isLoading && !business,
   });
   if (page.isLoading) return <main className="gr-public" role="status">Loading review page...</main>;
+  if (isPausedError(page.error)) return <PausedPage what="review page" />;
   if (!page.data?.reviewUrl) return <main className="gr-public" id="main"><h1>Review page unavailable</h1><p>This link is no longer active.</p><Link href="/" className="link-button">Go to heyitsme</Link></main>;
   const p = page.data;
   const logo = typeof p.logoUrl === "string" && /^(https?:\/\/|\/(?!\/))/.test(p.logoUrl) ? p.logoUrl : null;

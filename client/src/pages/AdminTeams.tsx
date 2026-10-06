@@ -61,7 +61,7 @@ export default function AdminTeams() {
     <section className="gr-panel">
       <h2>All teams</h2>
       {teams.data.length ? <ul className="team-people">{teams.data.map(team => <TeamRow key={team.id} team={team} onSaved={() => teams.refetch()} />)}</ul> : <p>No teams yet.</p>}
-      <p className="gr-attribution">Lowering seats below the people already on a team removes nobody. It only stops new invitations. A date in the past pauses changes for that team; nothing is deleted and its cards stay online.</p>
+      <p className="gr-attribution">Lowering seats below the people already on a team removes nobody. It only stops new invitations. A date in the past pauses changes for that team, and 3 days after it the team is put on hold: its public pages are paused and it cannot be opened until it is paid. Nothing is deleted. While Teams checkout is open, a team left with no date is given one 14 days away by the daily run, so grant free time with a far date instead.</p>
     </section>
   </AppShell>;
 }

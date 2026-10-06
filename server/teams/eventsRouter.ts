@@ -37,7 +37,8 @@ import type { Db } from "../billing/service";
 import { csvCell } from "../proTools";
 import { storageDelete, storageGetSignedUrl, storagePut } from "../storage";
 import { canManageEvent, recordAudit, requireWorkspaceMember } from "./access";
-import { teamEntitlements } from "./entitlements";
+import { pausedError } from "../billing/hold";
+import { teamEntitlements, teamHeld } from "./entitlements";
 import { id, limit, requireDb, teamProcedure } from "./router";
 
 const eventProcedure = teamProcedure("canCreateEvents");
@@ -665,6 +666,8 @@ async function publicEvent(db: Db, slug: string) {
     .where(and(eq(workspaceEvents.slug, slug), inArray(workspaceEvents.status, [...PUBLIC_EVENT_STATUSES]), isNull(workspaces.deletedAt)))
     .limit(1);
   if (!row) throw notFound();
+  // A team on hold has its event pages and RSVP forms paused.
+  if (teamHeld(row.workspace)) throw pausedError();
   return row;
 }
 
