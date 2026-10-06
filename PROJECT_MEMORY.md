@@ -535,6 +535,13 @@ Owner sent an RSVP on a live event and the Responses counts stayed at 0.
 - `eventLanding.css`: `.lx-event.lx-has-cover { display: flow-root; }` so the banner starts at the top edge (the nav's 10px margin otherwise pushes it down; card pages still have that 10px gap). The builder preview keeps the banner still.
 - Checked with mocked event data on a static build: Tide, Midnight, Sunset flat, with page background, without banner; phone and desktop; no console errors, no sideways scroll. Not checked against a real event or in the signed-in builder.
 
+## 2026-10-06 — Landing page names the Teams price (Claude, branch `fix/landing-teams-price`, merged to main)
+
+- Owner request: fix the landing page, which still said Teams was "coming soon".
+- `client/src/pages/Landing.tsx`, pricing list: now "Teams ₱1,499/month for each team, 10 seats" and "Teams: one brand across your whole team". Price and seats come from `TEAMS_PLAN`.
+- The landing redesign that sits uncommitted in the main folder (another session) still has the old "coming soon" line. It needs the same change when it lands, or it will bring the old text back.
+- `pnpm check`, `pnpm test` (540 passed, 3 skipped) and `pnpm build` clean. The prerendered landing page holds the new lines. Not looked at in a browser.
+
 ## 2026-10-06 — Teams price on the public Pricing page (Claude, branch `feat/pricing-teams-price`, merged to main)
 
 - Owner request: add a price for Teams on /pricing. Owner confirmed the price: PHP 1,499 a month for each team.
@@ -542,7 +549,6 @@ Owner sent an RSVP on a live event and the Responses counts stayed at 0.
 - `client/src/pages/pricing.css`: three cards in a row, one column under 900px.
 - Billing plan cards renamed from `.plan-card*` to `.tier-card*` (`billing.css`, `PlanCards.tsx`). Pricing owns `.plan-card` and also loads `billing.css`, so the two were restyling each other.
 - The price shows on /pricing whether or not `TEAMS_BILLING_ENABLED` is on. With the flag off a new team is still free, so the page and the product disagree until the flag is turned on.
-- `client/src/pages/Landing.tsx` still says Teams is "coming soon". Left alone: another session is editing the landing page.
 - `pnpm check`, `pnpm test` (540 passed, 3 skipped) and `pnpm build` clean. /pricing and Billing checked on a static build with mocked answers, phone and desktop. Not checked on the live site.
 
 ## 2026-10-06 — Paid Teams subscription and plan cards on Billing (Claude, branch `feat/billing-teams-signup`, merged to main; `TEAMS_BILLING_ENABLED` still off)
