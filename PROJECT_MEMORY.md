@@ -535,10 +535,20 @@ Owner sent an RSVP on a live event and the Responses counts stayed at 0.
 - `eventLanding.css`: `.lx-event.lx-has-cover { display: flow-root; }` so the banner starts at the top edge (the nav's 10px margin otherwise pushes it down; card pages still have that 10px gap). The builder preview keeps the banner still.
 - Checked with mocked event data on a static build: Tide, Midnight, Sunset flat, with page background, without banner; phone and desktop; no console errors, no sideways scroll. Not checked against a real event or in the signed-in builder.
 
+## 2026-10-06 — Teams price on the public Pricing page (Claude, branch `feat/pricing-teams-price`, not committed, not merged)
+
+- Owner request: add a price for Teams on /pricing. Owner confirmed the price: PHP 1,499 a month for each team.
+- `client/src/pages/Pricing.tsx`: third plan card, Teams, with the price and seats read from `TEAMS_PLAN` in `shared/plans.ts`. Its button, "Start a team", opens Workspace → Billing (Google sign-in first for a guest). Page title and description name Teams; `server/_core/meta.ts` matches.
+- `client/src/pages/pricing.css`: three cards in a row, one column under 900px.
+- Billing plan cards renamed from `.plan-card*` to `.tier-card*` (`billing.css`, `PlanCards.tsx`). Pricing owns `.plan-card` and also loads `billing.css`, so the two were restyling each other.
+- The price shows on /pricing whether or not `TEAMS_BILLING_ENABLED` is on. With the flag off a new team is still free, so the page and the product disagree until the flag is turned on.
+- `client/src/pages/Landing.tsx` still says Teams is "coming soon". Left alone: another session is editing the landing page.
+- `pnpm check`, `pnpm test` (540 passed, 3 skipped) and `pnpm build` clean. /pricing and Billing checked on a static build with mocked answers, phone and desktop. Not checked on the live site.
+
 ## 2026-10-06 — Paid Teams subscription and plan cards on Billing (Claude, branch `feat/billing-teams-signup`, merged to main; `TEAMS_BILLING_ENABLED` still off)
 
 - Owner request: sign up for the Teams plan subscription from Workspace → Billing, with plans and pricing shown as side-by-side plan cards.
-- Price: PHP 1,499 a month for each team, 10 seats included. The owner asked Claude to set a new price; this figure is Claude's proposal, not yet confirmed by the owner. One constant: `TEAMS_PLAN` in `shared/plans.ts`.
+- Price: PHP 1,499 a month for each team, 10 seats included. The owner asked Claude to set a new price and confirmed PHP 1,499 on 2026-10-06. One constant: `TEAMS_PLAN` in `shared/plans.ts`.
 - New flag `TEAMS_BILLING_ENABLED`, default off. Off: starting a team is free, as before. On (with `TEAMS_ENABLED`, `PAYMENTS_ENABLED` and a channel): a new team starts unpaid and read-only until its owner pays. Teams that already exist have no end date and stay free (owner decision); checkout and settlement both refuse them.
 - Server: `billing.createTeamCheckout`, `billing.teamPlans`, `startTeamCheckout` and `settleTeamPayment` (`server/billing/`), `teamPlanState` (`server/teams/entitlements.ts`). Payment rows use purpose and plan code `teams` with the team id in `metadataJson`. No migration. A settled payment adds one month and writes `plan.paid` to the team's activity log.
 - Client: `PlanCards.tsx` (Free, Pro, Teams cards, then "Your teams" with pay and renew buttons), `TeamPay.tsx`, Billing tab and unpaid notice in `Team.tsx`. Prices on screen come from the server. The lost-characters "Upgrade to Pro" button text is gone with the old button.

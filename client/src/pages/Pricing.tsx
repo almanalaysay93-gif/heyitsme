@@ -3,7 +3,8 @@ import { LegalLinks } from "@/components/LegalLinks";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startGoogleLogin } from "@/const";
 import { usePageMeta } from "@/hooks/usePageMeta";
-import { Check, Sparkles } from "lucide-react";
+import { TEAMS_PLAN, formatPeso } from "@shared/plans";
+import { Check, Sparkles, UsersRound } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import "@/components/billing/billing.css";
 import "./pricing.css";
@@ -28,11 +29,26 @@ export const PRO_FEATURES = [
   "Contact tags, notes, follow-ups and CSV export",
   "Remove heyitsme branding",
 ];
+const TEAMS_PRICE = formatPeso(TEAMS_PLAN.priceMinor);
+const teams = [
+  `${TEAMS_PLAN.seats} seats included`,
+  "Company cards managed in one place",
+  "Shared branding and locked company details",
+  "Team contacts",
+  "Event pages with RSVP and check-in",
+  "Team analytics",
+  "Email signatures and meeting backgrounds",
+];
+const HEADLINES: Record<string, string> = {
+  Free: "A clean digital business card.",
+  Pro: "Your professional identity.",
+  Teams: "One brand across your whole team.",
+};
 export default function PricingPage() {
   usePageMeta({
-    title: "Pricing — Free and Pro — heyitsme",
+    title: "Pricing — Free, Pro and Teams — heyitsme",
     description:
-      "Pro — ₱299/month. Premium design, unlimited contact exchanges and deeper insights.",
+      `Free forever. Pro — ₱299/month. Teams — ${TEAMS_PRICE}/month for each team, ${TEAMS_PLAN.seats} seats included.`,
     canonicalPath: "/pricing",
   });
   const { isAuthenticated } = useAuth();
@@ -41,6 +57,9 @@ export default function PricingPage() {
     isAuthenticated
       ? navigate("/app/billing?upgrade=1")
       : startGoogleLogin("/app/billing?upgrade=1");
+  // Billing lists the plans to a signed-in person, with the Teams sign-up on its card.
+  const startTeam = () =>
+    isAuthenticated ? navigate("/app/billing") : startGoogleLogin("/app/billing");
   return (
     <div className="legal-page pricing-page">
       <header className="legal-nav">
@@ -71,6 +90,12 @@ export default function PricingPage() {
               period: "/month",
               features: PRO_FEATURES,
             },
+            {
+              name: "Teams",
+              price: TEAMS_PRICE,
+              period: "/month for each team",
+              features: teams,
+            },
           ].map(plan => (
             <section
               key={plan.name}
@@ -80,12 +105,11 @@ export default function PricingPage() {
                 className={`plan-chip plan-chip-${plan.name.toLowerCase()}`}
               >
                 {plan.name === "Pro" ? <Sparkles size={13} /> : null}
+                {plan.name === "Teams" ? <UsersRound size={13} /> : null}
                 {plan.name}
               </span>
               <h2>
-                {plan.name === "Pro"
-                  ? "Your professional identity."
-                  : "A clean digital business card."}
+                {HEADLINES[plan.name]}
               </h2>
               <p className="plan-price">
                 <strong>{plan.price}</strong>
@@ -97,6 +121,10 @@ export default function PricingPage() {
                   onClick={upgrade}
                 >
                   Upgrade to Pro — ₱299/month
+                </button>
+              ) : plan.name === "Teams" ? (
+                <button className="outline-button plan-cta" onClick={startTeam}>
+                  Start a team
                 </button>
               ) : (
                 <Link className="outline-button plan-cta" href="/app/cards/new">
@@ -118,7 +146,12 @@ export default function PricingPage() {
           <p>
             Cancel anytime. Existing cards and contacts survive a downgrade.
           </p>
-          <p>Payments activate Pro only after server verification.</p>
+          <p>
+            Teams is paid by the team's owner, one month at a time, and comes
+            with {TEAMS_PLAN.seats} seats. It is separate from your own Free or
+            Pro plan. If a team's plan ends, nothing is deleted.
+          </p>
+          <p>Payments activate a plan only after server verification.</p>
         </section>
       </main>
       <footer className="legal-footer">
