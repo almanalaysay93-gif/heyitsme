@@ -535,7 +535,7 @@ Owner sent an RSVP on a live event and the Responses counts stayed at 0.
 - `eventLanding.css`: `.lx-event.lx-has-cover { display: flow-root; }` so the banner starts at the top edge (the nav's 10px margin otherwise pushes it down; card pages still have that 10px gap). The builder preview keeps the banner still.
 - Checked with mocked event data on a static build: Tide, Midnight, Sunset flat, with page background, without banner; phone and desktop; no console errors, no sideways scroll. Not checked against a real event or in the signed-in builder.
 
-## 2026-10-06 — Teams price on the public Pricing page (Claude, branch `feat/pricing-teams-price`, not committed, not merged)
+## 2026-10-06 — Teams price on the public Pricing page (Claude, branch `feat/pricing-teams-price`, merged to main)
 
 - Owner request: add a price for Teams on /pricing. Owner confirmed the price: PHP 1,499 a month for each team.
 - `client/src/pages/Pricing.tsx`: third plan card, Teams, with the price and seats read from `TEAMS_PLAN` in `shared/plans.ts`. Its button, "Start a team", opens Workspace → Billing (Google sign-in first for a guest). Page title and description name Teams; `server/_core/meta.ts` matches.
