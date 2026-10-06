@@ -16,11 +16,24 @@ Design, QR campaigns and advanced analytics default on for this release. Payment
 | `QR_CAMPAIGNS_ENABLED` | Enables campaign creation and scan recording. Creation requires Pro and an owned card. |
 | `PRO_ANALYTICS_ENABLED` | Enables additional charts and campaign analytics for Pro. |
 | `GOOGLE_PAY_ENABLED`, `GCASH_ENABLED` | Enables the corresponding hosted checkout channel. |
+| `TEAMS_BILLING_ENABLED` | Sells Teams at checkout. Needs `TEAMS_ENABLED`, `PAYMENTS_ENABLED` and a payment channel. Default off. |
 | `PAYMENT_PROVIDER_ENV` | Defaults to sandbox. Set production only after sandbox verification. |
 | `PAYMENT_GATEWAY_MERCHANT_ID`, `PAYMENT_GATEWAY_SECRET` | Server-only 2C2P credentials. |
 | `COMPLIMENTARY_EMAILS` | Preserves the existing owner/admin complimentary entitlement. |
 
 The existing adapter sells a monthly access period. Renewal is manual through Billing. No automatic recurring debit is scheduled. Subscription cancellation keeps access through the paid period. Historical payment records still settle against their stored amount and billing term.
+
+## Teams plan
+
+Teams is bought for a team, not for an account. `TEAMS_PLAN` in `shared/plans.ts` holds the price and the seats: PHP 1,499 a month for each team, 10 seats included. Change the price there and nowhere else. More seats are set by heyitsme staff for a team. They are not sold at checkout.
+
+While `TEAMS_BILLING_ENABLED` is off, starting a team is free and the team has no end date. Turning it on changes only teams started after that:
+
+1. `teams.create` makes the team unpaid: its plan date is the moment it was made, so it can be viewed but not changed.
+2. The owner pays from the Billing page or the team's Billing tab. `billing.createTeamCheckout` takes a team id and a channel, checks ownership, and charges the server's price. The payment row has `purpose` and `planCode` `teams`, and names the team in `metadataJson`.
+3. Settlement follows the same rules as Pro: signed callback, direct inquiry, amount and currency compared to the stored row, settled once. It moves the team's plan date on one month, from its current end if still running, from today if not. Seats are raised to the included number, never lowered. The team's activity log records `plan.paid`.
+
+A team with no end date is free for good. Checkout refuses it, and settlement never gives it an end date. Renewal is manual. A lapsed team is read-only and nothing is deleted. A Teams payment does not change the owner's personal plan. No schema change was needed.
 
 ## Verification and migration
 

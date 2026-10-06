@@ -21,6 +21,7 @@ Free plan plus paid Pro (see `docs/billing.md`). Stack: React 19 + Vite 7 client
 | `VITE_SUPPORT_EMAIL` | optional | Shown on legal/FAQ pages and account menu (build time). |
 | `OWNER_OPEN_ID` | optional | Google openId granted the admin role. |
 | `PLAN_LIMITS_ENABLED`, `PAYMENTS_ENABLED`, `GOOGLE_PAY_ENABLED`, `GCASH_ENABLED` | optional | Paid plans. All default off. Order and meaning in `docs/billing.md`. |
+| `TEAMS_BILLING_ENABLED` | optional | Sells the Teams plan at checkout. Default off: starting a team is free. Teams that already exist stay free. See `docs/billing.md`. |
 | `PAYMENT_GATEWAY_MERCHANT_ID` / `PAYMENT_GATEWAY_SECRET`, `PAYMENT_PROVIDER_ENV` | payments | 2C2P credentials. Server only. |
 | `COMPLIMENTARY_EMAILS` | optional | Google emails that keep every feature with no plan. |
 

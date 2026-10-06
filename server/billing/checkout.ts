@@ -1,12 +1,12 @@
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { planPriceMinor, type BillingCycle, type PaidPlanCode, type PaymentChannel,
+import { TEAMS_PLAN, planPriceMinor, type BillingCycle, type PaidPlanCode, type PaymentChannel,
 } from "@shared/plans";
 import { payments } from "../../drizzle/schema";
 import { ENV } from "../_core/env";
 import { logJson } from "../_core/seo";
 import { PaymentProviderError, type PaymentProvider } from "./provider";
-import { foundingPriceEligible, getOrCreateBillingAccount, getUserSubscriptions, settlePayment, type Db, type SettleOutcome,
+import { TEAM_PAYMENT_PURPOSE, getOrCreateBillingAccount, getUserSubscriptions, settlePayment, type Db, type SettleOutcome,
 } from "./service";
 import { TwoC2PProvider } from "./twoc2p";
 
@@ -43,9 +43,14 @@ export function enabledCycles(): BillingCycle[] {
   return ["monthly"];
 }
 
+/** Teams is sold only while its own switch is on and a payment channel is open. Until then starting a team is free. */
+export function teamsCheckoutOpen(): boolean {
+  return ENV.teamsEnabled && ENV.teamsBillingEnabled && enabledChannels().length > 0;
+}
+
 export class CheckoutClosedError extends Error {
   constructor(
-    readonly reason: "payments_off" | "channel_off" | "cycle_off" | "plan_off"
+    readonly reason: "payments_off" | "channel_off" | "cycle_off" | "plan_off" | "team_free"
   ) {
     super(reason);
   }
@@ -113,13 +118,60 @@ export async function startCheckout(
     amountMinor,
   });
 
+  const redirectUrl = await openGatewayCheckout(db, { invoiceNo, amountMinor, description: "heyitsme Pro (monthly)", channel: input.channel }, origin);
+  return { invoiceNo, redirectUrl, amountMinor, founding };
+}
+
+/**
+ * The same steps for one team: the price comes from the server, the payment row names the team, and the
+ * team's plan date moves only when that payment is settled. The caller has already checked ownership.
+ */
+export async function startTeamCheckout(
+  db: Db,
+  user: { id: number },
+  workspace: { id: number; accessUntil: Date | null },
+  channel: PaymentChannel,
+  origin: string
+) {
+  if (!ENV.paymentsEnabled) throw new CheckoutClosedError("payments_off");
+  if (!teamsCheckoutOpen()) throw new CheckoutClosedError("plan_off");
+  if (!enabledChannels().includes(channel)) throw new CheckoutClosedError("channel_off");
+  // A team with no end date is free for good. Charging it would buy nothing.
+  if (workspace.accessUntil === null) throw new CheckoutClosedError("team_free");
+
+  const account = await getOrCreateBillingAccount(db, user.id);
+  const amountMinor = TEAMS_PLAN.priceMinor;
+  const invoiceNo = newInvoiceNo();
+  await db.insert(payments).values({
+    billingAccountId: account.id,
+    userId: user.id,
+    provider: ENV.paymentProvider,
+    providerTransactionId: invoiceNo,
+    purpose: TEAM_PAYMENT_PURPOSE,
+    planCode: "teams",
+    billingCycle: "monthly",
+    channel,
+    amountMinor,
+    currency: "PHP",
+    status: "created",
+    metadataJson: JSON.stringify({ workspaceId: workspace.id }),
+  });
+  logJson("info", "payment created", { invoiceNo, plan: "teams", cycle: "monthly", channel, amountMinor, workspaceId: workspace.id });
+  const redirectUrl = await openGatewayCheckout(db, { invoiceNo, amountMinor, description: "heyitsme Teams (monthly)", channel }, origin);
+  return { invoiceNo, redirectUrl, amountMinor };
+}
+
+/** Opens the hosted page for a payment row that already exists, and marks the row pending or failed. */
+async function openGatewayCheckout(
+  db: Db,
+  order: { invoiceNo: string; amountMinor: number; description: string; channel: PaymentChannel },
+  origin: string
+) {
+  const { invoiceNo } = order;
   try {
     const session = await getPaymentProvider().createCheckout({
-      invoiceNo,
-      amountMinor,
+      ...order,
       currency: "PHP",
-      description: "heyitsme Pro (monthly)",
-      channel: input.channel,
       frontendReturnUrl: `${origin}/api/payments/2c2p/return?invoice=${invoiceNo}`,
       backendReturnUrl: `${origin}/api/payments/2c2p/callback`,
     });
@@ -127,12 +179,7 @@ export async function startCheckout(
       .update(payments)
       .set({ status: "pending", updatedAt: new Date() })
       .where(eq(payments.providerTransactionId, invoiceNo));
-    return {
-      invoiceNo,
-      redirectUrl: session.redirectUrl,
-      amountMinor,
-      founding,
-    };
+    return session.redirectUrl;
   } catch (error) {
     const code =
       error instanceof PaymentProviderError ? error.code : "provider_error";

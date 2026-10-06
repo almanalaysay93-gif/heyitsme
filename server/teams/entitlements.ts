@@ -11,6 +11,18 @@ export const seatAllowance = (workspace: WorkspacePlan) => workspace.seatLimit ?
 export const planEnded = (workspace: WorkspacePlan, now = new Date()) =>
   workspace.accessUntil !== null && workspace.accessUntil.getTime() <= now.getTime();
 
+/**
+ * Where a team's plan stands. "free" has no end date and nothing to pay. "unpaid" was started while Teams is
+ * sold and has not been paid for yet: its plan date is exactly the moment it was made, which no later change produces.
+ */
+export type TeamPlanState = "free" | "unpaid" | "active" | "ended";
+
+export function teamPlanState(workspace: WorkspacePlan & { createdAt: Date }, now = new Date()): TeamPlanState {
+  if (workspace.accessUntil === null) return "free";
+  if (!planEnded(workspace, now)) return "active";
+  return workspace.accessUntil.getTime() === workspace.createdAt.getTime() ? "unpaid" : "ended";
+}
+
 // Looking at what a team already has is never taken away.
 const READ_ONLY: readonly TeamCapability[] = ["canViewWorkspaceAnalytics"];
 
@@ -41,11 +53,13 @@ const teamCall = new AsyncLocalStorage<{ changes: boolean }>();
 export const runTeamCall = <T>(changes: boolean, call: () => Promise<T>) => teamCall.run({ changes }, call);
 
 /** Stops a change to a workspace whose plan has ended. Reading it, leaving it and closing it still work. */
-export function assertPlanAllowsCall(workspace: WorkspacePlan) {
+export function assertPlanAllowsCall(workspace: WorkspacePlan & { createdAt?: Date }) {
   if (teamCall.getStore()?.changes && planEnded(workspace)) {
     throw new TRPCError({
       code: "FORBIDDEN",
-      message: "This team's plan has ended, so it can't be changed right now. Everything is still here to view and download.",
+      message: workspace.createdAt && teamPlanState({ ...workspace, createdAt: workspace.createdAt }) === "unpaid"
+        ? "This team is not paid for yet, so it can't be changed. Its owner can pay on the team's Billing tab."
+        : "This team's plan has ended, so it can't be changed right now. Everything is still here to view and download.",
     });
   }
 }

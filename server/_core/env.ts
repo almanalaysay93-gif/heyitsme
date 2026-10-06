@@ -44,6 +44,8 @@ export const ENV = {
   googlePayEnv: process.env.GOOGLE_PAY_ENV === "PRODUCTION" ? "PRODUCTION" : "TEST",
   nfcStoreEnabled: flag("NFC_STORE_ENABLED", false),
   teamsEnabled: flag("TEAMS_ENABLED", false),
+  // Sells Teams at checkout. Off, starting a team is free and teams have no end date. Teams that exist stay free.
+  teamsBillingEnabled: flag("TEAMS_BILLING_ENABLED", false),
   // Custom colors and QR styling on team event pages. Off, saved looks stay and new ones are refused.
   teamEventStylingEnabled: flag("TEAM_EVENT_STYLING_ENABLED", true),
   foundingOfferEnabled: false,
