@@ -52,19 +52,19 @@ function PlanCard({ name, badge, headline, text, price, per, featured, features,
   children: ReactNode;
 }) {
   return (
-    <article className={`glass-panel plan-card ${featured ? "is-featured" : ""}`}>
-      <header className="plan-card-head">
+    <article className={`glass-panel tier-card ${featured ? "is-featured" : ""}`}>
+      <header className="tier-card-head">
         <h3>{name}</h3>
-        {badge ? <span className="plan-card-badge">{badge}</span> : null}
+        {badge ? <span className="tier-card-badge">{badge}</span> : null}
       </header>
-      <p className="plan-card-headline">{headline}</p>
-      <p className="plan-card-text">{text}</p>
-      <p className="plan-card-price"><strong>{price}</strong><span>{per}</span></p>
-      <div className="plan-card-cta">{children}</div>
-      <ul className="plan-card-features">
+      <p className="tier-card-headline">{headline}</p>
+      <p className="tier-card-text">{text}</p>
+      <p className="tier-card-price"><strong>{price}</strong><span>{per}</span></p>
+      <div className="tier-card-cta">{children}</div>
+      <ul className="tier-card-features">
         {features.map(([Icon, label]) => <li key={label}><Icon size={17} aria-hidden="true" /><span>{label}</span></li>)}
       </ul>
-      <p className="plan-card-fine">{fine}</p>
+      <p className="tier-card-fine">{fine}</p>
     </article>
   );
 }
@@ -122,7 +122,7 @@ export default function PlanCards({ plan, offer, onUpgrade }: { plan: PlanCode; 
   return (
     <section className="plan-section" aria-labelledby="plans-heading">
       <h2 id="plans-heading" className="plan-section-title">Plans and pricing</h2>
-      <div className="plan-cards">
+      <div className="tier-cards">
         <PlanCard name="Free" headline="Your card, online" text="A profile, a QR code and a link that works with any NFC tag." price={formatPeso(0)} per="/ month" features={FREE} fine="Free stays free. Your card never expires.">
           {plan === "free" ? current : <button type="button" className="outline-button" disabled>Included in your plan</button>}
         </PlanCard>

@@ -74,24 +74,24 @@
 /* Plans and pricing: one card per plan, side by side. Name, promise, price, one button, what you get, small print. */
 .plan-section { display: grid; gap: 16px; }
 .plan-section-title { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -.03em; }
-.plan-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; align-items: stretch; }
-.plan-card { display: flex; flex-direction: column; gap: 12px; padding: 26px 24px; border-radius: 24px; min-width: 0; }
-.plan-card.is-featured { border-color: rgba(107, 92, 255, .5); background: linear-gradient(180deg, rgba(223, 219, 255, .55), rgba(255, 255, 255, .7) 55%); box-shadow: 0 22px 60px rgba(74, 61, 198, .14), inset 0 1px rgba(255, 255, 255, .65); }
-.plan-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 26px; }
-.plan-card-head h3 { margin: 0; font-size: 16px; font-weight: 750; }
-.plan-card-badge { padding: 4px 10px; border-radius: 999px; background: rgba(107, 92, 255, .12); color: var(--purple-deep); font-size: 11px; font-weight: 750; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
-.plan-card-headline { margin: 14px 0 0; font-size: 25px; line-height: 1.12; font-weight: 800; letter-spacing: -.035em; }
-.plan-card-text { margin: 0; min-height: 63px; color: var(--muted-ink); font-size: 14px; line-height: 1.5; }
-.plan-card-price { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin: 4px 0 0; }
-.plan-card-price strong { font-size: 40px; line-height: 1; font-weight: 800; letter-spacing: -.045em; }
-.plan-card-price span { color: var(--muted-ink); font-size: 14px; }
-.plan-card-cta { display: grid; gap: 8px; margin: 6px 0 10px; }
-.plan-card-cta button, .plan-signup button { width: 100%; min-height: 48px; justify-content: center; font-size: 14px; }
-.plan-card-cta button:disabled { opacity: .6; cursor: default; transform: none; box-shadow: none; }
-.plan-card-features { list-style: none; margin: 0; padding: 0; display: grid; gap: 13px; font-size: 14px; line-height: 1.4; }
-.plan-card-features li { display: grid; grid-template-columns: 20px 1fr; gap: 12px; align-items: start; }
-.plan-card-features svg { margin-top: 1px; color: var(--purple-deep); }
-.plan-card-fine { margin: auto 0 0; padding-top: 18px; font-size: 12px; line-height: 1.45; color: var(--muted-ink); }
+.tier-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; align-items: stretch; }
+.tier-card { display: flex; flex-direction: column; gap: 12px; padding: 26px 24px; border-radius: 24px; min-width: 0; }
+.tier-card.is-featured { border-color: rgba(107, 92, 255, .5); background: linear-gradient(180deg, rgba(223, 219, 255, .55), rgba(255, 255, 255, .7) 55%); box-shadow: 0 22px 60px rgba(74, 61, 198, .14), inset 0 1px rgba(255, 255, 255, .65); }
+.tier-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 26px; }
+.tier-card-head h3 { margin: 0; font-size: 16px; font-weight: 750; }
+.tier-card-badge { padding: 4px 10px; border-radius: 999px; background: rgba(107, 92, 255, .12); color: var(--purple-deep); font-size: 11px; font-weight: 750; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+.tier-card-headline { margin: 14px 0 0; font-size: 25px; line-height: 1.12; font-weight: 800; letter-spacing: -.035em; }
+.tier-card-text { margin: 0; min-height: 63px; color: var(--muted-ink); font-size: 14px; line-height: 1.5; }
+.tier-card-price { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin: 4px 0 0; }
+.tier-card-price strong { font-size: 40px; line-height: 1; font-weight: 800; letter-spacing: -.045em; }
+.tier-card-price span { color: var(--muted-ink); font-size: 14px; }
+.tier-card-cta { display: grid; gap: 8px; margin: 6px 0 10px; }
+.tier-card-cta button, .plan-signup button { width: 100%; min-height: 48px; justify-content: center; font-size: 14px; }
+.tier-card-cta button:disabled { opacity: .6; cursor: default; transform: none; box-shadow: none; }
+.tier-card-features { list-style: none; margin: 0; padding: 0; display: grid; gap: 13px; font-size: 14px; line-height: 1.4; }
+.tier-card-features li { display: grid; grid-template-columns: 20px 1fr; gap: 12px; align-items: start; }
+.tier-card-features svg { margin-top: 1px; color: var(--purple-deep); }
+.tier-card-fine { margin: auto 0 0; padding-top: 18px; font-size: 12px; line-height: 1.45; color: var(--muted-ink); }
 .plan-signup { display: grid; gap: 8px; }
 .plan-signup label { display: grid; gap: 6px; font-size: 13px; font-weight: 700; }
 .plan-signup input { min-height: 46px; padding: 0 14px; border-radius: 14px; border: 1px solid rgba(24, 30, 60, .18); background: #fff; font: inherit; color: var(--ink); }
@@ -104,7 +104,7 @@
 .plan-teams small { color: var(--muted-ink); font-size: 13px; line-height: 1.45; }
 .plan-teams .billing-actions { margin-top: 0; }
 @media (max-width: 760px) {
-  .plan-card-text { min-height: 0; }
+  .tier-card-text { min-height: 0; }
 }
 
 /* Lead usage line on Contacts */

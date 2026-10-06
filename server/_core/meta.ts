@@ -205,9 +205,9 @@ export const MARKETING_METADATA: Record<MarketingRoute, MarketingRouteMeta> = {
     ogType: "website",
   },
   "/pricing": {
-    title: "Pricing \u2014 Free and Pro \u2014 heyitsme",
+    title: "Pricing \u2014 Free, Pro and Teams \u2014 heyitsme",
     description:
-      "Pro \u2014 \u20b1299/month. Premium design, unlimited contact exchanges and 365-day analytics.",
+      "Free forever. Pro \u2014 \u20b1299/month. Teams \u2014 \u20b11,499/month for each team, 10 seats included.",
     canonicalPath: "/pricing",
     ogType: "website",
   },
