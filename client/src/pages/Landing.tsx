@@ -33,7 +33,7 @@ import { LegalLinks } from "@/components/LegalLinks";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { themeOptions, type CardDraft } from "@/lib/card";
-import { formatPeso, PLAN_LIMITS, PRICES_MINOR } from "@shared/plans";
+import { formatPeso, PLAN_LIMITS, PRICES_MINOR, TEAMS_PLAN } from "@shared/plans";
 import "./landing3d.css";
 
 const ShareDemo = lazy(() => import("@/components/ShareDemo").then((m) => ({ default: m.ShareDemo })));
@@ -475,7 +475,8 @@ export default function Landing() {
               `Pro ${formatPeso(PRICES_MINOR.pro.monthly)}/month`,
               `Pro: up to ${PLAN_LIMITS.pro.cards} cards and unlimited leads`,
               "Pro: a year of insights, branding removable",
-              "Teams: one brand across your whole team, coming soon",
+              `Teams ${formatPeso(TEAMS_PLAN.priceMinor)}/month for each team, ${TEAMS_PLAN.seats} seats`,
+              "Teams: one brand across your whole team",
             ].map((item, index) => (
               <motion.li key={item} initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.15 + index * 0.06 }}>
                 <Check size={15} /> {item}
