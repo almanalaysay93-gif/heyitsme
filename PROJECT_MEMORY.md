@@ -1,5 +1,15 @@
 # PROJECT_MEMORY
 
+## 2026-10-06: Holds when a paid plan ends (branch `feat/plan-hold`, not merged)
+
+- **Owner decision**: when a subscription ends, what it paid for is put on hold. Teams has no free tier. Grace is 3 days. Teams that were free get 14 days of notice. CLAUDE.md rule 1 reworded to match.
+- **Personal cards**: owner had a paid plan, it ended 3+ days ago, account is on Free, and the card still uses a Pro feature -> visitors get a paused page (link, QR, NFC, contact file, review page). Never-paid and complimentary owners are untouched. Removing the Pro features brings the card back without paying.
+- **Teams**: never paid -> on hold at once. Plan ended -> read-only 3 days, then on hold. On hold: company cards, event pages, RSVP forms, review pages paused; every Team call refused (downloads too) except get, billing, close, remove, leave; paying always works.
+- **Code**: `shared/hold.ts`, `server/billing/hold.ts`, `teamHeld` + `whileHeld` in `server/teams/`, `server/billing/planCron.ts` (`/api/cron/plans`, Vercel Cron daily, `CRON_SECRET`), three mails in `server/billing/mail.ts`, `PausedPage`, `CardHoldNotice`, `HeldTeam` in `Team.tsx`. No schema change: holds are computed from dates. Notices deduped by `appSettings` rows `notice:*`.
+- **Tests**: `server/billing/hold.test.ts` (17). Suite 557 passed, 3 skipped. `pnpm check`, `pnpm build` clean.
+- **Manual steps left**: add `CRON_SECRET` in Vercel before deploy. First daily run after deploy stamps every free team with an end date 14 days away and emails its owner (production data change, owner approved). Legal and FAQ copy changed (`Legal.tsx`, `Info.tsx`, `Pricing.tsx`): owner to read once.
+- **Known gaps**: an expired plan override gets no reminder email. `adminSetPlan` with an empty date is re-dated by the daily run while Teams is sold.
+
 ## 2026-10-05: Photo Carousel Gestures, Dragging and Infinite Loop Fix
 
 - **Root Causes**:

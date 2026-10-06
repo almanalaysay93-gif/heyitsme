@@ -144,7 +144,7 @@ export default function PricingPage() {
         </div>
         <section className="pricing-facts">
           <p>
-            Cancel anytime. Existing cards and contacts survive a downgrade.
+            Cancel anytime. Nothing is deleted when Pro ends. Three days later, cards that still use a Pro feature are paused until you renew or take the feature off.
           </p>
           <p>
             Teams is paid by the team's owner, one month at a time, and comes

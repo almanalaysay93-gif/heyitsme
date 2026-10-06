@@ -4,6 +4,7 @@
   "functions": {
     "api/index.js": { "includeFiles": "dist/{server/**,public/app.html}" }
   },
+  "crons": [{ "path": "/api/cron/plans", "schedule": "0 1 * * *" }],
   "redirects": [
     {
       "source": "/(.*)",

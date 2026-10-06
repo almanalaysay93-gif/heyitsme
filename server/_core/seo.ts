@@ -5,7 +5,8 @@ import express, { type Express, type Request } from "express";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { getDb, getPublicCardBySlug } from "../db";
+import { publicCardBySlug } from "../billing/hold";
+import { getDb } from "../db";
 import { ENV } from "./env";
 import { isLegacyHost, PRODUCTION_ORIGIN } from "@shared/publicOrigin";
 import { renderCardHtml, renderCardNotFoundHtml, renderMarketingHtml } from "./meta";
@@ -142,11 +143,13 @@ export function registerSeoRoutes(app: Express) {
         res.status(429).set("Cache-Control", "no-store").type("text/plain").send("Too many requests");
         return;
       }
-      const card = await getPublicCardBySlug(slug);
-      if (!card) {
-        res.status(404).set("Cache-Control", "no-store").type("text/plain").send("Card not found");
+      const found = await publicCardBySlug(slug);
+      // A card on hold gives no contact file, the same as a card that is not there.
+      if (!found || found.hold) {
+        res.status(404).set("Cache-Control", "no-store").type("text/plain").send(found ? "This card is paused" : "Card not found");
         return;
       }
+      const card = found.card;
       const origin = siteOrigin(req);
       const fileName = (card.slug || "contact").replace(/[^a-z0-9-]+/gi, "-");
       res
@@ -172,11 +175,13 @@ export function registerSeoRoutes(app: Express) {
     const template = await loadTemplate(req);
     if (!template) return next();
     try {
-      const card = await getPublicCardBySlug(slug);
-      if (!card) {
+      const found = await publicCardBySlug(slug);
+      // On hold: no name, photo or description in the page head. The page itself tells the visitor it is paused.
+      if (!found || found.hold) {
         res.status(404).set("Cache-Control", "no-store").type("html").send(renderCardNotFoundHtml(template));
         return;
       }
+      const card = found.card;
       res
         .status(200)
         .set("Cache-Control", "no-cache, no-store, must-revalidate")

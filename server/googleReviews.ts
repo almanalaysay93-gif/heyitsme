@@ -1,3 +1,4 @@
+import { cardHold, pausedError } from "./billing/hold";
 import { and, asc, eq, gt, gte, isNull, ne, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { GOOGLE_SETUPS_PER_WEEK, GOOGLE_SETUP_WINDOW_DAYS, type GoogleSetupTier } from "@shared/plans";
@@ -190,6 +191,7 @@ export async function publicReviewPage(slug: string) {
   const db = await database();
   const [row] = await db.select({ page: googleReviewPages, card: cards }).from(googleReviewPages).innerJoin(cards, eq(cards.id, googleReviewPages.cardId)).where(and(eq(googleReviewPages.slug, slug), eq(googleReviewPages.enabled, true))).limit(1);
   if (!row || row.card.deletedAt || !reviewDestination(row.page)) return null;
+  if (await cardHold(row.card)) throw pausedError();
   const { page, card } = row;
   return {
     slug: page.slug, businessName: page.businessName, rating: page.rating, reviewCount: page.reviewCount,
@@ -199,7 +201,15 @@ export async function publicReviewPage(slug: string) {
   };
 }
 
+/** Whether the card behind a review page is on hold. Its review page is paused with it. */
+async function reviewPageHeld(slug: string) {
+  const db = await database();
+  const [row] = await db.select({ card: cards }).from(googleReviewPages).innerJoin(cards, eq(cards.id, googleReviewPages.cardId)).where(eq(googleReviewPages.slug, slug)).limit(1);
+  return Boolean(row && (await cardHold(row.card)));
+}
+
 export async function publicReviewDestination(slug: string) {
+  if (await reviewPageHeld(slug)) return null;
   const db = await database();
   const [page] = await db.select({ reviewUrl: googleReviewPages.reviewUrl }).from(googleReviewPages).where(and(eq(googleReviewPages.slug, slug), eq(googleReviewPages.enabled, true))).limit(1);
   return page ? reviewDestination(page) : null;
@@ -216,7 +226,7 @@ export type ReviewEventType = "page_view" | "qr_scan" | "nfc_tap" | "google_revi
 export async function trackReviewEvent(slug: string, type: ReviewEventType, source: string, campaign?: string, device?: string) {
   const db = await database();
   const [page] = await db.select({ id: googleReviewPages.id }).from(googleReviewPages).where(and(eq(googleReviewPages.slug, slug), eq(googleReviewPages.enabled, true))).limit(1);
-  if (!page) return false;
+  if (!page || (await reviewPageHeld(slug))) return false;
   await db.insert(googleReviewEvents).values({ pageId: page.id, type, source, campaign, device });
   return true;
 }

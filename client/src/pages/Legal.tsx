@@ -260,7 +260,7 @@ export function TermsPage() {
         payment to us, not when your browser returns from the payment page. You
         can cancel from Billing at any time; your plan stays on until the end of
         the period you paid for, then your account moves to Free. Moving to Free
-        never deletes your cards, contacts, or insights data. If a price
+        never deletes your cards, contacts, or insights data. Three days after a paid plan ends, a card that still uses a Pro feature is paused until the plan is paid again or the feature is removed, and a team whose plan was not renewed is paused and closed to its members until it is paid. If a price
         changes, it applies from your next payment, never to a period you
         already paid for.
       </p>

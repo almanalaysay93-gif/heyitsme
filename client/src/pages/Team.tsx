@@ -1,4 +1,5 @@
 import TeamPay from "@/components/billing/TeamPay";
+import { HOLD_GRACE_DAYS } from "@shared/hold";
 import { formatPeso } from "@shared/plans";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { AppShell } from "@/components/AppShell";
@@ -190,6 +191,45 @@ const TAB_ICONS: Record<Tab, LucideIcon> = {
   Departments: Building2, Templates: LayoutTemplate, Brand: Palette, Activity: History, Billing: CreditCard, Settings: SettingsIcon,
 };
 
+/** All a team on hold shows. The owner can pay or close it, a member can leave. The server refuses everything else. */
+function HeldTeam({ workspace, role, unpaid }: { workspace: Workspace; role: WorkspaceRole; unpaid: boolean }) {
+  const utils = trpc.useUtils();
+  const [, navigate] = useLocation();
+  const close = trpc.teams.close.useMutation();
+  const leave = trpc.teams.leave.useMutation();
+  const owner = role === "owner";
+  const end = async (action: () => Promise<unknown>, done: string) => {
+    try {
+      await action();
+      await utils.teams.list.invalidate();
+      toast.success(done);
+      navigate("/app/team");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "That did not work. Please try again.");
+    }
+  };
+  return <AppShell area={workspace.name} crumb="On hold" current={workspace.id} profileNote={ROLE_LABELS[role]}>
+    <header className="gr-heading"><div><span className="section-kicker">Team · {ROLE_LABELS[role]}</span><h1>{workspace.name}</h1></div></header>
+    <section className="team-notice" role="status">
+      <p><strong>This team is on hold.</strong> {unpaid ? "Its plan has not been paid for yet." : "Its plan ended and was not renewed."} Its company cards, event pages and review pages are paused, and the team cannot be opened or downloaded from until the plan is paid. Nothing is deleted. Paying brings everything back at once.</p>
+      <p>{owner ? "You are the owner, so you can pay below." : "Only the team's owner can pay. Please ask them to open this team and pay for its plan."}</p>
+    </section>
+    {owner ? <>
+      <Billing workspaceId={workspace.id} />
+      <section className="gr-panel">
+        <h2>Close this team</h2>
+        <p>The team disappears for everyone in it. Nothing is deleted, and nobody's personal account or personal cards are affected.</p>
+        <div className="gr-actions"><button type="button" className="gr-secondary team-danger" disabled={close.isPending} onClick={() => { if (window.confirm(`Close ${workspace.name} for everyone?`)) void end(() => close.mutateAsync({ workspaceId: workspace.id }), "Team closed."); }}>Close team</button></div>
+      </section>
+    </> : <section className="gr-panel">
+      <h2>Leave this team</h2>
+      <p>You lose access to this team, and your company card stays with the company. Your personal account and personal cards stay yours.</p>
+      <div className="gr-actions"><button type="button" className="gr-secondary team-danger" disabled={leave.isPending} onClick={() => { if (window.confirm(`Leave ${workspace.name}?`)) void end(() => leave.mutateAsync({ workspaceId: workspace.id }), "You left the team."); }}>Leave team</button></div>
+    </section>}
+    <Link href="/app/team" className="gr-back">← Your teams</Link>
+  </AppShell>;
+}
+
 /** /app/team/:id: one team. Buttons here follow the role, and the server checks every action again. */
 export function TeamWorkspace() {
   const workspaceId = Number(useParams<{ id: string }>().id);
@@ -206,6 +246,7 @@ export function TeamWorkspace() {
   }
 
   const { workspace, me } = team.data;
+  if (team.data.held) return <HeldTeam workspace={workspace} role={me.role} unpaid={team.data.planState === "unpaid"} />;
   const admin = isAdminRole(me.role);
   const tabs = TABS.filter(name => (admin || !ADMIN_TABS.includes(name)) && (me.role === "owner" || name !== "Billing"));
 
@@ -213,8 +254,7 @@ export function TeamWorkspace() {
 
   return <AppShell area={workspace.name} crumb={tab} current={workspace.id} navLabel="Team" nav={nav} profileNote={ROLE_LABELS[me.role]}>
     <header className="gr-heading"><div><span className="section-kicker">Team · {ROLE_LABELS[me.role]}</span><h1>{workspace.name}</h1>{workspace.description ? <p>{workspace.description}</p> : null}</div></header>
-    {team.data.planState === "unpaid" ? <section className="team-notice" role="status"><p><strong>This team is not paid for yet.</strong> It is here to look at. It opens for changes as soon as its plan is paid.</p>{me.role === "owner" && tab !== "Billing" ? <div className="gr-actions"><button type="button" className="gr-primary" onClick={() => setTab("Billing")}>Go to Billing</button></div> : null}</section>
-      : team.data.planEnded ? <section className="team-notice" role="status"><p><strong>This team's plan has ended.</strong> Everything is still here to view and download, and company cards stay online. Changes are paused until the plan is renewed.</p>{me.role === "owner" && tab !== "Billing" ? <div className="gr-actions"><button type="button" className="gr-primary" onClick={() => setTab("Billing")}>Go to Billing</button></div> : null}</section> : null}
+    {team.data.planEnded ? <section className="team-notice" role="status"><p><strong>This team's plan has ended.</strong> Changes are paused until it is renewed. {team.data.holdFrom ? `If it is not renewed by ${day(team.data.holdFrom)}, the team is put on hold: its company cards, event pages and review pages are paused, and nobody can open the team until it is paid.` : null} Nothing is deleted.</p>{me.role === "owner" && tab !== "Billing" ? <div className="gr-actions"><button type="button" className="gr-primary" onClick={() => setTab("Billing")}>Go to Billing</button></div> : null}</section> : null}
     {tab === "Overview" ? <Overview workspaceId={workspace.id} admin={admin} onOpen={setTab} /> : null}
     {tab === "Members" ? <Members workspaceId={workspace.id} /> : null}
     {tab === "Cards" ? <TeamCards workspaceId={workspace.id} companyName={workspace.name} /> : null}
@@ -408,7 +448,7 @@ function Billing({ workspaceId }: { workspaceId: number }) {
     <p>{state === "unpaid" ? "This team is not paid for yet." : ended ? `The plan ended on ${day(accessUntil)}.` : accessUntil ? `The plan runs until ${day(accessUntil)}.` : "This team has no end date."}</p>
     {state === "free" ? <p className="gr-attribution">This team has no end date, so there is nothing to pay here. To change the number of seats, contact heyitsme.</p>
       : plan.checkoutOpen ? <>
-        <p>Teams is {price} for each team, with {plan.seats} seats. {state === "active" ? "Paying now adds one month after the date above." : "Paying opens the team for one month from today."} If the plan runs out, nothing is deleted.</p>
+        <p>Teams is {price} for each team, with {plan.seats} seats. {state === "active" ? "Paying now adds one month after the date above." : "Paying opens the team for one month from today."} If the plan runs out and is not renewed within {HOLD_GRACE_DAYS} days, the team is put on hold until it is paid. Nothing is deleted.</p>
         <div className="gr-actions"><TeamPay workspaceId={workspaceId} channels={plan.channels} priceMinor={plan.priceMinor} verb={state === "active" ? "Renew early:" : "Pay"} buttonClass={state === "active" ? "gr-secondary" : "gr-primary"} /></div>
         <p className="gr-attribution">You pay on the payment provider's page and come back to your Billing page. For more than {plan.seats} seats, contact heyitsme.</p>
       </> : <p className="gr-attribution">Checkout for Teams is not open right now. To renew or change seats, contact heyitsme.</p>}

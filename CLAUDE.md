@@ -9,7 +9,7 @@
 - **Unified Memory**: Read `PROJECT_MEMORY.md` before starting any work. Update it after each phase milestone.
 
 ## Strict Product & Architectural Rules
-1. **Freemium Product Model** (owner decision, 2026-09-28): Free stays free forever for the basic profile, QR code and NFC link. Pro and Teams are paid. Every price, limit and entitlement is decided on the server (`shared/plans.ts`, `server/billing/`). Payments run through the 2C2P adapter only. Downgrades never delete data. Read `docs/billing.md` before touching billing.
+1. **Freemium Product Model** (owner decision, 2026-09-28): Free stays free forever for the basic profile, QR code and NFC link, for a card that uses no Pro feature. Pro and Teams are paid, and Teams has no free tier. When a paid plan ends and is not renewed within 3 days, what it paid for is put on hold (owner decision, 2026-10-06): a personal card that still uses a Pro feature shows a paused page, and a team's public pages are paused and the team is locked until its owner pays. See `docs/billing.md`, Holds. Every price, limit and entitlement is decided on the server (`shared/plans.ts`, `server/billing/`). Payments run through the 2C2P adapter only. Downgrades never delete data. Read `docs/billing.md` before touching billing.
 2. **Stack Preservation**: React 19, Vite 7, tRPC 11, Drizzle ORM, PostgreSQL (Supabase), Radix UI, Tailwind CSS, Framer Motion.
 3. **Verification**: Run `pnpm check`, `pnpm test`, and `pnpm build` after every task/milestone. Keep all 166+ tests passing.
 4. **Caveman Mode**: Terse, fragment-based responses. High signal, low token overhead. Drop pleasantries.

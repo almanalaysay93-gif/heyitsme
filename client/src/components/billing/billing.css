@@ -141,3 +141,8 @@
 .upgrade-dialog > .plan-chip { justify-self: start; }
 .upgrade-compare td svg { display: inline-block; margin-right: 3px; }
 .upgrade-compare td { white-space: nowrap; }
+
+.hold-notice { margin-bottom: 20px; padding: 16px; border: 1px solid rgba(190, 120, 20, .35); border-radius: 16px; background: rgba(255, 196, 84, .14); }
+.hold-notice p { margin: 0 0 10px; }
+.hold-notice ul { margin: 0 0 12px; padding: 0; list-style: none; display: grid; gap: 6px; }
+.hold-notice li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }

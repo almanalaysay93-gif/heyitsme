@@ -31,7 +31,6 @@ import {
   getInsightsRows,
   getReferencesByCard,
   getReferencesByOwner,
-  getPublicCardBySlug,
   getUserById,
   markContactsSeen,
   recordAnalytics,
@@ -55,6 +54,7 @@ import {
   qrCampaignRouter,
 } from "./proTools";
 import { assertPro } from "./billing/gate";
+import { cardHold, pausedError, publicCardBySlug } from "./billing/hold";
 import { ENV } from "./_core/env";
 import {
   assertBrandingAllowed, assertInsightRange, assertPortfolioAllowed, createCardForOwner, leadCaptureOpen, withLeadQuota,
@@ -727,7 +727,10 @@ export const appRouter = router({
       .query(async ({ ctx, input }) => {
         const ip = clientIp(ctx.req);
         await enforceRateLimit("card-read", ip, 120, MINUTE);
-        const card = await getPublicCardBySlug(input.slug);
+        const found = await publicCardBySlug(input.slug);
+        // On hold: the visitor is told the page is paused. No view is counted and nothing of the card is sent.
+        if (found?.hold) throw pausedError();
+        const card = found?.card;
         if (card && card.id !== DEMO_CARD_ID) {
           // Count a visitor once per half hour, so refreshes and retries do not inflate Insights.
           const firstView = await rateLimit(
@@ -771,8 +774,10 @@ export const appRouter = router({
         await enforceRateLimit("review", clientIp(ctx.req), 3, 60 * MINUTE);
         // A bot that fills the hidden field gets a normal-looking answer and nothing is stored.
         if (input.website) return { received: true };
-        const card = await getPublicCardBySlug(input.slug);
-        if (!card) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
+        const found = await publicCardBySlug(input.slug);
+        if (!found) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
+        if (found.hold) throw pausedError();
+        const card = found.card;
         if (card.id === DEMO_CARD_ID) return { received: true };
         if (parsePageConfig(card.page).template === "professional")
           throw new TRPCError({ code: "BAD_REQUEST", message: "This card does not take reviews." });
@@ -832,6 +837,7 @@ export const appRouter = router({
         const card = await getCardById(input.cardId);
         if (!card || !card.published || card.deletedAt || card.teamStatus)
           throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
+        if (await cardHold(card)) throw pausedError();
         const campaign = await campaignForCard(input.campaignId, card.id);
         // A company card's contact belongs to the team: it is held in the team owner's name, like the card,
         // and assigned to the person holding the card. It never enters anyone's personal contacts.
@@ -880,6 +886,7 @@ export const appRouter = router({
         if (!limit.allowed) return { ok: false };
         const card = await getCardById(input.cardId);
         if (!card || !card.published || card.deletedAt || card.teamStatus) return { ok: false };
+        if (await cardHold(card)) return { ok: false };
         await recordAnalytics(card.id, input.type, input.target || undefined);
         return { ok: true };
       }),
