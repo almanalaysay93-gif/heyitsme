@@ -581,8 +581,9 @@
 
 /* Work */
 .lx-gallery + div { margin-top: clamp(36px, 6cqi, 64px); }
-.lx-work-grid { display: grid; gap: 20px; }
-.lx-work { position: relative; display: grid; gap: 12px; border-radius: var(--radius-media); }
+/* minmax(0, 1fr): an unbreakable title or URL must not widen the track past the section. */
+.lx-work-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+.lx-work { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; border-radius: var(--radius-media); }
 .lx-work-media {
   display: grid; place-items: center; width: 100%; aspect-ratio: 16 / 10; overflow: hidden;
   color: var(--muted); background: var(--placeholder); object-fit: cover;
@@ -593,7 +594,7 @@
 .lx-work:hover .lx-work-media { transform: translateY(-3px); }
 .lx-work-file img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: 0; transition: opacity .4s ease; }
 .lx-work-file img.is-ready { opacity: 1; }
-.lx-work-caption { display: grid; gap: 4px; padding-right: 28px; }
+.lx-work-caption { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding-right: 28px; overflow-wrap: anywhere; }
 .lx-work-caption strong { font-weight: 650; letter-spacing: -.015em; }
 .lx-work-caption small { color: var(--muted); font-size: 14px; }
 .lx-work-arrow { position: absolute; right: 0; bottom: 4px; color: var(--muted); transition: transform var(--dur-slow) var(--ease-spring); }
