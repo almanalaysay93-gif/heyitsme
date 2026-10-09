@@ -1166,7 +1166,7 @@ main[tabindex="-1"]:focus { outline: 0; }
 }
 .portfolio-mode-tabs {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 .portfolio-mode-tab {
@@ -1259,7 +1259,7 @@ main[tabindex="-1"]:focus { outline: 0; }
 }
 .portfolio-project-row {
   display: grid;
-  grid-template-columns: 140px 1fr;
+  grid-template-columns: 140px minmax(0, 1fr);
   gap: 9px;
 }
 @media (max-width: 600px) {
@@ -1891,3 +1891,77 @@ main[tabindex="-1"]:focus { outline: 0; }
 .legal-links-button:hover { color: var(--ink); }
 .lx-footer .legal-links-button { display: inline-flex; align-items: center; min-height: 44px; color: inherit; }
 .lx-footer .legal-links-button:hover { color: var(--ink); }
+
+/* Let expanded builder sections shrink to the panel, rather than their content's width. */
+.builder-form,
+.builder-panel,
+.builder-panel-body,
+.builder-panel .form-section,
+.builder-panel .field-label,
+.builder-panel .channels-editor,
+.builder-panel .channel-add-grid,
+.builder-panel .channel-row,
+.builder-panel .fold-body > *,
+.builder-panel .portfolio-editor > *,
+.builder-panel .portfolio-add-box > *,
+.builder-panel .references-editor > * {
+  min-width: 0;
+}
+.builder-panel .fold-body {
+  overflow-wrap: anywhere;
+}
+.builder-panel .field-label,
+.builder-panel .image-picker-copy,
+.builder-panel .channels-editor { overflow-wrap: anywhere; }
+.builder-panel .qr-editor-preview { max-width: 100%; }
+.builder-panel .qr-editor-preview figure { max-width: 100%; }
+.builder-panel .image-picker-drop { max-width: 100%; }
+.builder-panel .fold-body input,
+.builder-panel .fold-body select,
+.builder-panel .fold-body textarea,
+.builder-panel .portfolio-mode-tab {
+  min-width: 0;
+  max-width: 100%;
+}
+.builder-panel .portfolio-mode-tab { padding: 8px 10px; }
+.builder-panel .portfolio-mode-tab svg,
+.builder-panel .portfolio-headings-toggle svg { flex-shrink: 0; }
+.builder-panel .portfolio-headings-toggle-left { min-width: 0; flex-wrap: wrap; }
+.builder-panel .reference-mini > div,
+.builder-panel .reference-mini > div > div { min-width: 0; }
+.builder-panel .reference-mini > div { flex: 1; }
+.builder-panel .reference-mini > div > svg { flex-shrink: 0; }
+
+@container card-builder (max-width: 560px) {
+  .builder-panel-nav { flex-wrap: wrap; }
+  .builder-panel .field-grid,
+  .builder-panel .media-picker-row,
+  .builder-panel .channel-add-grid { grid-template-columns: minmax(0, 1fr); }
+  .builder-panel .channel-row { grid-template-columns: minmax(0, 1fr) 44px; }
+  .builder-panel .channel-row strong,
+  .builder-panel .channel-row input { grid-column: 1; }
+  .builder-panel .channel-row .icon-button { grid-column: 2; grid-row: 2 / 4; width: 44px; height: 44px; align-self: start; }
+  .builder-panel .image-picker-wide { flex-wrap: wrap; }
+  .builder-panel .pd-frames { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .builder-panel .portfolio-mode-tabs,
+  .builder-panel .portfolio-project-row,
+  .builder-panel .portfolio-headings-fields,
+  .builder-panel .reference-form .field-grid { grid-template-columns: minmax(0, 1fr); }
+  .builder-panel .portfolio-mode-tab { min-height: 44px; }
+  .builder-panel .portfolio-quota-bar { flex-direction: column; align-items: flex-start; }
+  .builder-panel .portfolio-item-top { flex-wrap: wrap; }
+  .builder-panel .portfolio-item-info { flex-basis: calc(100% - 68px); }
+  .builder-panel .portfolio-item-actions { width: 100%; justify-content: flex-end; }
+  .builder-panel .reference-mini { flex-wrap: wrap; }
+  .builder-panel .reference-mini > div { flex-basis: 100%; }
+  .builder-panel .reference-approve { margin-left: 0; }
+}
+
+@media (max-width: 560px) {
+  /* 16px prevents iOS from zooming the whole page when a field is focused. */
+  .builder-panel .fold-body input,
+  .builder-panel .fold-body select,
+  .builder-panel .fold-body textarea { font-size: 16px; }
+}
+
+.builder-form { container: card-builder / inline-size; }
