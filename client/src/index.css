@@ -1965,3 +1965,10 @@ main[tabindex="-1"]:focus { outline: 0; }
 }
 
 .builder-form { container: card-builder / inline-size; }
+
+/* Keep the exchange form's submit action reachable on short phone screens. */
+.public-exchange-sheet { max-height: calc(100dvh - 40px); overflow-y: auto; }
+@media (max-width: 480px) {
+  .public-exchange-sheet .field-label input,
+  .public-exchange-sheet .field-label textarea { font-size: 16px; }
+}
