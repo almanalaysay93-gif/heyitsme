@@ -36,7 +36,7 @@ import { publicProcedure, router } from "../_core/trpc";
 import type { Db } from "../billing/service";
 import { csvCell } from "../proTools";
 import { storageDelete, storageGetSignedUrl, storagePut } from "../storage";
-import { canManageEvent, recordAudit, requireWorkspaceMember } from "./access";
+import { canManageEvent, recordAudit, requireWorkspaceMember, requireWorkspaceOwner } from "./access";
 import { pausedError } from "../billing/hold";
 import { teamEntitlements, teamHeld } from "./entitlements";
 import { id, limit, requireDb, teamProcedure } from "./router";
@@ -301,6 +301,7 @@ export const teamEventsRouter = router({
     const stats = admin ? await eventStats(db, rows.map(row => row.id)) : new Map<number, EventStats>();
     return {
       canManage: admin,
+      canCreate: access.member.role === "owner",
       timezone: access.workspace.timezone,
       events: rows.map(row => ({
         id: row.id,
@@ -333,8 +334,7 @@ export const teamEventsRouter = router({
   create: eventProcedure.input(z.object({ workspaceId: id, ...eventFields })).mutation(async ({ ctx, input }) => {
     await limit("team-event-create", `user:${ctx.user.id}`, 20, HOUR);
     const db = await requireDb();
-    const access = await requireWorkspaceMember(db, ctx.user.id, input.workspaceId);
-    if (!isAdminRole(access.member.role)) throw new TRPCError({ code: "FORBIDDEN", message: "Only team admins can do this." });
+    const access = await requireWorkspaceOwner(db, ctx.user.id, input.workspaceId);
     const { workspaceId, ...rest } = input;
     const values = eventValues(rest, access.workspace.timezone);
     return db.transaction(async tx => {

@@ -35,14 +35,15 @@ type RsvpRow = Outputs["rsvps"]["rows"][number];
 const when = (date: Date | null, zone: string) => (date ? formatEventTime(date, zone, { weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "No date yet");
 const eventUrl = (slug: string) => `${window.location.origin}/event/${slug}`;
 
-/** Team events. Admins create events and read responses; members see the events that are public. */
+/** Team owners create events; admins manage existing events and members see public events. */
 export function TeamEvents({ workspaceId, admin }: { workspaceId: number; admin: boolean }) {
   const list = trpc.teamEvents.list.useQuery({ workspaceId });
   const [open, setOpen] = useState<number | null>(null);
   // The builder is its own screen: null makes a new event, a number edits that one.
   const [building, setBuilding] = useState<{ eventId: number | null } | null>(null);
 
-  if (admin && building) return <EventBuilder workspaceId={workspaceId} eventId={building.eventId} onClose={eventId => { setOpen(eventId); setBuilding(null); }} />;
+  const canCreate = list.data?.canCreate === true;
+  if (admin && building && (building.eventId !== null || canCreate)) return <EventBuilder workspaceId={workspaceId} eventId={building.eventId} onClose={eventId => { setOpen(eventId); setBuilding(null); }} />;
   if (admin && open !== null) return <EventManager workspaceId={workspaceId} eventId={open} onBack={() => setOpen(null)} onEdit={() => setBuilding({ eventId: open })} />;
   if (list.isLoading) return <section className="gr-panel" role="status">Loading...</section>;
   if (!list.data) return <section className="gr-panel"><p role="alert" className="gr-error">{list.error?.message ?? "Events could not be loaded."}</p></section>;
@@ -50,8 +51,8 @@ export function TeamEvents({ workspaceId, admin }: { workspaceId: number; admin:
   const { events, timezone } = list.data;
   return <section className="gr-panel">
     <h2>Events</h2>
-    <p>{admin ? "Make an event page with an RSVP form, share its link or QR code, and see who is coming." : "Events your team is running. Share the link with people you want to invite."}</p>
-    {admin ? <div className="gr-actions"><button type="button" className="gr-primary" onClick={() => setBuilding({ eventId: null })}>Create event</button></div> : null}
+    <p>{canCreate ? "Make an event page with an RSVP form, share its link or QR code, and see who is coming." : admin ? "Manage your team's events and responses. Only the team owner can create an event." : "Events your team is running. Share the link with people you want to invite."}</p>
+    {canCreate ? <div className="gr-actions"><button type="button" className="gr-primary" onClick={() => setBuilding({ eventId: null })}>Create event</button></div> : null}
     {events.length === 0 ? <p>{admin ? "No events yet." : "There are no open events right now."}</p> : <ul className="team-people">
       {events.map(event => <li key={event.id}>
         <div className="team-person">
