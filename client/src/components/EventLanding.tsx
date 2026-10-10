@@ -2,12 +2,15 @@ import { BrandMark } from "@/components/BrandMark";
 import { GalleryLightbox } from "@/components/GalleryLightbox";
 import { LegalLinks } from "@/components/LegalLinks";
 import { copyToClipboard, getInitials, safeFileName } from "@/lib/cardKit";
+import { eventQrSvg } from "@/lib/eventQr";
 import { save } from "@/lib/teamFiles";
 import {
   agendaByDay,
   eventCountdown,
   eventIcs,
   eventLook,
+  eventQr,
+  EVENT_QR_CAPTION,
   googleCalendarLink,
   orderSpeakers,
   resolveEventSections,
@@ -22,7 +25,7 @@ import { mapLink } from "@shared/pageConfig";
 import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
 import { ArrowUpRight, CalendarPlus, Clock, Globe2, MapPin, Share2 } from "lucide-react";
 import type { inferRouterOutputs } from "@trpc/server";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import type { AppRouter } from "../../../server/routers";
 import { GlassPanel, useHeroEntrance, useMotionOn } from "./cardMotion";
@@ -115,6 +118,12 @@ export function EventLanding({ event, pageUrl, preview = false, children }: Prop
   const place = [event.venue, event.address].filter(Boolean).join(", ");
   const directions = event.mapUrl || (place ? mapLink(place) : null);
   const logo = safeImage(company.logoUrl);
+  const qrLook = eventQr(page, company.colors?.primary);
+  const qrLogo = safeImage(page.qr.logoUrl) || logo;
+  const qrSvg = useMemo(
+    () => eventQrSvg(`${pageUrl}?source=qr`, qrLook, page.qr.caption || EVENT_QR_CAPTION, qrLogo),
+    [pageUrl, qrLook.dots, qrLook.background, qrLook.frame, qrLook.rounded, page.qr.caption, qrLogo],
+  );
   const cover = safeImage(event.coverImageUrl);
   const background = safeImage(page.backgroundUrl);
   const calendar: CalendarEvent | null = event.startAt
@@ -420,6 +429,12 @@ export function EventLanding({ event, pageUrl, preview = false, children }: Prop
             {renderSection(section.id)}
           </GlassPanel>
         ))}
+
+        <GlassPanel enabled={moves} light={false} className="lx-section ev-share-qr" aria-labelledby="event-qr-title">
+          <header className="lx-section-head"><h2 id="event-qr-title">Event QR code</h2></header>
+          <p>Scan this code to open the event page on another device.</p>
+          <div className="ev-public-qr" dangerouslySetInnerHTML={{ __html: qrSvg }} />
+        </GlassPanel>
 
         <GlassPanel enabled={moves} light={false} className="lx-section ev-rsvp" id="rsvp" aria-labelledby="rsvp-title">
           {children}

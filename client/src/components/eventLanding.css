@@ -12,6 +12,12 @@
 .lx-event :is(h1, h2, h3, p, dd, summary, li) { overflow-wrap: anywhere; }
 .lx-event .lx-section { scroll-margin-top: 88px; }
 
+.ev-share-qr { text-align: center; }
+.ev-share-qr .lx-section-head { margin-inline: auto; }
+.ev-share-qr p { color: var(--muted); line-height: 1.5; }
+.ev-public-qr { width: min(100%, 260px); margin: 20px auto 0; }
+.ev-public-qr svg { display: block; width: 100%; height: auto; }
+
 /* ============ Hero ============ */
 .ev-preview {
   margin: 0 var(--gutter) 12px;
