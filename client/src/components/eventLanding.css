@@ -282,3 +282,8 @@
 
 /* Still: nothing moves, whatever the visitor's device prefers. */
 .lx-event.ev-still *, .lx-event.ev-still *::before, .lx-event.ev-still *::after { animation: none !important; transition: none !important; }
+
+/* The QR code on the page. The frame carries its own colors, so the panel only places it. */
+.lx-event .ev-qr-note { margin: 0 0 18px; color: var(--muted); font-size: 15px; }
+.lx-event .ev-qr { width: min(100%, 240px); min-height: 120px; }
+.lx-event .ev-qr svg { display: block; width: 100%; height: auto; }
