@@ -27,6 +27,11 @@
 .event-builder .event-groups h3{color:var(--ink);font-size:13px}
 .event-builder .event-row-speakers legend{color:#5f6377;font-size:10px;font-weight:700}
 
+/* Why guests cannot reply right now, with the button that fixes it. */
+.event-builder .event-blocked{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;width:100%;padding:12px 14px;border:1px solid #e3c07a;border-radius:14px;background:#fff7e3;color:#4a3200}
+.event-builder .event-blocked p{flex:1 1 260px;margin:0;font-size:14px;font-weight:600}
+.event-builder .event-blocked .outline-button{min-height:44px;padding:0 16px;border-radius:999px;font-weight:700}
+
 /* The preview is a picture of the page. The reply bar that sticks to the bottom of a phone would cover the form. */
 .event-preview-still{display:contents}
 .event-builder .lx-preview .lx-dock{display:none}

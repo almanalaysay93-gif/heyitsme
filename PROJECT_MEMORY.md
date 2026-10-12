@@ -534,3 +534,11 @@ Owner sent an RSVP on a live event and the Responses counts stayed at 0.
 - `EventLanding.tsx`: root gets `lx-has-cover`; scroll drift and fade only when motion is "Lively" and the visitor has not asked for reduced motion; the banner also tints the aurora when there is no page background.
 - `eventLanding.css`: `.lx-event.lx-has-cover { display: flow-root; }` so the banner starts at the top edge (the nav's 10px margin otherwise pushes it down; card pages still have that 10px gap). The builder preview keeps the banner still.
 - Checked with mocked event data on a static build: Tide, Midnight, Sunset flat, with page background, without banner; phone and desktop; no console errors, no sideways scroll. Not checked against a real event or in the signed-in builder.
+
+## 2026-10-06 — Event editor says why replies are closed and reopens them (Claude, branch `fix/event-reopen-rsvp`, not committed, not merged)
+
+- Owner report: the public page said "RSVP registration has closed" and nothing in the editor changed it. Cause: the event status was "RSVPs closed" (set by Close RSVPs on the event screen). The editor hid its publish button for that status and gave no reason, so only the event screen's Reopen RSVPs button could undo it.
+- `EventBuilder.tsx`: a notice under the heading for an existing event that cannot take replies, with the button that fixes it. Closed: Reopen RSVPs. Ended: Reopen event. Archived: Move back to drafts. Published with the end time passed: Go to the end time. Published with the reply-by date passed: Clear the reply-by date (then save). Same order as `rsvpState` in `server/teams/eventsRouter.ts`. Status changes use the existing `teamEvents.setStatus`; no server change.
+- Second owner report: "still closed even though I opened it in the editor". The editor preview always drew the RSVP form as open (`rsvpState: "open"` is fixed in the preview), so a closed event looked open there. The preview now carries the same notice above the form, and the save button reads "Save changes" (not "Save draft") for closed, ended and archived events.
+- `eventBuilder.css`: `.event-blocked` styles.
+- `pnpm check`, `pnpm test` (527 passed, 3 skipped) and `pnpm build` clean. Not opened in a signed-in browser: the notice and its buttons are unverified on screen.
