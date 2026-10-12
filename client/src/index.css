@@ -63,7 +63,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 @keyframes mark-right { 0%, 15%, 100% { transform: none; } 50%, 60% { transform: translate(9px, 3px) rotate(-6deg); } }
 @keyframes mark-link { 0%, 15%, 85%, 100% { transform: none; opacity: 1; } 45%, 65% { transform: scaleX(.15); opacity: 0; } }
 
-.app-frame { position: relative; display: flex; min-height: 100vh; overflow: hidden; overflow: clip; background: linear-gradient(135deg, #f8f8fc 0%, #eff0f7 46%, #f4f3fb 100%); }
+.app-frame { position: relative; display: flex; min-height: 100vh; overflow: hidden; overflow: clip; background-image: linear-gradient(rgba(248, 248, 252, .3), rgba(248, 248, 252, .4)), url("/media/workspace-background.png"); background-size: cover; background-position: center 86%; background-attachment: fixed; }
+@media (max-width: 760px) { .app-frame { background-size: cover, auto 230%; background-position: center, center bottom; } }
 .ambient { position: fixed; pointer-events: none; filter: blur(4px); border-radius: 50%; opacity: .5; z-index: 0; }
 .ambient-one { width: 540px; height: 540px; left: -230px; top: -260px; background: radial-gradient(circle, rgba(190, 180, 255, .55), rgba(190, 180, 255, 0) 70%); }
 .ambient-two { width: 620px; height: 620px; right: -340px; top: 18%; background: radial-gradient(circle, rgba(155, 236, 228, .45), rgba(155, 236, 228, 0) 70%); }
