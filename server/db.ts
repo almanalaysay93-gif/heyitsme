@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, isNull, lt, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import {
@@ -403,6 +403,11 @@ export async function getReferencesByCard(
     .limit(50);
 }
 
+// Reviews on a person's own cards. A company card's reviews are held in the team owner's name but belong to the
+// team, and are moderated through server/teams/cardsRouter.ts.
+const onPersonalCard = (db: NonNullable<Awaited<ReturnType<typeof getDb>>>, ownerUserId: number) =>
+  inArray(references.cardId, db.select({ id: cards.id }).from(cards).where(and(eq(cards.ownerUserId, ownerUserId), isNull(cards.workspaceId))));
+
 export async function getReferencesByOwner(
   cardId: number,
   ownerUserId: number
@@ -415,7 +420,8 @@ export async function getReferencesByOwner(
     .where(
       and(
         eq(references.cardId, cardId),
-        eq(references.ownerUserId, ownerUserId)
+        eq(references.ownerUserId, ownerUserId),
+        onPersonalCard(db, ownerUserId)
       )
     )
     .orderBy(desc(references.createdAt))
@@ -471,7 +477,7 @@ export async function setReferenceApproved(id: number, ownerUserId: number, appr
   const rows = await db
     .update(references)
     .set({ approved })
-    .where(and(eq(references.id, id), eq(references.ownerUserId, ownerUserId)))
+    .where(and(eq(references.id, id), eq(references.ownerUserId, ownerUserId), onPersonalCard(db, ownerUserId)))
     .returning({ id: references.id });
   return rows.length > 0;
 }
@@ -494,7 +500,7 @@ export async function deleteReference(id: number, ownerUserId: number) {
   if (!db) throw new Error("Database unavailable");
   await db
     .delete(references)
-    .where(and(eq(references.id, id), eq(references.ownerUserId, ownerUserId)));
+    .where(and(eq(references.id, id), eq(references.ownerUserId, ownerUserId), onPersonalCard(db, ownerUserId)));
   return true;
 }
 

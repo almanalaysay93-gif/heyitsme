@@ -118,3 +118,6 @@ graphify-out/
 .claude/
 .claude-flow/
 
+
+# Raw HyperFrames renders; the encoded clips live in client/public/media
+motion/*/renders/

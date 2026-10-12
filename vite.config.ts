@@ -13,11 +13,14 @@ const publicOrigin = resolvePublicOrigin(process.env.SITE_URL);
 
 const outDir = path.resolve(import.meta.dirname, "dist/public");
 
+// The page files are written once, by the browser build. The prerender build (vite build --ssr) must not redo them.
+const clientBuildOnly: Plugin["apply"] = (_config, env) => env.command === "build" && !env.isSsrBuild;
+
 // Generate pre-rendered static HTML with full metadata and JSON-LD for all public marketing pages
 function marketingPagesPlugin(): Plugin {
   return {
     name: "heyitsme-marketing-pages",
-    apply: "build",
+    apply: clientBuildOnly,
     closeBundle() {
       const indexPath = path.join(outDir, "index.html");
       if (!fs.existsSync(indexPath)) return;
@@ -43,7 +46,7 @@ function marketingPagesPlugin(): Plugin {
 function notFoundPage(): Plugin {
   return {
     name: "heyitsme-404-page",
-    apply: "build",
+    apply: clientBuildOnly,
     closeBundle() {
       const indexPath = path.join(outDir, "index.html");
       if (!fs.existsSync(indexPath)) return;
@@ -68,8 +71,30 @@ function absoluteSocialImages(): Plugin {
   };
 }
 
+// The two faces every first screen draws with. Preloading them lets the headline paint in its real font
+// instead of reflowing when the font arrives behind larger downloads.
+const CRITICAL_FONTS = [/^assets\/dm-sans-latin-wght-normal-[\w-]+\.woff2$/, /^assets\/instrument-serif-latin-400-italic-[\w-]+\.woff2$/];
+
+function preloadCriticalFonts(): Plugin {
+  return {
+    name: "heyitsme-preload-fonts",
+    apply: "build",
+    transformIndexHtml: {
+      order: "post",
+      handler(html, ctx) {
+        const fonts = Object.keys(ctx.bundle ?? {}).filter(file => CRITICAL_FONTS.some(pattern => pattern.test(file))).sort();
+        return fonts.map(file => ({
+          tag: "link",
+          attrs: { rel: "preload", as: "font", type: "font/woff2", href: `/${file}`, crossorigin: "" },
+          injectTo: "head" as const,
+        }));
+      },
+    },
+  };
+}
+
 // jsx-loc stamps source file paths onto every element; keep that to the dev server.
-const plugins = [react(), tailwindcss(), { ...jsxLocPlugin(), apply: "serve" as const }, absoluteSocialImages(), notFoundPage(), marketingPagesPlugin()];
+const plugins = [react(), tailwindcss(), { ...jsxLocPlugin(), apply: "serve" as const }, absoluteSocialImages(), preloadCriticalFonts(), notFoundPage(), marketingPagesPlugin()];
 
 export default defineConfig({
   // Non-secret release id for client error reports: Vercel's commit SHA, else the mode.
@@ -88,6 +113,8 @@ export default defineConfig({
   build: {
     outDir,
     emptyOutDir: true,
+    // Read by scripts/prerender.mjs to link each public page's own CSS and chunk, then removed from the output.
+    manifest: true,
   },
   server: {
     host: true,

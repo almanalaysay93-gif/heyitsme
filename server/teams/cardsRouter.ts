@@ -7,7 +7,7 @@ import { z } from "zod";
 import { serverCardFields, validateCardData } from "@shared/cardValidation";
 import { makeCardSlug } from "@shared/routes";
 import { FIELD_LABELS, MAX_DEPARTMENTS, MAX_WORKSPACE_CARDS, isAdminRole, type TeamCardStatus } from "@shared/teams";
-import { cards, users, workspaceDepartments, workspaceMembers, workspaceTemplates } from "../../drizzle/schema";
+import { cards, references, users, workspaceDepartments, workspaceMembers, workspaceTemplates } from "../../drizzle/schema";
 import { router } from "../_core/trpc";
 import type { Db } from "../billing/service";
 import { canManageWorkspaceCard, recordAudit, requireWorkspaceAdmin, requireWorkspaceMember, type WorkspaceAccess } from "./access";
@@ -225,6 +225,43 @@ export const teamCardsRouter = router({
       await recordAudit(db, { workspaceId: input.workspaceId, actorUserId: ctx.user.id, action: `card.${input.status === "active" ? "restored" : input.status}`, entityType: "card", entityId: card.id, metadata: { name: card.displayName } });
       return { ok: true } as const;
     }),
+
+  /**
+   * Reviews visitors left on a company card. Admins moderate every card and a member the card assigned to them,
+   * the same people who may edit it. Who holds the review row is not sent out.
+   */
+  reviews: cardProcedure.input(z.object({ workspaceId: id, cardId: id })).query(async ({ ctx, input }) => {
+    const db = await requireDb();
+    const access = await requireWorkspaceMember(db, ctx.user.id, input.workspaceId);
+    const card = await manageableCard(db, access, input.cardId);
+    return db
+      .select({ id: references.id, clientName: references.clientName, clientRole: references.clientRole, company: references.company, quote: references.quote, rating: references.rating, approved: references.approved, fromVisitor: references.fromVisitor, createdAt: references.createdAt })
+      .from(references)
+      .where(eq(references.cardId, card.id))
+      .orderBy(desc(references.createdAt))
+      .limit(50);
+  }),
+
+  /** Shows a review on the card, or takes it back off. */
+  setReviewApproved: cardProcedure.input(z.object({ workspaceId: id, cardId: id, reviewId: id, approved: z.boolean() })).mutation(async ({ ctx, input }) => {
+    const db = await requireDb();
+    const access = await requireWorkspaceMember(db, ctx.user.id, input.workspaceId);
+    const card = await manageableCard(db, access, input.cardId);
+    const changed = await db.update(references).set({ approved: input.approved }).where(and(eq(references.id, input.reviewId), eq(references.cardId, card.id))).returning({ id: references.id });
+    if (changed.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "Review not found." });
+    await recordAudit(db, { workspaceId: input.workspaceId, actorUserId: ctx.user.id, action: input.approved ? "review.approved" : "review.hidden", entityType: "card", entityId: card.id, metadata: { name: card.displayName, reviewId: input.reviewId } });
+    return { ok: true } as const;
+  }),
+
+  deleteReview: cardProcedure.input(z.object({ workspaceId: id, cardId: id, reviewId: id })).mutation(async ({ ctx, input }) => {
+    const db = await requireDb();
+    const access = await requireWorkspaceMember(db, ctx.user.id, input.workspaceId);
+    const card = await manageableCard(db, access, input.cardId);
+    const removed = await db.delete(references).where(and(eq(references.id, input.reviewId), eq(references.cardId, card.id))).returning({ id: references.id });
+    if (removed.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "Review not found." });
+    await recordAudit(db, { workspaceId: input.workspaceId, actorUserId: ctx.user.id, action: "review.deleted", entityType: "card", entityId: card.id, metadata: { name: card.displayName, reviewId: input.reviewId } });
+    return { ok: true } as const;
+  }),
 });
 
 const departmentName = z.string().trim().min(1).max(80);

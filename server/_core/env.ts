@@ -57,6 +57,18 @@ export const ENV = {
     .filter(Boolean),
 };
 
+/**
+ * Sessions are HS256 tokens signed with JWT_SECRET, so a short one can be guessed offline and then used to sign in
+ * as anyone. Production refuses to start with one under 32 bytes; `openssl rand -base64 48` makes a good one.
+ * A missing secret is left alone: signing and verifying already refuse a zero-length key, so nobody gets in.
+ */
+export function assertSessionSecret(secret = ENV.cookieSecret, isProduction = ENV.isProduction) {
+  const bytes = Buffer.byteLength(secret);
+  if (isProduction && bytes > 0 && bytes < 32) {
+    throw new Error("JWT_SECRET must be at least 32 bytes in production");
+  }
+}
+
 function flag(name: string, fallback: boolean): boolean {
   const value = process.env[name]?.trim().toLowerCase();
   if (!value) return fallback;

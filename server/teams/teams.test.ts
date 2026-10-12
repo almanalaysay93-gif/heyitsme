@@ -3,7 +3,7 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { INVITATION_TTL_MS, MAX_OWNED_WORKSPACES } from "@shared/teams";
-import { cards, users, workspaceAuditLog, workspaceInvitations, workspaceMembers, workspaces } from "../../drizzle/schema";
+import { cards, references, users, workspaceAuditLog, workspaceInvitations, workspaceMembers, workspaces } from "../../drizzle/schema";
 import type { TrpcContext } from "../_core/context";
 import { ENV } from "../_core/env";
 import { createTestDb } from "../billing/testDb";
@@ -281,8 +281,14 @@ describe("roles", () => {
     expect((await member.as.teams.get({ workspaceId })).me.role).toBe("admin");
     await expect(team.asOwner.teams.leave({ workspaceId })).rejects.toMatchObject({ code: "BAD_REQUEST" });
 
+    const [card] = await db.insert(cards).values({ ownerUserId: team.owner.id, workspaceId, displayName: "Sam Seller", title: "Sales", slug: `handover-${workspaceId}`, published: true }).returning();
+    const [review] = await db.insert(references).values({ cardId: card.id, ownerUserId: team.owner.id, clientName: "Rae Reviewer", quote: "Quick and friendly.", fromVisitor: true, approved: false }).returning();
+
     await team.asOwner.teams.transferOwnership({ workspaceId, memberId: member.memberId });
     expect((await member.as.teams.get({ workspaceId })).me.role).toBe("owner");
+    // Reviews on company cards go to the new owner, so the previous one can no longer read or moderate them.
+    expect((await db.select().from(references).where(eq(references.id, review.id)))[0].ownerUserId).toBe(member.user.id);
+    await expect(team.asOwner.references.setApproved({ id: review.id, approved: true })).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect((await team.asOwner.teams.get({ workspaceId })).me.role).toBe("admin");
     await expect(team.asOwner.teams.close({ workspaceId })).rejects.toMatchObject({ code: "FORBIDDEN" });
 

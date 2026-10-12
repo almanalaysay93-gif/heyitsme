@@ -8,7 +8,7 @@ Free plan plus paid Pro (see `docs/billing.md`). Stack: React 19 + Vite 7 client
 | Var | Required | Notes |
 |---|---|---|
 | `DATABASE_URL` | yes | Supabase Postgres (pooler URL). Without it public cards 404 and `/api/health` = 503. |
-| `JWT_SECRET` | yes | Session signing. Long random string. Rotating it signs everyone out. |
+| `JWT_SECRET` | yes | Session signing. Long random string, 32 bytes or more: production refuses to start with a shorter one (`openssl rand -base64 48`). Rotating it signs everyone out. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | yes | Google OAuth web client. |
 | `GOOGLE_REDIRECT_URI` | prod | `https://heyitsme.fyi/api/oauth/callback`; must be listed in the Google console. |
 | `SITE_URL` | build | `https://heyitsme.fyi` (no trailing slash). Canonicals, sitemap, OG URLs. Previews get `noindex`. |

@@ -647,11 +647,12 @@ describe("Pro 299 tools", () => {
         campaignId: "unknown",
       })
     ).toEqual({ ok: false });
-    const exchange = await publicCaller().publicCard.exchange({
+    await publicCaller().publicCard.exchange({
       cardId: card.id,
       name: "Visitor",
       campaignId: campaign.id,
     });
+    const [exchange] = await db.select().from(contacts).where(eq(contacts.cardId, card.id));
     expect(exchange).toMatchObject({ campaignId: campaign.id });
     const summary = await callerFor(p).insights.summary({ days: 365 });
     expect(summary.advanced?.qrScans).toBe(1);

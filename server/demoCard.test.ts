@@ -66,9 +66,7 @@ describe("Demo Card (/c/demo)", () => {
       notes: "Met at demo",
     });
 
-    expect(exchanged.id).toBe(-999);
-    expect(exchanged.name).toBe("Jordan Lee");
-    expect(exchanged.email).toBe("jordan@example.com");
+    expect(exchanged).toEqual({ ok: true });
   });
 
   it("publicCard.track accepts demo card without errors", async () => {

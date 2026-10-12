@@ -5,7 +5,7 @@ import { nanoid } from "nanoid";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import viteConfig from "../../vite.config";
-import { isSpaRoute } from "@shared/routes";
+import { isSpaRoute, SITEMAP_PATHS } from "@shared/routes";
 
 export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
@@ -63,10 +63,13 @@ export function serveStatic(app: Express) {
   app.use("/assets", express.static(path.join(distPath, "assets"), { immutable: true, maxAge: "1y" }));
   app.use(express.static(distPath, { index: false }));
 
-  // App routes get the shell; everything else is a real 404, matching vercel.json.
+  // Public pages get their own prerendered file, other app routes the empty shell;
+  // everything else is a real 404, matching vercel.json.
   app.use("*", (req, res) => {
-    if (isSpaRoute(req.originalUrl.split("?")[0])) {
-      res.sendFile(path.resolve(distPath, "index.html"));
+    const pathname = req.originalUrl.split("?")[0].replace(/\/+$/, "") || "/";
+    if (isSpaRoute(pathname)) {
+      const page = (SITEMAP_PATHS as readonly string[]).includes(pathname) ? path.join(pathname.slice(1), "index.html") : "app.html";
+      res.sendFile(path.resolve(distPath, page));
       return;
     }
     const notFound = path.resolve(distPath, "404.html");

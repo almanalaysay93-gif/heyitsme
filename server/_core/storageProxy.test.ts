@@ -73,6 +73,28 @@ describe("storage proxy route", () => {
     }
   });
 
+  it("answers 429 once one address passes the per-minute ceiling", async () => {
+    const limited = express();
+    registerStorageProxy(limited, 2);
+    const limitedServer = createServer(limited);
+    await new Promise<void>(resolve => limitedServer.listen(0, resolve));
+    const url = `http://127.0.0.1:${(limitedServer.address() as AddressInfo).port}/storage/test-key.png`;
+    const original = { ...ENV };
+    ENV.s3Bucket = "my-test-bucket";
+
+    try {
+      expect((await fetch(url, { redirect: "manual" })).status).toBe(307);
+      expect((await fetch(url, { redirect: "manual" })).status).toBe(307);
+      const response = await fetch(url, { redirect: "manual" });
+      expect(response.status).toBe(429);
+      expect(Number(response.headers.get("retry-after"))).toBeGreaterThan(0);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+    } finally {
+      Object.assign(ENV, original);
+      await new Promise<void>(resolve => limitedServer.close(() => resolve()));
+    }
+  });
+
   describe("with Supabase Storage", () => {
     const original = { ...ENV };
     beforeAll(() => {

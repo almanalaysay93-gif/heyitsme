@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <style>
+    @font-face { font-family: "Instrument Serif"; src: url("assets/instrument-serif-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-style: normal; }
+    html, body { margin: 0; background: #0a0908; }
+    #root { position: relative; width: 1920px; height: 340px; overflow: hidden; background: #0a0908; }
+    .tape { position: absolute; left: -160px; width: 2240px; height: 108px; overflow: hidden; display: flex; align-items: center; color: #0a0908; }
+    .tape-gold { top: 82px; background: #d8b26a; }
+    .tape-ivory { top: 152px; background: #f3ecdd; }
+    .run, .surge { width: max-content; flex: none; }
+    .surge { display: flex; }
+    .surge span { display: inline-flex; align-items: center; font-family: "Instrument Serif", Georgia, serif; font-size: 76px; line-height: 1; white-space: nowrap; }
+    .surge i { display: block; width: 26px; height: 26px; margin: 0 38px; background: currentColor; clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%); }
+    .sheen { position: absolute; top: 0; left: -420px; width: 360px; height: 100%; background: linear-gradient(100deg, rgba(255, 255, 255, 0) 0%, rgba(255, 246, 220, 0.55) 50%, rgba(255, 255, 255, 0) 100%); }
+  </style>
+</head>
+<body>
+  <div id="root" data-composition-id="heyitsme-band" data-start="0" data-duration="12" data-width="1920" data-height="340">
+    <div class="tape tape-ivory" data-layout-allow-overlap data-layout-allow-occlusion><div class="run"><div class="surge"></div></div></div>
+    <div class="tape tape-gold" data-layout-allow-overlap data-layout-allow-occlusion><div class="run"><div class="surge"></div></div><div class="sheen"></div></div>
+  </div>
+  <script>
+    // Four copies of the phrase list per tape. Moving a track by 25% of its own width is exactly one copy,
+    // so every tween below ends on a frame identical to its first and the clip loops clean.
+    const words = ["Start free", "QR code", "NFC-ready link", "Save in one tap", "Lead capture", "Your own page"];
+    document.querySelectorAll(".surge").forEach((track) => {
+      for (let copy = 0; copy < 4; copy += 1) {
+        words.forEach((word) => {
+          const item = document.createElement("span");
+          // The gold tape crosses over the ivory one on purpose.
+          item.setAttribute("data-layout-allow-overlap", "");
+          item.setAttribute("data-layout-allow-occlusion", "");
+          item.textContent = word;
+          item.appendChild(document.createElement("i"));
+          track.appendChild(item);
+        });
+      }
+    });
+
+    const tl = gsap.timeline({ paused: true });
+    const D = 12;
+    gsap.set(".tape-gold", { rotation: -2.4 });
+    gsap.set(".tape-ivory", { rotation: 2 });
+
+    // Steady run plus two hard surges per loop: two copies travelled in total, in opposite directions.
+    tl.fromTo(".tape-gold .run", { xPercent: 0 }, { xPercent: -25, duration: D, ease: "none" }, 0);
+    tl.fromTo(".tape-gold .surge", { xPercent: 0 }, { xPercent: -12.5, duration: D / 2, ease: "power3.inOut" }, 0);
+    tl.fromTo(".tape-gold .surge", { xPercent: -12.5 }, { xPercent: -25, duration: D / 2, ease: "power3.inOut", immediateRender: false }, D / 2);
+    tl.fromTo(".tape-ivory .run", { xPercent: -25 }, { xPercent: 0, duration: D, ease: "none" }, 0);
+    tl.fromTo(".tape-ivory .surge", { xPercent: -25 }, { xPercent: -12.5, duration: D / 2, ease: "power3.inOut" }, 0);
+    tl.fromTo(".tape-ivory .surge", { xPercent: -12.5 }, { xPercent: 0, duration: D / 2, ease: "power3.inOut", immediateRender: false }, D / 2);
+
+    tl.fromTo(".tape-gold", { rotation: -2.4 }, { rotation: -3.3, duration: D / 4, ease: "sine.inOut", yoyo: true, repeat: 3 }, 0);
+    tl.fromTo(".tape-ivory", { rotation: 2 }, { rotation: 3, duration: D / 4, ease: "sine.inOut", yoyo: true, repeat: 3 }, 0);
+    tl.fromTo(".tape-gold i", { rotation: 0 }, { rotation: 720, duration: D, ease: "none" }, 0);
+    tl.fromTo(".tape-ivory i", { rotation: 0 }, { rotation: -720, duration: D, ease: "none" }, 0);
+    tl.fromTo(".sheen", { x: 0, skewX: -18 }, { x: 2900, skewX: -18, duration: D / 2, ease: "power2.inOut", repeat: 1 }, 0);
+
+    window.__timelines = window.__timelines || {};
+    window.__timelines["heyitsme-band"] = tl;
+  </script>
+</body>
+</html>
