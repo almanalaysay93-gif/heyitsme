@@ -118,6 +118,8 @@ export const eventPageSchema = z.object({
   qr: z
     .object({ dots: color("QR dots"), background: color("QR background"), frame: color("QR frame"), rounded: z.boolean().optional().default(false), logoUrl: qrLogo, caption: z.string().trim().max(EVENT_QR_CAPTION_MAX, "Keep the line under the QR code to 24 characters.").optional().default("") })
     .prefault({}),
+  /** The event page shows its QR code near the end unless the admin hides it. The Share tab has the code either way. */
+  hideQr: z.boolean().optional().default(false),
   /** Display order. Hidden sections stay in the list so their position survives being turned back on. */
   sections: z
     .array(z.object({ id: z.enum(EVENT_SECTION_IDS), hidden: z.boolean().optional().default(false) }))

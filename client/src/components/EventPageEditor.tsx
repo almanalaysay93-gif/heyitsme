@@ -422,6 +422,8 @@ export function EventPageLook({ page, brandColor, companyLogoUrl, canStyle, canU
     <div className="form-section">
       <div className="pd-block">
         <div className="pd-block-head"><h3>QR code</h3><p>The code people scan to open this page. Download it from the event's Share section after you save.</p></div>
+        <label className="pd-check"><input type="checkbox" checked={!page.hideQr} onChange={event => onChange(current => ({ ...current, hideQr: !event.target.checked }))} /> Show the QR code on the event page</label>
+        <p className="field-hint">{page.hideQr ? "Hidden from the event page. You can still download the code from Share." : "Shown near the end of the event page, after the RSVP form."}</p>
         {/* Laid out like the QR editor in the card builder: the code on one side, its settings on the other. */}
         <div className="qr-editor">
           <div className="event-qr-preview" dangerouslySetInnerHTML={{ __html: code }} />

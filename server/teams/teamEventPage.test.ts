@@ -6,6 +6,7 @@ import { cards, users, workspaceAuditLog, workspaceEvents } from "../../drizzle/
 import type { TrpcContext } from "../_core/context";
 import { ENV } from "../_core/env";
 import { createTestDb } from "../billing/testDb";
+import { eventPageSchema, eventStylingAdded } from "@shared/eventPage";
 import { TEAM_EVENT_PAGE_SCHEMA_STATEMENTS } from "./schemaSql";
 
 vi.mock("../_core/rateLimit", async importOriginal => ({
@@ -122,6 +123,14 @@ describe("team event page", () => {
 
     const audit = await db.select().from(workspaceAuditLog).where(eq(workspaceAuditLog.workspaceId, team.workspaceId));
     expect(audit.filter(row => row.action === "event.page_changed")).toHaveLength(1);
+  });
+
+  it("shows the QR code on the page unless the admin hides it", () => {
+    expect(eventPageSchema.parse({}).hideQr).toBe(false);
+    expect(eventPageSchema.parse({ hideQr: true }).hideQr).toBe(true);
+    // Hiding the code is not styling, so a team without event styling can still do it.
+    const saved = eventPageSchema.parse({});
+    expect(eventStylingAdded(saved, eventPageSchema.parse({ hideQr: true }))).toBe(false);
   });
 
   it("saves days, tiers and row speakers, and settles the cross-references on the server", async () => {

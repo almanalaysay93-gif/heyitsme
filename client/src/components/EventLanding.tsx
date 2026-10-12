@@ -5,15 +5,18 @@ import { copyToClipboard, getInitials, safeFileName } from "@/lib/cardKit";
 import { save } from "@/lib/teamFiles";
 import {
   agendaByDay,
+  EVENT_QR_CAPTION,
   eventCountdown,
   eventIcs,
   eventLook,
+  eventQr,
   googleCalendarLink,
   orderSpeakers,
   resolveEventSections,
   rowSpeakers,
   sponsorsByTier,
   type CalendarEvent,
+  type EventQrStyle,
   type EventSectionId,
   type EventSpeaker,
 } from "@shared/eventPage";
@@ -81,6 +84,18 @@ function SpeakerPhoto({ speaker, size }: { speaker: EventSpeaker; size: "large" 
   ) : (
     <span className={`ev-face ev-face-${size} ev-face-initials`} aria-hidden="true">{getInitials(speaker.name)}</span>
   );
+}
+
+/** The event's QR code on the page itself, so a guest can hold it up for the next person. The QR library loads only when the code is shown. */
+function EventQr({ url, look, caption, logo }: { url: string; look: EventQrStyle; caption: string; logo: string | null }) {
+  const [svg, setSvg] = useState("");
+  const { dots, background, frame, rounded } = look;
+  useEffect(() => {
+    let live = true;
+    void import("@/lib/eventQr").then(({ eventQrSvg }) => { if (live) setSvg(eventQrSvg(url, { dots, background, frame, rounded }, caption, logo)); });
+    return () => { live = false; };
+  }, [url, dots, background, frame, rounded, caption, logo]);
+  return <div className="ev-qr" dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 
 type Props = {
@@ -424,6 +439,19 @@ export function EventLanding({ event, pageUrl, preview = false, children }: Prop
         <GlassPanel enabled={moves} light={false} className="lx-section ev-rsvp" id="rsvp" aria-labelledby="rsvp-title">
           {children}
         </GlassPanel>
+
+        {page.hideQr ? null : (
+          <GlassPanel enabled={moves} light={false} className="lx-section ev-section-qr" aria-labelledby="qr-title">
+            <header className="lx-section-head"><h2 id="qr-title">Scan to open this page</h2></header>
+            <p className="ev-qr-note">Point a phone camera at the code to open this event on another phone.</p>
+            <EventQr
+              url={`${pageUrl || `${window.location.origin}/event/${event.slug || "your-event"}`}?source=qr`}
+              look={eventQr(page, company.colors?.primary)}
+              caption={page.qr.caption.trim() || EVENT_QR_CAPTION}
+              logo={safeImage(page.qr.logoUrl) ?? logo}
+            />
+          </GlassPanel>
+        )}
       </main>
 
       <footer className="lx-footer">

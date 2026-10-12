@@ -1,6 +1,17 @@
 # PROJECT_MEMORY
 
-## 2026-10-06: Holds when a paid plan ends (branch `feat/plan-hold`, not merged)
+## 2026-10-07: QR code on the event page (branch `feat/event-page-qr`, not committed)
+
+- **Owner request**: the event page shows its QR code, with an option to hide it.
+- **What**: new page field `hideQr` (default false) in `shared/eventPage.ts`. `EventLanding` shows a "Scan to open this page" panel after the RSVP form, using the event's saved QR look, caption and logo. The QR library loads only when the panel shows. Checkbox "Show the QR code on the event page" in the event editor's QR block. Hiding is not styling, so teams without event styling can use it.
+- **Effect on live events**: every existing event page shows the code once this ships, until its admin hides it.
+- **Tests**: one added in `server/teams/teamEventPage.test.ts`. Suite 558 passed, 3 skipped. Page checked locally at phone and desktop width, shown and hidden. Editor checkbox not viewed in a browser.
+
+## 2026-10-07: Server function moved to Tokyo (merged, live)
+
+- `vercel.json` `"regions": ["hnd1"]`. Function ran in iad1 while Supabase is in ap-northeast-1. Query time 151 ms -> 4 ms; warm API calls about 0.17 s.
+
+## 2026-10-06: Holds when a paid plan ends (merged 2026-10-06)
 
 - **Owner decision**: when a subscription ends, what it paid for is put on hold. Teams has no free tier. Grace is 3 days. Teams that were free get 14 days of notice. CLAUDE.md rule 1 reworded to match.
 - **Personal cards**: owner had a paid plan, it ended 3+ days ago, account is on Free, and the card still uses a Pro feature -> visitors get a paused page (link, QR, NFC, contact file, review page). Never-paid and complimentary owners are untouched. Removing the Pro features brings the card back without paying.
