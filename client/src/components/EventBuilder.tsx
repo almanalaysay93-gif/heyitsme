@@ -315,6 +315,19 @@ function Builder({ workspaceId, initial, company, zone, canStyle, onClose }: { w
     }
   };
 
+  /** Reopening is a status change, not an edit: it takes effect at once and leaves unsaved changes alone. */
+  const changeStatus = async (status: EventStatus, done: string) => {
+    if (!target) return;
+    try {
+      await setStatus.mutateAsync({ ...target, status });
+      setMeta(current => ({ ...current, status }));
+      toast.success(done);
+      void Promise.all([utils.teamEvents.list.invalidate({ workspaceId }), utils.teamEvents.get.invalidate(target), utils.teams.activity.invalidate({ workspaceId })]);
+    } catch (error) {
+      failed(error);
+    }
+  };
+
   const leave = () => {
     if (dirty && !window.confirm("Leave without saving? Your changes will be lost.")) return;
     onClose(meta.id);
@@ -366,6 +379,16 @@ function Builder({ workspaceId, initial, company, zone, canStyle, onClose }: { w
   const pageUnfinished = eventPageProblem(draft.page) !== null;
   const formUnfinished = questionProblem(draft.questions) !== null;
   const live = meta.status === "published";
+  // Why guests cannot reply right now, in the order the server checks (see rsvpState in eventsRouter), with the way out.
+  const passed = (date: Date | string | null) => date !== null && new Date(date).getTime() < Date.now();
+  const blocked: { text: string; action?: { label: string; run: () => void } } | null =
+    meta.status === "closed" ? { text: "RSVPs are closed. Guests can open the page, and the form does not take replies.", action: { label: "Reopen RSVPs", run: () => void changeStatus("published", "RSVPs are open again.") } }
+    : meta.status === "ended" ? { text: "This event is marked as ended. The page says it has ended and takes no replies.", action: { label: "Reopen event", run: () => void changeStatus("published", "The event is open again.") } }
+    : meta.status === "archived" ? { text: "This event is archived. Its page is hidden.", action: { label: "Move back to drafts", run: () => void changeStatus("draft", "The event is a draft again.") } }
+    : !live ? null
+    : passed(view.endAt) ? { text: "The end time has passed, so the page says the event has ended. Move the end time later, then save.", action: { label: "Go to the end time", run: () => { openTab("details"); requestAnimationFrame(() => document.getElementById("event-field-endAt")?.focus()); } } }
+    : passed(view.rsvpDeadline) ? { text: "The reply-by date has passed, so guests cannot reply. Clear it or move it later, then save.", action: { label: "Clear the reply-by date", run: () => setDetail("rsvpDeadline", "") } }
+    : null;
 
   return (
     <motion.div className="builder-page event-builder" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -373,6 +396,10 @@ function Builder({ workspaceId, initial, company, zone, canStyle, onClose }: { w
         <button type="button" className="back-button" onClick={leave}>← {isNew ? "All events" : "Back to event"}</button>
         <h2 className="event-builder-title">{isNew ? "New event" : "Edit event"}</h2>
         <p className="field-hint">{isNew ? "Fill in the basics, build the page and choose the RSVP questions. Nothing is public until you publish." : `${EVENT_STATUS_LABELS[meta.status]}. Times are in your team's time zone (${zoneName}).`}</p>
+        {blocked ? <div className="event-blocked" role="status">
+          <p>{blocked.text}</p>
+          {blocked.action ? <button type="button" className="outline-button" disabled={saving || setStatus.isPending} onClick={blocked.action.run}>{blocked.action.label}</button> : null}
+        </div> : null}
       </div>
 
       <div className="builder-toolbar">
@@ -398,7 +425,7 @@ function Builder({ workspaceId, initial, company, zone, canStyle, onClose }: { w
           </button> : null}
           <button type="button" className="glass-button glass-button-primary" disabled={saving || (!isNew && !dirty)} onClick={() => void save(false)}>
             {busy ? null : <Check size={16} aria-hidden="true" />}
-            <span className="label-long">{busy ? "Saving..." : isNew ? "Create event" : live ? "Save live changes" : "Save draft"}</span>
+            <span className="label-long">{busy ? "Saving..." : isNew ? "Create event" : live ? "Save live changes" : meta.status === "draft" ? "Save draft" : "Save changes"}</span>
             <span className="label-short">{busy ? "Saving..." : isNew ? "Create" : "Save"}</span>
           </button>
         </div>
@@ -498,6 +525,8 @@ function Builder({ workspaceId, initial, company, zone, canStyle, onClose }: { w
               <div className="event-preview-still" inert>
                 <EventLanding event={view} pageUrl="">
                   <header className="lx-section-head"><h2>RSVP</h2></header>
+                  {/* The form stays in view so its questions can be checked, with what guests really get said above it. */}
+                  {blocked ? <p className="event-notice" role="status">Guests do not see this form right now. {blocked.text}</p> : null}
                   <form>
                     <fieldset className="event-choice event-status">
                       <legend>Will you come?<span className="event-required" aria-hidden="true"> *</span></legend>
