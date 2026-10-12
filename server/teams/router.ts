@@ -13,12 +13,14 @@ import {
   type TeamCapability,
   type WorkspaceRole,
 } from "@shared/teams";
+import { TEAMS_PLAN } from "@shared/plans";
 import { cards, contacts, references, users, workspaceAuditLog, workspaceInvitations, workspaceMembers, workspaces } from "../../drizzle/schema";
 import { ENV } from "../_core/env";
 import { sendMail, teamInviteMail } from "../_core/mail";
 import { clientIp, hashIdentifier, rateLimit } from "../_core/rateLimit";
 import { siteOrigin } from "../_core/seo";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "../_core/trpc";
+import { enabledChannels, teamsCheckoutOpen } from "../billing/checkout";
 import type { Db } from "../billing/service";
 import { getDb } from "../db";
 import {
@@ -28,7 +30,8 @@ import {
   requireWorkspaceMember,
   requireWorkspaceOwner,
 } from "./access";
-import { assertTeamCapability, planEnded, runTeamCall, seatAllowance, teamEntitlements } from "./entitlements";
+import { assertTeamCapability, planEnded, runTeamCall, seatAllowance, teamEntitlements, teamHeld, teamPlanState } from "./entitlements";
+import { holdStartsAt } from "@shared/hold";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -50,14 +53,17 @@ export async function limit(scope: string, identity: string, max: number, window
  * A procedure that needs a signed-in user and a Team capability, checked on the server on every call.
  * A call that changes something is refused for a workspace whose plan has ended (see access.ts), unless it is
  * one of the few that must keep working then: leaving, removing someone, closing, downloading.
+ * Once the workspace is on hold every call is refused, except the ones marked whileHeld.
  */
-export const teamProcedure = (capability: TeamCapability, options: { afterPlanEnd?: boolean } = {}) =>
+export const teamProcedure = (capability: TeamCapability, options: { afterPlanEnd?: boolean; whileHeld?: boolean } = {}) =>
   protectedProcedure.use(({ next, type }) => {
     assertTeamCapability(capability);
-    return runTeamCall(type === "mutation" && !options.afterPlanEnd, () => next());
+    return runTeamCall(type === "mutation" && !options.afterPlanEnd, Boolean(options.whileHeld), () => next());
   });
 const memberProcedure = teamProcedure("canCreateWorkspace");
-const leavingProcedure = teamProcedure("canCreateWorkspace", { afterPlanEnd: true });
+const leavingProcedure = teamProcedure("canCreateWorkspace", { afterPlanEnd: true, whileHeld: true });
+// What a team on hold still answers: that it is on hold, and its bill for the owner.
+const heldProcedure = teamProcedure("canCreateWorkspace", { whileHeld: true });
 const inviteProcedure = teamProcedure("canInviteMembers");
 
 /** Only the hash is stored. The link itself exists in the invitation email and nowhere else. */
@@ -225,9 +231,12 @@ export const teamsRouter = router({
       if ((owned?.total ?? 0) >= MAX_OWNED_WORKSPACES) {
         throw new TRPCError({ code: "FORBIDDEN", message: `You can own up to ${MAX_OWNED_WORKSPACES} teams.` });
       }
+      // While Teams is sold, a new team starts unpaid: it is there to look at, and opens for changes once paid.
+      const now = new Date();
+      const plan = teamsCheckoutOpen() ? { seatLimit: TEAMS_PLAN.seats, accessUntil: now, createdAt: now } : {};
       const [workspace] = await tx
         .insert(workspaces)
-        .values({ ...input, timezone: input.timezone ?? "Asia/Manila", createdBy: ctx.user.id })
+        .values({ ...input, ...plan, timezone: input.timezone ?? "Asia/Manila", createdBy: ctx.user.id })
         .returning();
       await tx.insert(workspaceMembers).values({ workspaceId: workspace.id, userId: ctx.user.id, email, role: "owner", status: "active", joinedAt: new Date() });
       await recordAudit(tx, { workspaceId: workspace.id, actorUserId: ctx.user.id, action: "workspace.created", entityType: "workspace", entityId: workspace.id });
@@ -235,14 +244,19 @@ export const teamsRouter = router({
     });
   }),
 
-  get: memberProcedure.input(z.object({ workspaceId: id })).query(async ({ ctx, input }) => {
+  get: heldProcedure.input(z.object({ workspaceId: id })).query(async ({ ctx, input }) => {
     const db = await requireDb();
     const { workspace, member } = await requireWorkspaceMember(db, ctx.user.id, input.workspaceId);
+    const ended = planEnded(workspace);
     return {
       workspace,
       me: { memberId: member.id, role: member.role, jobTitle: member.jobTitle },
       entitlements: teamEntitlements(workspace),
-      planEnded: planEnded(workspace),
+      planEnded: ended,
+      planState: teamPlanState(workspace),
+      // On hold: the client shows the hold screen and nothing else. Every other call is refused on the server.
+      held: teamHeld(workspace),
+      holdFrom: ended && workspace.accessUntil ? holdStartsAt(workspace.accessUntil) : null,
     };
   }),
 
@@ -616,8 +630,8 @@ export const teamsRouter = router({
     return { ok: true } as const;
   }),
 
-  /** Seats and plan dates, for the owner. There is no price here: Teams pricing is not set. */
-  billing: memberProcedure.input(z.object({ workspaceId: id })).query(async ({ ctx, input }) => {
+  /** Seats, plan dates and what the plan costs, for the owner. Paying starts in billing.createTeamCheckout. */
+  billing: heldProcedure.input(z.object({ workspaceId: id })).query(async ({ ctx, input }) => {
     const db = await requireDb();
     const { workspace } = await requireWorkspaceOwner(db, ctx.user.id, input.workspaceId);
     const usage = await seatUsage(db, workspace.id);
@@ -626,6 +640,9 @@ export const teamsRouter = router({
       seats: { ...usage, allowed, free: Math.max(0, allowed - usage.used) },
       accessUntil: workspace.accessUntil,
       ended: planEnded(workspace),
+      state: teamPlanState(workspace),
+      held: teamHeld(workspace),
+      plan: { checkoutOpen: teamsCheckoutOpen(), channels: teamsCheckoutOpen() ? enabledChannels() : [], priceMinor: TEAMS_PLAN.priceMinor, seats: TEAMS_PLAN.seats },
     };
   }),
 

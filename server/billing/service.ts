@@ -3,6 +3,7 @@ import type { PgDatabase } from "drizzle-orm/pg-core";
 import {
   addCycle,
   FOUNDING_MEMBER_LIMIT,
+  TEAMS_PLAN,
   quotaPeriodKey,
   resolveEntitlements,
   subscriptionGrantsAccess,
@@ -19,6 +20,8 @@ import {
   offerCounters,
   payments,
   subscriptions,
+  workspaceAuditLog,
+  workspaces,
   type InsertCard,
   type Payment,
 } from "../../drizzle/schema";
@@ -212,7 +215,53 @@ export async function foundingPriceEligible(
   );
 }
 
+/** A payment for a team's plan. Its row names the team in metadataJson. */
+export const TEAM_PAYMENT_PURPOSE = "teams";
+
+/** The team a payment was made for, or null for a personal payment. */
+export function teamOfPayment(payment: Pick<Payment, "purpose" | "metadataJson">): number | null {
+  if (payment.purpose !== TEAM_PAYMENT_PURPOSE) return null;
+  try {
+    const id = JSON.parse(payment.metadataJson ?? "null")?.workspaceId;
+    return Number.isInteger(id) && id > 0 ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Moves a team's plan date on by one month for a payment already marked succeeded. A plan still running is
+ * extended from its end, a lapsed or unpaid one from today. Seats go up to the included number, never down.
+ */
+async function settleTeamPayment(tx: Db, payment: Payment, now: Date): Promise<SettleOutcome> {
+  const workspaceId = teamOfPayment(payment);
+  const [workspace] = workspaceId
+    ? await tx
+        .select({ id: workspaces.id, seatLimit: workspaces.seatLimit, accessUntil: workspaces.accessUntil })
+        .from(workspaces)
+        .where(eq(workspaces.id, workspaceId))
+        .for("update")
+        .limit(1)
+    : [];
+  if (!workspace) return { outcome: "rejected", userId: payment.userId, reason: "team_missing" };
+  // No end date means the team is free for good. Giving it one would shorten what it has.
+  if (workspace.accessUntil === null) return { outcome: "rejected", userId: payment.userId, reason: "team_free" };
+  const periodEnd = addCycle(workspace.accessUntil > now ? workspace.accessUntil : now, "monthly");
+  const seatLimit = workspace.seatLimit !== null && workspace.seatLimit < TEAMS_PLAN.seats ? TEAMS_PLAN.seats : workspace.seatLimit;
+  await tx.update(workspaces).set({ accessUntil: periodEnd, seatLimit, updatedAt: now }).where(eq(workspaces.id, workspace.id));
+  await tx.insert(workspaceAuditLog).values({
+    workspaceId: workspace.id,
+    actorUserId: payment.userId,
+    action: "plan.paid",
+    entityType: "workspace",
+    entityId: String(workspace.id),
+    metadata: { invoiceNo: payment.providerTransactionId, accessUntil: periodEnd.toISOString(), seatLimit },
+  });
+  return { outcome: "team_activated", userId: payment.userId, workspaceId: workspace.id, periodEnd };
+}
+
 export type SettleOutcome =
+  | { outcome: "team_activated"; userId: number; workspaceId: number; periodEnd: Date }
   | { outcome: "unknown_invoice" }
   | { outcome: "already_settled"; userId: number }
   | { outcome: "not_paid"; userId: number; status: Payment["status"] }
@@ -293,6 +342,8 @@ export async function settlePayment(
         failureMessage: null,
       })
       .where(eq(payments.id, payment.id));
+
+    if (payment.purpose === TEAM_PAYMENT_PURPOSE) return settleTeamPayment(tx as unknown as Db, payment, now);
 
     if (
       (payment.purpose !== "subscription" && payment.purpose !== "renewal") ||

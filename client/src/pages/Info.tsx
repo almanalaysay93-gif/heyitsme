@@ -165,8 +165,7 @@ export function FaqPage() {
       <h3>Can I cancel?</h3>
       <p>
         Yes, from <em>Billing</em> in your workspace. Pro stays on until the end of the period you paid for, then your account moves to Free.
-        Nothing is deleted: cards, contacts, and insights data stay. Cards above the Free limit stay live and editable; you just can&rsquo;t
-        create new ones until you&rsquo;re under the limit or back on Pro.
+        Nothing is deleted: cards, contacts, and insights data stay. Three days after Pro ends, any card that still uses a Pro feature is paused: its link, QR code and NFC tag show a paused page until you renew or take the Pro feature off. A card that uses no Pro feature stays online.
       </p>
 
       <h3>Can I get a refund?</h3>

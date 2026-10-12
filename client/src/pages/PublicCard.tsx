@@ -1,3 +1,5 @@
+import { PausedPage } from "@/components/PausedPage";
+import { isPausedError } from "@shared/hold";
 import { LogoLoader } from "@/components/BrandMark";
 import { CardLanding } from "@/components/CardLanding";
 import { InfoDialog } from "@/components/InfoDialog";
@@ -105,6 +107,8 @@ export default function PublicCardPage() {
       </div>
     );
   }
+  // On hold: the server sends nothing of the card, so there is nothing to fall back to.
+  if (isPausedError(cardQuery.error)) return <PausedPage what="card" />;
   // A guest preview lives in this browser, so it still opens when the lookup fails.
   if (cardQuery.isError && !card) {
     return (
@@ -321,7 +325,7 @@ export default function PublicCardPage() {
               role="dialog"
               aria-modal="true"
               aria-label={`Exchange details with ${card.displayName}`}
-              className="exchange-sheet glass-panel"
+              className="exchange-sheet public-exchange-sheet glass-panel"
               initial={{ opacity: 0, y: 40, scale: 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 30, scale: 0.98 }}
@@ -380,6 +384,20 @@ export default function PublicCardPage() {
                       }
                       placeholder="you@example.com"
                     />
+                    <label className="field-label" htmlFor="exchange-mobile-number">
+                      <span>Mobile number</span>
+                      <input
+                        id="exchange-mobile-number"
+                        type="tel"
+                        autoComplete="tel"
+                        maxLength={64}
+                        value={form.phone}
+                        onChange={event =>
+                          setForm({ ...form, phone: event.target.value })
+                        }
+                        placeholder="+63 912 345 6789"
+                      />
+                    </label>
                     <Field
                       label="Company"
                       value={form.company}

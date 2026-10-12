@@ -21,6 +21,8 @@ export const ENV = {
   s3Region: process.env.S3_REGION ?? "us-east-1",
   awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID ?? "",
   awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? "",
+  // Shared with Vercel Cron, which sends it as a bearer token to /api/cron/plans. Empty: the run is refused.
+  cronSecret: process.env.CRON_SECRET ?? "",
   // Resend, for owner notifications. Without a key, mail is skipped and logged.
   resendApiKey: process.env.RESEND_API_KEY ?? "",
   // The address must be on the domain verified in Resend, send.heyitsme.fyi.
@@ -44,6 +46,8 @@ export const ENV = {
   googlePayEnv: process.env.GOOGLE_PAY_ENV === "PRODUCTION" ? "PRODUCTION" : "TEST",
   nfcStoreEnabled: flag("NFC_STORE_ENABLED", false),
   teamsEnabled: flag("TEAMS_ENABLED", false),
+  // Sells Teams at checkout. Off, starting a team is free and teams have no end date. Teams that exist stay free.
+  teamsBillingEnabled: flag("TEAMS_BILLING_ENABLED", false),
   // Custom colors and QR styling on team event pages. Off, saved looks stay and new ones are refused.
   teamEventStylingEnabled: flag("TEAM_EVENT_STYLING_ENABLED", true),
   foundingOfferEnabled: false,

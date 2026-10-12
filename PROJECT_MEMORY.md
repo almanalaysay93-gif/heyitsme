@@ -39,6 +39,16 @@
   - Upstash Redis added through the Vercel integration: `KV_REST_API_URL` and `KV_REST_API_TOKEN` are set for Production and Preview, and production was redeployed afterwards. `/api/health` answers 200.
   - Supabase checks, run by the owner: no public table has RLS off (0 rows); the `uploads` bucket has `public = false`; redirect URLs are `heyitsme-alai2.vercel.app/` and `/**` on that host, with no subdomain wildcard.
 
+## 2026-10-06: Holds when a paid plan ends (branch `feat/plan-hold`, not merged)
+
+- **Owner decision**: when a subscription ends, what it paid for is put on hold. Teams has no free tier. Grace is 3 days. Teams that were free get 14 days of notice. CLAUDE.md rule 1 reworded to match.
+- **Personal cards**: owner had a paid plan, it ended 3+ days ago, account is on Free, and the card still uses a Pro feature -> visitors get a paused page (link, QR, NFC, contact file, review page). Never-paid and complimentary owners are untouched. Removing the Pro features brings the card back without paying.
+- **Teams**: never paid -> on hold at once. Plan ended -> read-only 3 days, then on hold. On hold: company cards, event pages, RSVP forms, review pages paused; every Team call refused (downloads too) except get, billing, close, remove, leave; paying always works.
+- **Code**: `shared/hold.ts`, `server/billing/hold.ts`, `teamHeld` + `whileHeld` in `server/teams/`, `server/billing/planCron.ts` (`/api/cron/plans`, Vercel Cron daily, `CRON_SECRET`), three mails in `server/billing/mail.ts`, `PausedPage`, `CardHoldNotice`, `HeldTeam` in `Team.tsx`. No schema change: holds are computed from dates. Notices deduped by `appSettings` rows `notice:*`.
+- **Tests**: `server/billing/hold.test.ts` (17). Suite 557 passed, 3 skipped. `pnpm check`, `pnpm build` clean.
+- **Manual steps left**: add `CRON_SECRET` in Vercel before deploy. First daily run after deploy stamps every free team with an end date 14 days away and emails its owner (production data change, owner approved). Legal and FAQ copy changed (`Legal.tsx`, `Info.tsx`, `Pricing.tsx`): owner to read once.
+- **Known gaps**: an expired plan override gets no reminder email. `adminSetPlan` with an empty date is re-dated by the daily run while Teams is sold.
+
 ## 2026-10-05: Photo Carousel Gestures, Dragging and Infinite Loop Fix
 
 - **Root Causes**:
@@ -547,7 +557,7 @@ Owner sent an RSVP on a live event and the Responses counts stayed at 0.
 - `CardLanding.tsx`: line removed from the Business hero. `cardLanding.css`: the two `.lx-byline` rules it used are gone; `.lx-byline-*` roster rules stay.
 - Gates: `pnpm check` clean, `pnpm test` 525 passed, `pnpm build` clean. Not opened in a browser.
 
-## 2026-10-05 — Live site audit: landing lag, layout shift, error-page titles, tap targets (Claude, branch `fix/audit-2026-10-05`, NOT committed, NOT deployed)
+## 2026-10-05 — Live site audit: landing lag, layout shift, error-page titles, tap targets (Claude, branch `fix/audit-prerender`, merged to main)
 - Owner: deep run-through of heyitsme.fyi, find bugs, lags and broken features, fix them. Audit ran with headless Playwright against the live site at 1440, 390 and 320 wide. Signed-in flows were not audited (no test account, and local `.env` points at the production database).
 - Landing lag and layout shift (major). The 860 KB hero video started at about 1.3s and took the bandwidth; the italic headline font finished at about 15s on a slow link, the headline reflowed from 288px to 193px, CLS 0.157. Fix: `LoopVideo.tsx` starts above-the-fold clips only after window `load`; `vite.config.ts` `preloadCriticalFonts()` preloads the two headline fonts; new `client/public/media/hero-orbit-poster.webp` (29 KB) shown first (`Landing.tsx`, `media.ts`, `landing3d.css`); `vercel.json` caches `/media/*` for a day. After: fonts in by about 0.3s, headline height never changes, CLS 0.010 desktop / 0.017 mobile / 0.022 at 320, desktop LCP 1.9s.
 - Wrong page titles (major). `/event/<missing>` and `/r/<missing>` kept the landing title and were indexable; `/app/team` and other gated app pages showed the landing title, breadcrumb read "Teams > Teams". Fix: `PublicEvent.tsx` and `PublicReview.tsx` use `usePageMeta` (unavailable title plus noindex); `AppShell.tsx` sets "<page> · <area> — heyitsme" with noindex and drops the duplicate crumb.
@@ -557,7 +567,7 @@ Owner sent an RSVP on a live event and the Responses counts stayed at 0.
 - Gates: `pnpm check` clean, `pnpm build` clean, `pnpm test` 525 passed. `server/rls.test.ts` talks to live Supabase and timed out in two of the full runs (a different case each time); clean on rerun. Browser check ran on the built files behind a static server, not on the deployed site. The second-h1 fix was not seen in a browser (builder needs the API).
 - Left alone: large chunks (index 119 KB gz, InsightsView 405 KB raw); "Try again" outline button 42px; small `.icon-button` (31px) inside the app; footer legal links stay text (navigation).
 
-## 2026-10-05 — Public pages no longer blank until JavaScript loads (Claude, branch `fix/audit-2026-10-05`, NOT committed, NOT deployed)
+## 2026-10-05 — Public pages no longer blank until JavaScript loads (Claude, branch `fix/audit-prerender`, merged to main)
 - Owner: "fix 1st" (first item on the audit's not-fixed list). The six public pages (`/`, `/about`, `/faq`, `/pricing`, `/privacy`, `/terms`) now ship their markup in the HTML, made at build time, and the browser adopts it (hydration) instead of drawing from nothing.
 - Build is three steps (`package.json` `build`): browser build, a second Vite build of `client/src/entry-prerender.tsx`, then `scripts/prerender.mjs` writes each page's markup, its CSS link and chunk preloads into its HTML file. The route-to-module list `PAGE_MODULES` in that script must follow `App.tsx`; the build fails loudly if a module is missing.
 - New file `dist/public/app.html` is the empty shell. `index.html` now holds the landing page, so `/app*`, `/r/*`, `/event/*` rewrites in `vercel.json`, the card-page template in `server/_core/seo.ts`, and `serveStatic` in `server/_core/vite.ts` all use `app.html`. `main.tsx` adopts markup only when `data-prerendered` equals the current path; otherwise it clears and draws as before.
@@ -601,3 +611,41 @@ Owner sent an RSVP on a live event and the Responses counts stayed at 0.
 - New HyperFrames project `motion/clouds/` (1280x720, 16s loop) renders `client/public/media/clouds-drift.mp4` (630 KB at 960x540, crf 30). Rebuilt once after owner feedback ("doesn't look like clouds"): now two diagonal banks of steel-blue cloud with gold veins along their edges, after the dark NFC card art (`2.png`).
 - `Landing.tsx` mounts it first inside `.nx` through `LoopVideo` (`nx-clouds`, fixed, 40% opacity, behind all content, plays under reduced motion). `.nx` now has `isolation: isolate` so the layer can sit at `z-index: -1`.
 - `motion/clouds/renders/` is not ignored by git; do not commit the raw render (8 MB).
+
+- Measured on the built files, slow 4G with 4x slower CPU, 390 wide: headline on screen 3.6s to 1.9s on `/`, 2.5s to 1.5s on `/pricing`. With JavaScript off all six pages show styled content. No hydration errors at 1440, 390, and with reduced motion; menu, palette swatches, navigation and back all work after hydration.
+- Layout shift stays 0 at 1440, 390 and 320 on the landing page.
+- Gates: `pnpm check` clean, `pnpm build` clean, `pnpm test` 530 passed. Checked on a local static server, not on Vercel: the first deploy should be a preview, then open `/`, `/app`, `/c/demo`, one real card and one event page.
+- Shipped from a separate worktree (`heyitsme-ship`) on top of main, because the main working tree held an unfinished landing redesign (`lp2-` classes, new hero clip) from another session. That redesign is NOT in this commit. When it lands it must keep three things: the page still renders through `entry-prerender.tsx` without touching `window` during render, `hero-orbit-poster.webp` is re-made from the new clip, and the 44px tap-target rules in `buttons.css` get the new class names.
+
+## 2026-10-06 — Event banner placed like a card cover (Claude, branch `feat/event-cover-top`, not committed, not merged)
+
+- Before: the event banner was a boxed band (4:3 on phones, 21:9 on desktop) under the hero. Now it uses the card page's cover structure: `.lx-cover-top` across the top of the page, 54vh tall (240–580px), `object-fit: cover`, faded into the paper color, with the title on its lower edge (`.lx-has-cover .lx-hero` padding). No schema or server change; the same `coverImageUrl` is used.
+- `EventLanding.tsx`: root gets `lx-has-cover`; scroll drift and fade only when motion is "Lively" and the visitor has not asked for reduced motion; the banner also tints the aurora when there is no page background.
+- `eventLanding.css`: `.lx-event.lx-has-cover { display: flow-root; }` so the banner starts at the top edge (the nav's 10px margin otherwise pushes it down; card pages still have that 10px gap). The builder preview keeps the banner still.
+- Checked with mocked event data on a static build: Tide, Midnight, Sunset flat, with page background, without banner; phone and desktop; no console errors, no sideways scroll. Not checked against a real event or in the signed-in builder.
+
+## 2026-10-06 — Landing page names the Teams price (Claude, branch `fix/landing-teams-price`, merged to main)
+
+- Owner request: fix the landing page, which still said Teams was "coming soon".
+- `client/src/pages/Landing.tsx`, pricing list: now "Teams ₱1,499/month for each team, 10 seats" and "Teams: one brand across your whole team". Price and seats come from `TEAMS_PLAN`.
+- The landing redesign that sits uncommitted in the main folder (another session) still has the old "coming soon" line. It needs the same change when it lands, or it will bring the old text back.
+- `pnpm check`, `pnpm test` (540 passed, 3 skipped) and `pnpm build` clean. The prerendered landing page holds the new lines. Not looked at in a browser.
+
+## 2026-10-06 — Teams price on the public Pricing page (Claude, branch `feat/pricing-teams-price`, merged to main)
+
+- Owner request: add a price for Teams on /pricing. Owner confirmed the price: PHP 1,499 a month for each team.
+- `client/src/pages/Pricing.tsx`: third plan card, Teams, with the price and seats read from `TEAMS_PLAN` in `shared/plans.ts`. Its button, "Start a team", opens Workspace → Billing (Google sign-in first for a guest). Page title and description name Teams; `server/_core/meta.ts` matches.
+- `client/src/pages/pricing.css`: three cards in a row, one column under 900px.
+- Billing plan cards renamed from `.plan-card*` to `.tier-card*` (`billing.css`, `PlanCards.tsx`). Pricing owns `.plan-card` and also loads `billing.css`, so the two were restyling each other.
+- The price shows on /pricing whether or not `TEAMS_BILLING_ENABLED` is on. With the flag off a new team is still free, so the page and the product disagree until the flag is turned on.
+- `pnpm check`, `pnpm test` (540 passed, 3 skipped) and `pnpm build` clean. /pricing and Billing checked on a static build with mocked answers, phone and desktop. Not checked on the live site.
+
+## 2026-10-06 — Paid Teams subscription and plan cards on Billing (Claude, branch `feat/billing-teams-signup`, merged to main; `TEAMS_BILLING_ENABLED` still off)
+
+- Owner request: sign up for the Teams plan subscription from Workspace → Billing, with plans and pricing shown as side-by-side plan cards.
+- Price: PHP 1,499 a month for each team, 10 seats included. The owner asked Claude to set a new price and confirmed PHP 1,499 on 2026-10-06. One constant: `TEAMS_PLAN` in `shared/plans.ts`.
+- New flag `TEAMS_BILLING_ENABLED`, default off. Off: starting a team is free, as before. On (with `TEAMS_ENABLED`, `PAYMENTS_ENABLED` and a channel): a new team starts unpaid and read-only until its owner pays. Teams that already exist have no end date and stay free (owner decision); checkout and settlement both refuse them.
+- Server: `billing.createTeamCheckout`, `billing.teamPlans`, `startTeamCheckout` and `settleTeamPayment` (`server/billing/`), `teamPlanState` (`server/teams/entitlements.ts`). Payment rows use purpose and plan code `teams` with the team id in `metadataJson`. No migration. A settled payment adds one month and writes `plan.paid` to the team's activity log.
+- Client: `PlanCards.tsx` (Free, Pro, Teams cards, then "Your teams" with pay and renew buttons), `TeamPay.tsx`, Billing tab and unpaid notice in `Team.tsx`. Prices on screen come from the server. The lost-characters "Upgrade to Pro" button text is gone with the old button.
+- Tests: `server/billing/teamCheckout.test.ts` (13). `pnpm check`, `pnpm test` (540 passed, 3 skipped) and `pnpm build` clean. Layout checked on a static build with mocked answers, phone and desktop. Not checked: a signed-in browser against the real API, and any real or sandbox 2C2P payment.
+- Before turning the flag on: confirm the price, run one sandbox Teams payment end to end. Details in `docs/billing.md`.

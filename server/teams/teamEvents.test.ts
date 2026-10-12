@@ -123,7 +123,7 @@ describe("team events schema", () => {
 });
 
 describe("team events", () => {
-  it("lets an admin create an event with the ready-made form, in the team's time zone", async () => {
+  it("lets the owner create an event with the ready-made form, in the team's time zone", async () => {
     const team = await makeTeam();
     const created = await team.asOwner.teamEvents.create({ workspaceId: team.workspaceId, title: "  Launch night ", startAt: "2030-01-10T18:00", endAt: "2030-01-10T21:00" });
     const { event, fields, stats } = await team.asOwner.teamEvents.get({ workspaceId: team.workspaceId, eventId: created.id });
@@ -155,6 +155,7 @@ describe("team events", () => {
     // Members see what the public can see, and nothing about who answered.
     const seen = await member.as.teamEvents.list({ workspaceId: team.workspaceId });
     expect(seen.canManage).toBe(false);
+    expect(seen.canCreate).toBe(false);
     expect(seen.events.map(row => row.title)).toEqual(["Launch night"]);
     expect(seen.events[0].stats).toBeNull();
     await expect(member.as.teamEvents.get(event.target)).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -166,6 +167,10 @@ describe("team events", () => {
     // Admins of the team manage it.
     expect((await admin.as.teamEvents.list({ workspaceId: team.workspaceId })).events).toHaveLength(2);
     expect((await admin.as.teamEvents.rsvps(event.target)).rows).toHaveLength(1);
+    expect((await admin.as.teamEvents.list({ workspaceId: team.workspaceId })).canCreate).toBe(false);
+    expect((await team.asOwner.teamEvents.list({ workspaceId: team.workspaceId })).canCreate).toBe(true);
+    await expect(admin.as.teamEvents.create({ workspaceId: team.workspaceId, title: "Admin event" })).rejects.toMatchObject({ code: "FORBIDDEN", message: "Only the team owner can do this." });
+    expect((await team.asOwner.teamEvents.list({ workspaceId: team.workspaceId })).events).toHaveLength(2);
 
     // Another team's admin cannot reach it, even by naming their own team with this event's number.
     await expect(other.asOwner.teamEvents.get(event.target)).rejects.toMatchObject({ code: "NOT_FOUND" });

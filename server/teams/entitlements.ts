@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { TRPCError } from "@trpc/server";
+import { TEAM_HOLD_MESSAGE, holdStartsAt } from "@shared/hold";
 import { MAX_WORKSPACE_PEOPLE, TEAM_CAPABILITIES, type TeamCapability, type TeamEntitlements } from "@shared/teams";
 import { ENV } from "../_core/env";
 
@@ -11,7 +12,29 @@ export const seatAllowance = (workspace: WorkspacePlan) => workspace.seatLimit ?
 export const planEnded = (workspace: WorkspacePlan, now = new Date()) =>
   workspace.accessUntil !== null && workspace.accessUntil.getTime() <= now.getTime();
 
-// Looking at what a team already has is never taken away.
+/**
+ * Where a team's plan stands. "free" has no end date and nothing to pay. "unpaid" was started while Teams is
+ * sold and has not been paid for yet: its plan date is exactly the moment it was made, which no later change produces.
+ */
+export type TeamPlanState = "free" | "unpaid" | "active" | "ended";
+
+export function teamPlanState(workspace: WorkspacePlan & { createdAt: Date }, now = new Date()): TeamPlanState {
+  if (workspace.accessUntil === null) return "free";
+  if (!planEnded(workspace, now)) return "active";
+  return workspace.accessUntil.getTime() === workspace.createdAt.getTime() ? "unpaid" : "ended";
+}
+
+/**
+ * A team on hold: its public pages are paused and nobody can open it, until its owner pays. A team that was never
+ * paid for is on hold from the start. A plan that ran out is on hold once the days of grace after it are over.
+ */
+export function teamHeld(workspace: WorkspacePlan & { createdAt: Date }, now = new Date()): boolean {
+  const state = teamPlanState(workspace, now);
+  if (state === "unpaid") return true;
+  return state === "ended" && holdStartsAt(workspace.accessUntil!).getTime() <= now.getTime();
+}
+
+// Looking at what a team already has is never taken away, short of a hold.
 const READ_ONLY: readonly TeamCapability[] = ["canViewWorkspaceAnalytics"];
 
 // Capabilities with a switch of their own, on top of the plan.
@@ -36,16 +59,26 @@ export function assertTeamCapability(capability: TeamCapability) {
 }
 
 // Whether the Team call now running changes something. Set once per call by teamProcedure, read by access.ts.
-const teamCall = new AsyncLocalStorage<{ changes: boolean }>();
+const teamCall = new AsyncLocalStorage<{ changes: boolean; whileHeld: boolean }>();
 
-export const runTeamCall = <T>(changes: boolean, call: () => Promise<T>) => teamCall.run({ changes }, call);
+export const runTeamCall = <T>(changes: boolean, whileHeld: boolean, call: () => Promise<T>) => teamCall.run({ changes, whileHeld }, call);
 
-/** Stops a change to a workspace whose plan has ended. Reading it, leaving it and closing it still work. */
-export function assertPlanAllowsCall(workspace: WorkspacePlan) {
-  if (teamCall.getStore()?.changes && planEnded(workspace)) {
+/**
+ * Stops every Team call for a workspace on hold, except the few marked whileHeld: seeing that it is on hold,
+ * its bill, leaving and closing. Before the hold, stops a change to a workspace whose plan has ended.
+ * A call made outside a Team procedure (paying, in billing/router.ts) is not stopped here.
+ */
+export function assertPlanAllowsCall(workspace: WorkspacePlan & { createdAt?: Date }) {
+  const call = teamCall.getStore();
+  if (call && !call.whileHeld && workspace.createdAt && teamHeld({ ...workspace, createdAt: workspace.createdAt })) {
+    throw new TRPCError({ code: "FORBIDDEN", message: TEAM_HOLD_MESSAGE });
+  }
+  if (call?.changes && planEnded(workspace)) {
     throw new TRPCError({
       code: "FORBIDDEN",
-      message: "This team's plan has ended, so it can't be changed right now. Everything is still here to view and download.",
+      message: workspace.createdAt && teamPlanState({ ...workspace, createdAt: workspace.createdAt }) === "unpaid"
+        ? "This team is not paid for yet, so it can't be changed. Its owner can pay on the team's Billing tab."
+        : "This team's plan has ended, so it can't be changed right now. Renew it on the team's Billing tab.",
     });
   }
 }

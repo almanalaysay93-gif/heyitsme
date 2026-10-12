@@ -1,3 +1,4 @@
+import CardHoldNotice from "@/components/billing/CardHoldNotice";
 import { QrCampaigns } from "@/components/QrCampaigns";
 import { parsePageConfig } from "@shared/pageConfig";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -902,6 +903,9 @@ function Workspace() {
           </div>
         </header>
         <div className="content-wrap">
+          {billing.data?.cardHolds?.cards.length ? (
+            <CardHoldNotice holds={billing.data.cardHolds} onRenew={() => openUpgrade("general")} onEdit={(cardId) => navigate(`/app/cards/${cardId}/edit`)} />
+          ) : null}
           {isBuilder ? (
             editId > 0 && isCardsLoading ? (
               <ViewLoading />

@@ -1,7 +1,9 @@
 import { EventAnswerInput, type EventAnswer } from "@/components/EventAnswerInput";
 import { EventLanding } from "@/components/EventLanding";
+import { PausedPage } from "@/components/PausedPage";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { trpc } from "@/lib/trpc";
+import { isPausedError } from "@shared/hold";
 import { RSVP_STATUS_LABELS, formatEventTime, type RsvpStatus } from "@shared/events";
 import { useRef, useState, type FormEvent } from "react";
 import { Link, useParams } from "wouter";
@@ -42,6 +44,7 @@ export default function PublicEvent() {
 
   if (loading) return <main className="gr-public" role="status">Loading event...</main>;
   // A preview link only shows the event it was made for.
+  if (isPausedError(page.error)) return <PausedPage what="event page" />;
   if (!found) {
     return (
       <main className="gr-public" id="main">
