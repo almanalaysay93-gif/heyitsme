@@ -36,6 +36,39 @@ function CardFields({ form, onChange }: { form: CardForm; onChange: (form: CardF
   </>;
 }
 
+/** Reviews visitors left on one company card. Nothing a visitor writes shows on the card until someone approves it here. */
+function CardReviews({ workspaceId, cardId }: { workspaceId: number; cardId: number }) {
+  const reviews = trpc.teamCards.reviews.useQuery({ workspaceId, cardId });
+  const setApproved = trpc.teamCards.setReviewApproved.useMutation();
+  const remove = trpc.teamCards.deleteReview.useMutation();
+  const busy = setApproved.isPending || remove.isPending;
+  const act = async (action: () => Promise<unknown>, done: string) => {
+    try {
+      await action();
+      await reviews.refetch();
+      toast.success(done);
+    } catch (error) {
+      failed(error);
+    }
+  };
+  if (reviews.isLoading) return <p className="gr-attribution team-row-note">Loading reviews...</p>;
+  if (reviews.error) return <p role="alert" className="gr-error">{reviews.error.message}</p>;
+  if (!reviews.data?.length) return <p className="gr-attribution team-row-note">No reviews on this card yet.</p>;
+  return <ul className="team-people team-inline-form">
+    {reviews.data.map(review => <li key={review.id}>
+      <div className="team-person">
+        <strong>{review.clientName}{review.rating ? ` · ${review.rating} of 5` : ""}</strong>
+        <span>{review.quote}</span>
+        <span className="team-badges"><span className="team-status">{review.approved ? "On the card" : "Waiting for approval"}</span></span>
+      </div>
+      <div className="team-person-actions">
+        <button type="button" className="gr-secondary" disabled={busy} onClick={() => act(() => setApproved.mutateAsync({ workspaceId, cardId, reviewId: review.id, approved: !review.approved }), review.approved ? "Review hidden from the card." : "Review is now on the card.")}>{review.approved ? "Hide" : "Approve"}</button>
+        <button type="button" className="gr-secondary team-danger" disabled={busy} onClick={() => { if (window.confirm(`Delete the review from ${review.clientName}? This cannot be undone.`)) void act(() => remove.mutateAsync({ workspaceId, cardId, reviewId: review.id }), "Review deleted."); }}>Delete</button>
+      </div>
+    </li>)}
+  </ul>;
+}
+
 /** Company cards. Admins see and manage every card; a member sees the card assigned to them. The server checks each action. */
 export function TeamCards({ workspaceId, companyName }: { workspaceId: number; companyName: string }) {
   const utils = trpc.useUtils();
@@ -53,6 +86,7 @@ export function TeamCards({ workspaceId, companyName }: { workspaceId: number; c
   // Templates are an admin list, so it is only asked for once the server has said this person manages every card.
   const templates = trpc.teamTemplates.list.useQuery({ workspaceId }, { enabled: list.data?.canManageAll === true });
   const [editing, setEditing] = useState<{ id: number; form: CardForm; note: string } | null>(null);
+  const [reviewing, setReviewing] = useState<number | null>(null);
 
   const refresh = () => Promise.all([utils.teamCards.list.invalidate({ workspaceId }), utils.teams.members.invalidate({ workspaceId }), utils.teams.activity.invalidate({ workspaceId }), utils.teamRequests.list.invalidate({ workspaceId }), utils.teamTemplates.list.invalidate({ workspaceId })]);
   const run = async (action: () => Promise<unknown>, done: string) => {
@@ -141,6 +175,7 @@ export function TeamCards({ workspaceId, companyName }: { workspaceId: number; c
             <div className="team-person-actions">
               {live ? <><a className="gr-secondary" href={link} target="_blank" rel="noreferrer">View</a><button type="button" className="gr-secondary" onClick={() => navigator.clipboard.writeText(link).then(() => toast.success("Link copied."), () => toast.message(link))}>Copy link</button></> : null}
               {card.canEdit ? <button type="button" className="gr-secondary" onClick={() => setEditing(editing?.id === card.id ? null : { id: card.id, note: "", form: { displayName: card.displayName, title: card.title, company: card.company ?? "", email: card.email ?? "", phone: card.phone ?? "", location: card.location ?? "", bio: card.bio ?? "" } })}>{editing?.id === card.id ? "Close" : "Edit"}</button> : null}
+              {card.canEdit ? <button type="button" className="gr-secondary" aria-expanded={reviewing === card.id} onClick={() => setReviewing(reviewing === card.id ? null : card.id)}>{reviewing === card.id ? "Close reviews" : "Reviews"}</button> : null}
               {card.canEdit && !offline ? <button type="button" className="gr-secondary" onClick={() => run(() => publish.mutateAsync({ workspaceId, cardId: card.id, published: !live }), live ? "Card unpublished." : "Card published.")}>{live ? "Unpublish" : "Publish"}</button> : null}
               {canManageAll && activeTemplates.length > 0 ? <select aria-label={`Template for the card of ${card.displayName}`} value={activeTemplates.some(template => template.id === card.templateId) ? card.templateId ?? "" : ""} onChange={event => { if (event.target.value) void run(() => applyTemplate.mutateAsync({ workspaceId, templateId: Number(event.target.value), cardId: card.id }), "Template put on the card."); }}>
                 <option value="" disabled>Choose a template</option>
@@ -160,6 +195,7 @@ export function TeamCards({ workspaceId, companyName }: { workspaceId: number; c
               </> : null}
             </div>
             {!card.canEdit && card.mine ? <p className="gr-attribution team-row-note">Your team admin has paused this card. Ask them to restore it.</p> : null}
+            {reviewing === card.id && card.canEdit ? <CardReviews workspaceId={workspaceId} cardId={card.id} /> : null}
             {editing?.id === card.id ? <form className="team-inline-form" onSubmit={save}>
               <CardFields form={editing.form} onChange={form => setEditing({ ...editing, form })} />
               {card.lockedFields.length > 0 ? canManageAll

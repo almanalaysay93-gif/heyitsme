@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <style>
+    html, body { margin: 0; background: #0a0908; }
+    #root { position: relative; width: 1200px; height: 1200px; overflow: hidden; background: #0a0908; }
+    .glow { position: absolute; left: 200px; top: 200px; width: 800px; height: 800px; border-radius: 50%; background: radial-gradient(circle, rgba(216, 178, 106, 0.3) 0%, rgba(216, 178, 106, 0.08) 38%, rgba(10, 9, 8, 0) 68%); }
+    .world { position: absolute; inset: 0; perspective: 1700px; }
+    .tilt, .pair, .seat, .face-on, .sway, .ring, .card, .arm { position: absolute; transform-style: preserve-3d; }
+    .tilt { left: 600px; top: 600px; width: 0; height: 0; }
+    .pair, .seat, .face-on, .sway, .arm { left: 0; top: 0; width: 0; height: 0; }
+
+    .card { left: -300px; top: -190px; width: 600px; height: 380px; }
+    .face { position: absolute; inset: 0; border-radius: 26px; overflow: hidden; box-shadow: 0 0 0 2px rgba(216, 178, 106, 0.55); }
+    .face img { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .edge { position: absolute; inset: 0; border-radius: 26px; background: #b98f47; }
+    .sheen { position: absolute; top: 0; left: -60%; width: 46%; height: 100%; background: linear-gradient(100deg, rgba(255, 255, 255, 0) 0%, rgba(255, 244, 214, 0.5) 50%, rgba(255, 255, 255, 0) 100%); }
+
+    .ring { border-radius: 50%; border: 2px solid rgba(216, 178, 106, 0.6); }
+    .ring.a { left: -470px; top: -470px; width: 940px; height: 940px; }
+    .ring.b { left: -390px; top: -390px; width: 780px; height: 780px; border-color: rgba(243, 236, 221, 0.28); border-style: dashed; }
+    .orb { position: absolute; border-radius: 50%; background: radial-gradient(circle at 34% 30%, #fff3cf 0%, #d8b26a 38%, #6d4f1f 100%); box-shadow: 0 0 26px rgba(216, 178, 106, 0.7); }
+    .orb.one { left: -22px; top: 448px; width: 44px; height: 44px; }
+    .orb.two { left: -14px; top: -404px; width: 28px; height: 28px; }
+    .orb.three { left: 372px; top: -18px; width: 36px; height: 36px; background: radial-gradient(circle at 34% 30%, #d9d4ff 0%, #5b4bff 45%, #20186b 100%); box-shadow: 0 0 30px rgba(91, 75, 255, 0.8); }
+
+
+    .star { position: absolute; width: 46px; height: 46px; background: #fff3cf; clip-path: polygon(50% 0, 58% 42%, 100% 50%, 58% 58%, 50% 100%, 42% 58%, 0 50%, 42% 42%); }
+    .star.s1 { left: 150px; top: 210px; }
+    .star.s2 { left: 1010px; top: 300px; width: 30px; height: 30px; }
+    .star.s3 { left: 240px; top: 950px; width: 34px; height: 34px; }
+    .star.s4 { left: 930px; top: 900px; }
+  </style>
+</head>
+<body>
+  <div id="root" data-composition-id="heyitsme-cards" data-start="0" data-duration="8" data-width="1200" data-height="1200">
+    <div class="glow"></div>
+    <div class="star s1"></div><div class="star s2"></div><div class="star s3"></div><div class="star s4"></div>
+    <div class="world">
+      <div class="tilt">
+        <div class="arm arm-a"><div class="ring a"></div><div class="orb one"></div></div>
+        <div class="arm arm-b"><div class="ring b"></div><div class="orb two"></div><div class="orb three"></div></div>
+
+        <!-- Both cards ride one carousel and are turned back toward the camera, so only their fronts ever show. -->
+        <div class="pair">
+          <div class="seat seat-dark"><div class="face-on"><div class="sway sway-dark">
+            <div class="card">
+              <div class="edge" style="transform: translateZ(-6px)"></div>
+              <div class="face"><img src="assets/nfc-dark-front.webp" alt="" /><div class="sheen"></div></div>
+            </div>
+          </div></div></div>
+          <div class="seat seat-light"><div class="face-on"><div class="sway sway-light">
+            <div class="card">
+              <div class="edge" style="transform: translateZ(-6px)"></div>
+              <div class="face"><img src="assets/nfc-light-front.webp" alt="" /><div class="sheen"></div></div>
+            </div>
+          </div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Every motion completes whole cycles inside 8s, so the last frame meets the first and the clip loops clean.
+    const tl = gsap.timeline({ paused: true });
+    const D = 8;
+    gsap.set(".tilt", { rotationZ: -7 });
+    gsap.set(".seat-dark", { x: 150, z: 250 });
+    gsap.set(".seat-light", { x: -150, z: -250 });
+
+    tl.fromTo(".tilt", { rotationX: -14 }, { rotationX: -4, duration: D / 2, ease: "sine.inOut", yoyo: true, repeat: 1 }, 0);
+    tl.fromTo(".pair", { rotationY: -28 }, { rotationY: 332, duration: D, ease: "none" }, 0);
+    tl.fromTo(".face-on", { rotationY: 28 }, { rotationY: -332, duration: D, ease: "none" }, 0);
+    tl.fromTo(".sway-dark", { rotationY: -20, rotationX: 5 }, { rotationY: 20, rotationX: -5, duration: D / 2, ease: "sine.inOut", yoyo: true, repeat: 1 }, 0);
+    tl.fromTo(".sway-light", { rotationY: 20, rotationX: -5 }, { rotationY: -20, rotationX: 5, duration: D / 2, ease: "sine.inOut", yoyo: true, repeat: 1 }, 0);
+    tl.fromTo(".arm-a", { rotationX: 78, rotationZ: 0 }, { rotationX: 78, rotationZ: 360, duration: D, ease: "none" }, 0);
+    tl.fromTo(".arm-b", { rotationX: 78, rotationZ: 0 }, { rotationX: 78, rotationZ: -720, duration: D, ease: "none" }, 0);
+    tl.fromTo(".sheen", { xPercent: 0 }, { xPercent: 380, duration: D / 2, ease: "power2.inOut", repeat: 1 }, 0);
+    tl.fromTo(".glow", { scale: 0.92, opacity: 0.8 }, { scale: 1.1, opacity: 1, duration: D / 4, ease: "sine.inOut", yoyo: true, repeat: 3 }, 0);
+    tl.fromTo(".s1, .s4", { scale: 0.2, rotation: 0 }, { scale: 1, rotation: 90, duration: 1, ease: "power2.out", yoyo: true, repeat: 7 }, 0);
+    tl.fromTo(".s2, .s3", { scale: 1, rotation: 0 }, { scale: 0.2, rotation: -90, duration: 1, ease: "power2.in", yoyo: true, repeat: 7 }, 0);
+
+    window.__timelines = window.__timelines || {};
+    window.__timelines["heyitsme-cards"] = tl;
+  </script>
+</body>
+</html>

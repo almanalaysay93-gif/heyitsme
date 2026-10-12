@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { contacts, users, workspaceAuditLog } from "../../drizzle/schema";
 import type { TrpcContext } from "../_core/context";
@@ -60,7 +60,8 @@ async function liveCard(team: Team) {
 
 /** A visitor leaves their details on a card. */
 async function meet(cardId: number, name: string, extra: { email?: string; phone?: string } = {}) {
-  const contact = await callerFor(null).publicCard.exchange({ cardId, name, ...extra });
+  await callerFor(null).publicCard.exchange({ cardId, name, ...extra });
+  const [contact] = await db.select({ id: contacts.id }).from(contacts).where(eq(contacts.cardId, cardId)).orderBy(desc(contacts.id)).limit(1);
   return contact.id;
 }
 

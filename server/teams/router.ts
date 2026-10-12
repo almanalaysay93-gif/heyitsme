@@ -14,7 +14,7 @@ import {
   type WorkspaceRole,
 } from "@shared/teams";
 import { TEAMS_PLAN } from "@shared/plans";
-import { cards, contacts, users, workspaceAuditLog, workspaceInvitations, workspaceMembers, workspaces } from "../../drizzle/schema";
+import { cards, contacts, references, users, workspaceAuditLog, workspaceInvitations, workspaceMembers, workspaces } from "../../drizzle/schema";
 import { ENV } from "../_core/env";
 import { sendMail, teamInviteMail } from "../_core/mail";
 import { clientIp, hashIdentifier, rateLimit } from "../_core/rateLimit";
@@ -506,6 +506,8 @@ export const teamsRouter = router({
       if (target.userId) {
         await tx.update(cards).set({ ownerUserId: target.userId }).where(eq(cards.workspaceId, input.workspaceId));
         await tx.update(contacts).set({ ownerUserId: target.userId }).where(eq(contacts.workspaceId, input.workspaceId));
+        // Reviews are moderated by whoever holds them, so they follow their cards.
+        await tx.update(references).set({ ownerUserId: target.userId }).where(inArray(references.cardId, tx.select({ id: cards.id }).from(cards).where(eq(cards.workspaceId, input.workspaceId))));
       }
       await recordAudit(tx, { workspaceId: input.workspaceId, actorUserId: ctx.user.id, action: "workspace.ownership_transferred", entityType: "member", entityId: target.id, metadata: { fromMemberId: me.id } });
     });

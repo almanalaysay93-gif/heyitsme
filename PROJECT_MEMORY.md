@@ -1,4 +1,43 @@
+## 2026-10-12: Landing page: physical NFC card section (uncommitted)
+
+- Added dark and light NFC card art to `client/public/media/cards/` (from Downloads, 4 PNGs).
+
+- New `#card` section in `client/src/pages/Landing.tsx` between the film and How it works; styles in `landing3d.css` (`.lp2-nfc*`), 2 columns, 1 column under 760px.
+
+- Pricing unchanged in code: Pro ₱299 from `shared/plans.ts`. Live site also lists Teams ₱1,499/month, which the repo does not have (repo says Teams seat prices not set). Needs owner decision before any Teams price goes live.
+
+- Verification: `pnpm check` clean, `pnpm test` 540 passed, `pnpm build` clean. Viewed at localhost:3000.
+
+
+
 # PROJECT_MEMORY
+
+## 2026-10-08: Security audit against web_security_action_plan-v2 (uncommitted, branch fix/audit-2026-10-05)
+
+- **Audit result**: secrets, sessions, CSP and headers, uploads, 2C2P webhook, SQL, XSS sinks and error masking all pass. The plan's three paste-in prompts target Next.js and Stripe and were not applied.
+- **Fixes**:
+  - `proxy-addr` overridden to `^2.0.8` in `package.json` (GHSA-jqcg-44mw-7w3h). `pnpm audit --prod` now reports no known vulnerabilities.
+  - `/storage/*` is rate limited: 1200 hits a minute per address, counted in memory per instance (`server/_core/storageProxy.ts`). Not on Upstash, so pictures never wait on Redis.
+  - `loadTemplate` in `server/_core/seo.ts` only fetches `app.html` from a host `isOwnHost` accepts (public origin, `VERCEL_URL`, `VERCEL_BRANCH_URL`, `VERCEL_PROJECT_PRODUCTION_URL`).
+  - Removed the unused `sessionStorage` Bearer token header from `client/src/main.tsx`. Sessions travel in the HttpOnly cookie only.
+  - `assertSessionSecret` in `server/_core/env.ts`, called from `createApp`: production refuses to start when `JWT_SECRET` is set but under 32 bytes.
+- **Verification**: `pnpm check` 0 errors, `pnpm test` 539 passed (57 files), `pnpm build` clean.
+- **Manual steps left**:
+  - `JWT_SECRET` in Vercel (Production only) was replaced on 2026-10-08. The owner reports it is 32 characters, which is exactly the minimum the boot guard accepts.
+  - The Reviews panel on the Team cards page was not opened in a browser: check it once with a real team.
+  - Teams that changed owner before this fix still have their company-card reviews under the previous owner. They are moderated through the team screen now, so this is bookkeeping only.
+  - Not audited: the vCard route and the payment webhooks for ownership. `references.delete` and `contacts.delete` answer true even when nothing matched.
+- **tRPC ownership audit (2026-10-08, owner's report, four findings fixed, uncommitted)**:
+  - `teams.transferOwnership` now moves reviews on company cards to the new owner along with the cards and contacts. The previous owner could still read and moderate them.
+  - `publicCard.exchange` answers `{ ok: true }` on every path instead of the stored contact, which named the owner, team and campaign. The client never read the result.
+  - `publicCard.bySlug` also leaves out `ownerUserId`, `creationKey`, `templateId` and `deletedAt`, and each review's `ownerUserId`.
+  - `publicReviewPage` answers nothing for an unpublished card.
+  - Team review moderation: `teamCards.reviews`, `setReviewApproved` and `deleteReview` in `server/teams/cardsRouter.ts`, behind `manageableCard` (admins every card, a member the card assigned to them), each written to the audit log. A Reviews button on each card in `client/src/pages/TeamCards.tsx` opens them.
+  - The personal `references.list`, `setApproved` and `delete` now only reach reviews on personal cards (`onPersonalCard` in `server/db.ts`).
+  - Tests that read the returned contact now look it up in the database (`teamContacts.test.ts`, `billingFlow.test.ts`).
+- **Done on 2026-10-08**:
+  - Upstash Redis added through the Vercel integration: `KV_REST_API_URL` and `KV_REST_API_TOKEN` are set for Production and Preview, and production was redeployed afterwards. `/api/health` answers 200.
+  - Supabase checks, run by the owner: no public table has RLS off (0 rows); the `uploads` bucket has `public = false`; redirect URLs are `heyitsme-alai2.vercel.app/` and `/**` on that host, with no subdomain wildcard.
 
 ## 2026-10-06: Holds when a paid plan ends (branch `feat/plan-hold`, not merged)
 
@@ -533,6 +572,46 @@ Owner sent an RSVP on a live event and the Responses counts stayed at 0.
 - Build is three steps (`package.json` `build`): browser build, a second Vite build of `client/src/entry-prerender.tsx`, then `scripts/prerender.mjs` writes each page's markup, its CSS link and chunk preloads into its HTML file. The route-to-module list `PAGE_MODULES` in that script must follow `App.tsx`; the build fails loudly if a module is missing.
 - New file `dist/public/app.html` is the empty shell. `index.html` now holds the landing page, so `/app*`, `/r/*`, `/event/*` rewrites in `vercel.json`, the card-page template in `server/_core/seo.ts`, and `serveStatic` in `server/_core/vite.ts` all use `app.html`. `main.tsx` adopts markup only when `data-prerendered` equals the current path; otherwise it clears and draws as before.
 - `server/_core/shell.test.ts` guards the routing (no rewrite may point at `/index.html`).
+- Measured on the built files, slow 4G with 4x slower CPU, 390 wide: headline on screen 3.5s to 2.1s on `/`, 2.5s to 1.6s on `/pricing`. With JavaScript off all six pages show styled content. No hydration errors at 1440, 390, and with reduced motion; menu, palette swatches, navigation and back all work after hydration.
+- Cost: desktop landing layout shift went 0.010 to 0.043 (text now paints before the web font, then swaps). Mobile stays 0. Under the 0.1 budget.
+- Gates: `pnpm check` clean, `pnpm build` clean, `pnpm test` 530 passed. Checked on a local static server, not on Vercel: the first deploy should be a preview, then open `/`, `/app`, `/c/demo`, one real card and one event page.
+
+## 2026-10-12 — Landing page rebuilt from nothing: dark gold 3D design, free card first (Claude, branch `fix/audit-2026-10-05`, NOT committed, NOT deployed)
+- Owner: a completely new landing page with no trace of the old one; 3D parallax, a how-to animation made with Remotion, 3D cards and objects made with HyperFrames, aggressive motion, premium look, emphasis on the free digital card. Built with the designme skill (installed at `~/.claude/skills/designme`).
+- `client/src/pages/Landing.tsx` replaced and `client/src/pages/landing.css` added (all classes `nx-`); `landing3d.css` deleted. Design notes are in `DESIGN.md`.
+- New 3D clip: HyperFrames project `motion/cards/` renders `client/public/media/cards-orbit.mp4` (928 KB) and its poster. The four NFC card images are WebP in `client/public/media/cards/`.
+- New how-it-works film: `client/src/components/HowFilm.tsx` (Remotion, played by `@remotion/player`, own 300 KB chunk, loaded only near the section). New dependencies `remotion` and `@remotion/player`. Remotion is free for individuals and companies of up to three people; check the licence if the company grows.
+- Prices on the page come from `shared/plans.ts` (Free ₱0, Pro `PRICES_MINOR.pro.monthly`). Teams is shown as coming soon. The live site shows Teams at ₱1,499 but no such price exists in the repo; owner to confirm before it is shown.
+- Old design removed: `ShareDemo.tsx`, `VelocityMarquee.tsx` (deletions staged), and 226 `lp-`, `lp2-` and `sd-` rules from `client/src/index.css` and `buttons.css`. Still on disk and unused, removal was blocked in the session: `client/public/media/hero-orbit.mp4`, `hero-orbit-poster.webp`, `motion/hero/`.
+- `motion/cards/renders/cards.mp4` (11.5 MB raw render) is not ignored by git; do not commit it.
+- Gates: `pnpm check` clean, `pnpm test` 540 passed, `pnpm build` clean (landing prerenders at 21.5 kB). Seen in Chrome on the dev server at desktop width, every section, no console errors. Narrow layout seen only at 520 wide in headless Chrome and only the first screen; not checked on a real phone or at 390 and 320.
+
+## 2026-10-12 — Landing follow-up: film autoplays, real QR, two-card loop (Claude, same branch, NOT committed)
+- Owner: the how-it-works video should autoplay, the QR tile should look like a real QR, the QR cube in the 3D clip was confusing, animate the dark and light front cards as the background with HyperFrames.
+- `HowFilm.tsx`: plays when 35% of the frame is on screen, pauses when it leaves. `Landing.tsx` no longer holds it back under reduced motion; the pause button stays.
+- Deck QR tile is now a real code from `qrcode.react` pointing at `https://heyitsme.fyi/c/demo` (was a lucide icon).
+- `motion/cards/index.html` rewritten: cube and card backs removed; the dark and light fronts ride one carousel and counter-rotate to face the camera. Re-rendered and re-encoded to `client/public/media/cards-orbit.mp4` (720 KB) plus poster.
+- Gates: `pnpm check` clean, `pnpm test` 540 passed, `pnpm build` clean. Seen on the dev server at desktop width: hero clip, deck QR, film starting without a click. Reduced-motion and phone widths not re-checked.
+
+## 2026-10-12 — Landing word tapes are now a HyperFrames clip (Claude, same branch, NOT committed)
+- Owner: animate the two word tapes under the hero with HyperFrames. They looked frozen on the owner's machine because Windows has reduced motion on, which stopped the CSS marquee.
+- New project `motion/band/` (1920x340, 12s loop) renders `client/public/media/band-run.mp4` (1.2 MB). `Landing.tsx` shows it through `LoopVideo` (`nx-band-film`, plays under reduced motion, lighten blend); the CSS tapes remain as the fallback and for Save-Data.
+- Known: where bright hero card art passes behind the clip, it can show through the tape slightly (lighten blend).
+- `motion/band/renders/` is not ignored by git; do not commit the raw render.
+- Gates: `pnpm check` clean, `pnpm test` 540 passed, `pnpm build` clean. Clip confirmed playing in headless Chrome at 1440 and 500 wide.
+
+## 2026-10-12 — Landing pricing: Teams is a real plan, animated Free to Teams comparison (Claude, same branch, NOT committed)
+- The "Teams ... coming soon" line is gone. Pricing now has three plan cards (Free, Pro, Teams) and a comparison under them.
+- `shared/plans.ts` gained `TEAMS_PLAN = { priceMinor: 149900, seats: 10 }`, copied word for word from `main` so the merge is clean. Nothing else of Teams billing was brought over: `PLAN_CODES`, checkout and `docs/billing.md` are unchanged here. The Teams billing code and its doc section live on `main`, which this branch is 17 commits behind.
+- New `client/src/components/PlansFilm.tsx`: Remotion composition (1280x720, 390 frames) played by `@remotion/player`, lazy-loaded, plays under reduced motion. `Landing.tsx` builds `planColumns` and `planRows` from `PLAN_LIMITS`, `PRICES_MINOR` and `TEAMS_PLAN` and passes them in; the film holds no price.
+- The same data is a real `<table>` (`nx-table`): screen-reader and prerender copy on wide screens, the visible comparison at 560px and below, where the film is not loaded.
+- Teams call to action is "Start a team" to `/app/team`, as on `main`.
+
+## 2026-10-12 — Landing background: gold clouds clip (Claude, same branch, NOT committed)
+- New HyperFrames project `motion/clouds/` (1280x720, 16s loop) renders `client/public/media/clouds-drift.mp4` (630 KB at 960x540, crf 30). Rebuilt once after owner feedback ("doesn't look like clouds"): now two diagonal banks of steel-blue cloud with gold veins along their edges, after the dark NFC card art (`2.png`).
+- `Landing.tsx` mounts it first inside `.nx` through `LoopVideo` (`nx-clouds`, fixed, 40% opacity, behind all content, plays under reduced motion). `.nx` now has `isolation: isolate` so the layer can sit at `z-index: -1`.
+- `motion/clouds/renders/` is not ignored by git; do not commit the raw render (8 MB).
+
 - Measured on the built files, slow 4G with 4x slower CPU, 390 wide: headline on screen 3.6s to 1.9s on `/`, 2.5s to 1.5s on `/pricing`. With JavaScript off all six pages show styled content. No hydration errors at 1440, 390, and with reduced motion; menu, palette swatches, navigation and back all work after hydration.
 - Layout shift stays 0 at 1440, 390 and 320 on the landing page.
 - Gates: `pnpm check` clean, `pnpm build` clean, `pnpm test` 530 passed. Checked on a local static server, not on Vercel: the first deploy should be a preview, then open `/`, `/app`, `/c/demo`, one real card and one event page.

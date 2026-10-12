@@ -190,7 +190,7 @@ export async function connectManualReviewPage(cardId: number, ownerId: number, s
 export async function publicReviewPage(slug: string) {
   const db = await database();
   const [row] = await db.select({ page: googleReviewPages, card: cards }).from(googleReviewPages).innerJoin(cards, eq(cards.id, googleReviewPages.cardId)).where(and(eq(googleReviewPages.slug, slug), eq(googleReviewPages.enabled, true))).limit(1);
-  if (!row || row.card.deletedAt || !reviewDestination(row.page)) return null;
+  if (!row || row.card.deletedAt || !row.card.published || !reviewDestination(row.page)) return null;
   if (await cardHold(row.card)) throw pausedError();
   const { page, card } = row;
   return {

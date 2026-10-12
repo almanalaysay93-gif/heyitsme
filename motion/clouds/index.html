@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <style>
+    html, body { margin: 0; background: #07080c; }
+    #root { position: relative; width: 1280px; height: 720px; overflow: hidden; background: #07080c; }
+    .sky { position: absolute; left: 640px; top: 360px; width: 0; height: 0; }
+    .track { position: absolute; left: -1240px; top: -640px; width: 3840px; height: 1280px; }
+    .track svg { position: absolute; left: 0; top: 0; display: block; width: 3840px; height: 1280px; }
+    .body { opacity: 0.28; }
+    /* The clouds are built from small staggered cells, like the mosaic in the card art. */
+    .cells { -webkit-mask-image: radial-gradient(circle, #000 52%, transparent 62%), radial-gradient(circle, #000 52%, transparent 62%); mask-image: radial-gradient(circle, #000 52%, transparent 62%), radial-gradient(circle, #000 52%, transparent 62%); -webkit-mask-size: 14px 24px; mask-size: 14px 24px; -webkit-mask-position: 0 0, 7px 12px; mask-position: 0 0, 7px 12px; }
+    .glow { position: absolute; left: 240px; top: -40px; width: 800px; height: 800px; border-radius: 50%; background: radial-gradient(circle, rgba(216, 178, 106, 0.16) 0%, rgba(216, 178, 106, 0.05) 40%, rgba(10, 9, 8, 0) 68%); }
+    .star { position: absolute; width: 30px; height: 30px; background: #fff3cf; clip-path: polygon(50% 0, 55% 45%, 100% 50%, 55% 55%, 50% 100%, 45% 55%, 0 50%, 45% 45%); }
+    .s1 { left: 210px; top: 150px; } .s2 { left: 1010px; top: 210px; width: 20px; height: 20px; }
+    .s3 { left: 330px; top: 560px; width: 18px; height: 18px; } .s4 { left: 900px; top: 520px; }
+    .s5 { left: 640px; top: 90px; width: 16px; height: 16px; } .s6 { left: 1150px; top: 610px; width: 22px; height: 22px; }
+    .shade { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 50%, rgba(7, 8, 12, 0) 45%, rgba(7, 8, 12, 0.65) 100%); }
+  </style>
+</head>
+<body>
+  <!-- Fixed-seed noise made once at 1280px and tiled, so a strip can slide one tile and loop. The strip's own
+       fill is a banded gradient that is added to the noise, which gathers the clouds into two long rivers.
+       The gold veins are the contour of the same field, so they run along the cloud edges. -->
+  <svg width="0" height="0" style="position: absolute">
+    <defs>
+      <linearGradient id="bands" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#1a1a1a" /><stop offset="0.2" stop-color="#fff" /><stop offset="0.3" stop-color="#fff" />
+        <stop offset="0.5" stop-color="#000" /><stop offset="0.66" stop-color="#fff" /><stop offset="0.76" stop-color="#fff" /><stop offset="0.96" stop-color="#1a1a1a" />
+      </linearGradient>
+      <filter id="cloud" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.0042 0.0052" numOctaves="6" seed="11" stitchTiles="stitch" x="0" y="0" width="1280" height="1280" />
+        <feTile />
+        <feColorMatrix values="1 0 0 0 0  1 0 0 0 0  1 0 0 0 0  0 0 0 0 1" result="n" />
+        <feComposite in="n" in2="SourceGraphic" operator="arithmetic" k1="0" k2="1" k3="0.5" k4="-0.25" />
+        <feColorMatrix values="1.0 0 0 0 -0.32  1.06 0 0 0 -0.3  1.16 0 0 0 -0.24  5.5 0 0 0 -3.1" />
+      </filter>
+      <filter id="vein" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.0042 0.0052" numOctaves="6" seed="11" stitchTiles="stitch" x="0" y="0" width="1280" height="1280" />
+        <feTile />
+        <feColorMatrix values="1 0 0 0 0  1 0 0 0 0  1 0 0 0 0  0 0 0 0 1" result="n" />
+        <feComposite in="n" in2="SourceGraphic" operator="arithmetic" k1="0" k2="1" k3="0.5" k4="-0.25" />
+        <feColorMatrix values="0 0 0 0 1  0 0 0 0 0.8  0 0 0 0 0.42  1 0 0 0 0" />
+        <feComponentTransfer><feFuncA type="table" tableValues="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0.55 0 0 0 0 0 0 0 0 0 0 0 0 0" /></feComponentTransfer>
+        <feGaussianBlur stdDeviation="0.8" result="line" />
+        <feGaussianBlur in="line" stdDeviation="8" result="halo" />
+        <feMerge><feMergeNode in="halo" /><feMergeNode in="halo" /><feMergeNode in="line" /><feMergeNode in="line" /></feMerge>
+      </filter>
+      <filter id="haze" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.0031 0.0039" numOctaves="6" seed="4" stitchTiles="stitch" x="0" y="0" width="1280" height="1280" />
+        <feTile />
+        <feColorMatrix values="1 0 0 0 0  1 0 0 0 0  1 0 0 0 0  0 0 0 0 1" result="n" />
+        <feComposite in="n" in2="SourceGraphic" operator="arithmetic" k1="0" k2="1" k3="0.5" k4="-0.25" />
+        <feColorMatrix values="0 0 0 0 0.85  0 0 0 0 0.66  0 0 0 0 0.34  3.2 0 0 0 -1.75" />
+      </filter>
+    </defs>
+  </svg>
+  <div id="root" data-composition-id="heyitsme-clouds" data-start="0" data-duration="16" data-width="1280" data-height="720">
+    <div class="glow"></div>
+    <div class="sky sky-far" data-layout-allow-overlap><div class="track">
+      <svg viewBox="0 0 3840 1280"><rect width="3840" height="1280" fill="url(#bands)" filter="url(#haze)" /></svg>
+    </div></div>
+    <div class="sky sky-near" data-layout-allow-overlap><div class="track">
+      <svg class="body" viewBox="0 0 3840 1280"><rect width="3840" height="1280" fill="url(#bands)" filter="url(#cloud)" /></svg>
+      <svg class="cells" viewBox="0 0 3840 1280"><rect width="3840" height="1280" fill="url(#bands)" filter="url(#cloud)" /></svg>
+      <svg class="veins" viewBox="0 0 3840 1280"><rect width="3840" height="1280" fill="url(#bands)" filter="url(#vein)" /></svg>
+    </div></div>
+    <div class="star s1"></div><div class="star s2"></div><div class="star s3"></div>
+    <div class="star s4"></div><div class="star s5"></div><div class="star s6"></div>
+    <div class="shade"></div>
+  </div>
+  <script>
+    // Each layer slides exactly one tile, and every pulse runs whole cycles, so frame 0 and the last frame match.
+    const tl = gsap.timeline({ paused: true });
+    const D = 16;
+    gsap.set(".sky-far", { rotation: -32 });
+    gsap.set(".sky-near", { rotation: -32 });
+
+    tl.fromTo(".sky-near .track", { x: 0 }, { x: -1280, duration: D, ease: "none" }, 0);
+    tl.fromTo(".sky-far .track", { x: -1280 }, { x: 0, duration: D, ease: "none" }, 0);
+    tl.fromTo(".sky-far", { opacity: 0.3 }, { opacity: 0.55, duration: D / 2, ease: "sine.inOut", yoyo: true, repeat: 1 }, 0);
+    tl.fromTo(".veins", { opacity: 0.7 }, { opacity: 1, duration: D / 8, ease: "sine.inOut", yoyo: true, repeat: 7 }, 0);
+    tl.fromTo(".glow", { scale: 0.9, opacity: 0.7 }, { scale: 1.15, opacity: 1, duration: D / 4, ease: "sine.inOut", yoyo: true, repeat: 3 }, 0);
+    tl.fromTo(".s1, .s4, .s5", { scale: 0.15, rotation: 0 }, { scale: 1, rotation: 90, duration: 2, ease: "power2.out", yoyo: true, repeat: 7 }, 0);
+    tl.fromTo(".s2, .s3, .s6", { scale: 1, rotation: 0 }, { scale: 0.15, rotation: -90, duration: 2, ease: "power2.in", yoyo: true, repeat: 7 }, 0);
+
+    window.__timelines = window.__timelines || {};
+    window.__timelines["heyitsme-clouds"] = tl;
+  </script>
+</body>
+</html>

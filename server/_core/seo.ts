@@ -5,8 +5,7 @@ import express, { type Express, type Request } from "express";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { publicCardBySlug } from "../billing/hold";
-import { getDb } from "../db";
+import { getDb, getPublicCardBySlug } from "../db";
 import { ENV } from "./env";
 import { isLegacyHost, PRODUCTION_ORIGIN } from "@shared/publicOrigin";
 import { renderCardHtml, renderCardNotFoundHtml, renderMarketingHtml } from "./meta";
@@ -17,6 +16,19 @@ export function siteOrigin(req: Request): string {
   const host = (req.headers["x-forwarded-host"] as string) || req.get("host") || "";
   if (!host || isLegacyHost(host)) return PRODUCTION_ORIGIN;
   return `${req.protocol}://${host}`;
+}
+
+/**
+ * True for a host this deployment is known to answer on: the public origin, or a name Vercel gave the deployment.
+ * Where nothing in front of the server checks the Host header, the caller chooses it, so the page template is
+ * only ever fetched from one of these.
+ */
+export function isOwnHost(host: string | undefined): boolean {
+  const name = (host ?? "").trim().toLowerCase();
+  if (!name) return false;
+  const origins = [PRODUCTION_ORIGIN, ENV.siteUrl].filter(Boolean).map(origin => new URL(origin).host);
+  const deployment = [process.env.VERCEL_URL, process.env.VERCEL_BRANCH_URL, process.env.VERCEL_PROJECT_PRODUCTION_URL];
+  return [...origins, ...deployment].some(own => own?.toLowerCase() === name);
 }
 
 let templateCache: string | null = null;
@@ -43,9 +55,11 @@ async function loadTemplate(req: Request): Promise<string | null> {
       // try the next location
     }
   }
+  const host = req.get("host");
+  if (!isOwnHost(host)) return null;
   try {
     // The deployment's own host, not SITE_URL: preview builds have different asset hashes.
-    const response = await fetch(`${req.protocol}://${req.get("host")}/app.html`, { signal: AbortSignal.timeout(2000) });
+    const response = await fetch(`${req.protocol}://${host}/app.html`, { signal: AbortSignal.timeout(2000) });
     const html = response.ok ? await response.text() : "";
     if (html.includes('<div id="root"></div>')) templateCache = html;
   } catch {
@@ -143,13 +157,11 @@ export function registerSeoRoutes(app: Express) {
         res.status(429).set("Cache-Control", "no-store").type("text/plain").send("Too many requests");
         return;
       }
-      const found = await publicCardBySlug(slug);
-      // A card on hold gives no contact file, the same as a card that is not there.
-      if (!found || found.hold) {
-        res.status(404).set("Cache-Control", "no-store").type("text/plain").send(found ? "This card is paused" : "Card not found");
+      const card = await getPublicCardBySlug(slug);
+      if (!card) {
+        res.status(404).set("Cache-Control", "no-store").type("text/plain").send("Card not found");
         return;
       }
-      const card = found.card;
       const origin = siteOrigin(req);
       const fileName = (card.slug || "contact").replace(/[^a-z0-9-]+/gi, "-");
       res
@@ -175,13 +187,11 @@ export function registerSeoRoutes(app: Express) {
     const template = await loadTemplate(req);
     if (!template) return next();
     try {
-      const found = await publicCardBySlug(slug);
-      // On hold: no name, photo or description in the page head. The page itself tells the visitor it is paused.
-      if (!found || found.hold) {
+      const card = await getPublicCardBySlug(slug);
+      if (!card) {
         res.status(404).set("Cache-Control", "no-store").type("html").send(renderCardNotFoundHtml(template));
         return;
       }
-      const card = found.card;
       res
         .status(200)
         .set("Cache-Control", "no-cache, no-store, must-revalidate")

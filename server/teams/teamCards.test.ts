@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { cards, contacts, users, workspaceMembers } from "../../drizzle/schema";
+import { cards, contacts, references, users, workspaceMembers } from "../../drizzle/schema";
 import type { TrpcContext } from "../_core/context";
 import { ENV } from "../_core/env";
 import { countOwnedCards } from "../billing/service";
@@ -205,6 +205,7 @@ describe("company cards in public", () => {
     expect(shown).toMatchObject({ id: card.id, displayName: "Sam Seller" });
     expect(shown).not.toHaveProperty("workspaceId");
     expect(shown).not.toHaveProperty("assignedUserId");
+    for (const field of ["ownerUserId", "creationKey", "templateId", "deletedAt"]) expect(shown).not.toHaveProperty(field);
 
     for (const status of ["suspended", "archived"] as const) {
       await team.asOwner.teamCards.setStatus({ workspaceId, cardId: card.id, status });
@@ -216,10 +217,46 @@ describe("company cards in public", () => {
     expect(await visitor.publicCard.bySlug({ slug: card.slug })).not.toBeNull();
   });
 
+  it("lets admins and the card's holder moderate its reviews, and nobody else", async () => {
+    const team = await makeTeam();
+    const workspaceId = team.workspaceId;
+    const { holder, card } = await liveCard(team);
+    const admin = await join(team, "admin");
+    const colleague = await join(team);
+    const stranger = await makeTeam("Other Co");
+    const [review] = await db.insert(references).values({ cardId: card.id, ownerUserId: team.owner.id, clientName: "Rae Reviewer", quote: "Quick and friendly.", rating: 5, fromVisitor: true, approved: false }).returning();
+    const at = { workspaceId, cardId: card.id };
+
+    const listed = await admin.as.teamCards.reviews(at);
+    expect(listed).toMatchObject([{ id: review.id, clientName: "Rae Reviewer", approved: false }]);
+    expect(listed[0]).not.toHaveProperty("ownerUserId");
+    expect(await holder.as.teamCards.reviews(at)).toHaveLength(1);
+
+    // Another member, another team, and the personal review screens all find nothing.
+    await expect(colleague.as.teamCards.reviews(at)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(colleague.as.teamCards.setReviewApproved({ ...at, reviewId: review.id, approved: true })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(stranger.asOwner.teamCards.reviews(at)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(stranger.asOwner.teamCards.deleteReview({ workspaceId: stranger.workspaceId, cardId: card.id, reviewId: review.id })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(await team.asOwner.references.list({ cardId: card.id })).toEqual([]);
+    await expect(team.asOwner.references.setApproved({ id: review.id, approved: true })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await team.asOwner.references.delete({ id: review.id });
+    expect(await db.select().from(references).where(eq(references.id, review.id))).toHaveLength(1);
+
+    // A review of one card cannot be reached through another card.
+    const other = await liveCard(team);
+    await expect(admin.as.teamCards.setReviewApproved({ workspaceId, cardId: other.card.id, reviewId: review.id, approved: true })).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    await holder.as.teamCards.setReviewApproved({ ...at, reviewId: review.id, approved: true });
+    expect((await callerFor(null).publicCard.bySlug({ slug: card.slug }))?.references).toHaveLength(1);
+    await admin.as.teamCards.deleteReview({ ...at, reviewId: review.id });
+    expect(await admin.as.teamCards.reviews(at)).toEqual([]);
+  });
+
   it("gives a new contact to the person holding the card and marks it as the team's", async () => {
     const team = await makeTeam();
     const { holder, card } = await liveCard(team);
-    await callerFor(null).publicCard.exchange({ cardId: card.id, name: "Vera Visitor", email: "vera@visitor.test" });
+    // The visitor is told it worked and nothing about who received it.
+    expect(await callerFor(null).publicCard.exchange({ cardId: card.id, name: "Vera Visitor", email: "vera@visitor.test" })).toEqual({ ok: true });
     const [contact] = await db.select().from(contacts).where(eq(contacts.cardId, card.id));
     expect(contact).toMatchObject({ ownerUserId: team.owner.id, assignedUserId: holder.user.id, workspaceId: team.workspaceId, capturedByUserId: holder.user.id });
     expect(vi.mocked(sendMail).mock.calls.at(-1)?.[0]).toMatchObject({ to: holder.user.email });

@@ -118,10 +118,7 @@ footer.lx-footer > a:focus-visible { outline: 2px solid var(--ink); outline-offs
 .google-button { min-height: 44px; }
 .mobile-menu-button { min-width: 44px; min-height: 44px; }
 .sidebar-toggle.icon-button { width: 44px; height: 44px; }
-.lp-mobile-menu-trigger { width: 44px; height: 44px; }
 .lx-demo-banner a { min-height: 44px; }
-.lp-swatch { position: relative; }
-.lp-swatch::after { content: ""; position: absolute; inset: -7px -4px; }
 
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .text-button:hover,

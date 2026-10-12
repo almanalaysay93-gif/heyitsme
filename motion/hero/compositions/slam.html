@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+</head>
+<body>
+  <template>
+    <style>
+      #root { position: absolute; inset: 0; overflow: hidden; background: #0c0e16; font-family: sans-serif; color: #f4f1ea; }
+      .rig { position: absolute; inset: 0; perspective: 1400px; }
+      .card { position: absolute; left: 600px; top: 280px; width: 720px; height: 460px; background: #161822; border: 2px solid #9adbd4; }
+      .name, .co, .role { margin: 0; }
+      .name { position: absolute; left: 48px; top: 72px; font-size: 72px; font-weight: 800; letter-spacing: -0.04em; line-height: 0.95; }
+      .role { position: absolute; left: 48px; top: 168px; font-size: 28px; font-weight: 700; }
+      .co { position: absolute; left: 48px; top: 214px; font-size: 28px; font-weight: 700; color: #9adbd4; }
+      .slash { position: absolute; top: 46%; left: 0; width: 42%; height: 4px; background: #9adbd4; }
+    </style>
+    <div id="root" data-composition-id="heyitsme-slam" data-width="1920" data-height="1080" data-duration="3.4">
+      <div class="slash"></div>
+      <div class="rig">
+        <div class="card">
+          <p class="name">Alex Morgan</p>
+          <p class="role">Creative director</p>
+          <p class="co">Studio North</p>
+        </div>
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script>
+      const tl = gsap.timeline({ paused: true });
+      tl.fromTo(".slash", { x: -520, opacity: 0 }, { x: 1680, opacity: 0.85, duration: 1, ease: "none", delay: 0.15 }, 0);
+      tl.to(".slash", { opacity: 0, duration: 0.2 }, 1.15);
+      tl.fromTo(".card", { x: 120, rotateY: 18, opacity: 0 }, { x: 0, rotateY: 8, opacity: 1, duration: 1.15, ease: "power3.out" }, 0.4);
+      tl.fromTo(".name", { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.35, ease: "power2.out" }, 2.1);
+      tl.fromTo(".co", { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.35, ease: "power2.out" }, 2.7);
+      tl.fromTo(".role", { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.35, ease: "power2.out" }, 2.35);
+      window.__timelines = window.__timelines || {};
+      window.__timelines["heyitsme-slam"] = tl;
+    </script>
+  </template>
+</body>
+</html>

@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { cards, users } from "../drizzle/schema";
 import { createTestDb } from "./billing/testDb";
@@ -30,6 +31,10 @@ describe("manual Google review setup", () => {
     expect(await publicReviewDestination(page!.slug)).toBe(reviewUrl);
     expect(await publicReviewPage(page!.slug)).toMatchObject({ mapsUrl: null, businessName: "Example Clinic" });
     expect(await reviewPageForCard(card.id)).toMatchObject({ slug: page!.slug });
+
+    // Unpublishing the card takes its review page down with it.
+    await db.update(cards).set({ published: false }).where(eq(cards.id, card.id));
+    expect(await publicReviewPage(page!.slug)).toBeNull();
   });
 
   it("counts against the weekly setup limit", async () => {

@@ -8,6 +8,8 @@ type LoopVideoProps = {
   fallback?: ReactNode;
   /** Load and play only while on screen. Off for above-the-fold clips, which start once the page has loaded. */
   lazy?: boolean;
+  /** Landing clips stay on when the OS animation flag is off. Other pages keep the reduced-motion skip. */
+  playWhenReduced?: boolean;
 };
 
 export function isVideoUrl(url?: string | null) {
@@ -24,8 +26,8 @@ function prefersSavedData() {
  * Muted, looping, decorative background video. The fallback stays mounted until the first frame is ready,
  * then the clip cross-fades in, so a missing file simply leaves the code-made motion in place.
  */
-export function LoopVideo({ src, className = "", fallback = null, lazy = true }: LoopVideoProps) {
-  const reduceMotion = useReducedMotion();
+export function LoopVideo({ src, className = "", fallback = null, lazy = true, playWhenReduced = false }: LoopVideoProps) {
+  const reduceMotion = useReducedMotion() === true && !playWhenReduced;
   const wrapRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [inView, setInView] = useState(!lazy);
@@ -33,7 +35,7 @@ export function LoopVideo({ src, className = "", fallback = null, lazy = true }:
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [fallbackGone, setFallbackGone] = useState(false);
-  const enabled = Boolean(src) && !failed && !prefersSavedData();
+  const enabled = Boolean(src) && !failed && !prefersSavedData() && !reduceMotion;
 
   useEffect(() => {
     setReady(false);

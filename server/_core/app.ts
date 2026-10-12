@@ -12,6 +12,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { publicReviewDestination, trackReviewEvent } from "../googleReviews";
 import { clientIp, hashIdentifier, rateLimit } from "./rateLimit";
+import { assertSessionSecret } from "./env";
 
 // Keep in sync with the headers block in vercel.json, which covers static files Vercel serves directly.
 export const CONTENT_SECURITY_POLICY = [
@@ -53,6 +54,7 @@ const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
 };
 
 export function createApp(): Express {
+  assertSessionSecret();
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", 1);

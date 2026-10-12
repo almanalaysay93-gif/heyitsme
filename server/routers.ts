@@ -6,6 +6,7 @@ import { serverCardFields, validateCardData } from "@shared/cardValidation";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
 import { z } from "zod";
+import type { Reference } from "../drizzle/schema";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { newContactMail, sendMail } from "./_core/mail";
 import { clientIp, hashIdentifier, rateLimit } from "./_core/rateLimit";
@@ -752,9 +753,11 @@ export const appRouter = router({
         ]);
         // acceptsDetails false: the owner's free lead quota is used up, so the page offers direct contact instead of the form.
         // Which team a card belongs to, and who holds it, is not the public's business.
-        const { workspaceId: _team, assignedUserId: _holder, teamStatus: _status, ...shown } = card;
+        // Nor is the account behind it, or the bookkeeping columns.
+        const { workspaceId: _team, assignedUserId: _holder, teamStatus: _status, ownerUserId: _owner, creationKey: _key, templateId: _template, deletedAt: _deleted, ...shown } = card;
+        const references = (refs as Reference[]).map(({ ownerUserId: _reviewOwner, ...review }) => review);
         // team: the banners and company files this card shows, or null. Never the team itself.
-        return { ...shown, references: refs, acceptsDetails, team };
+        return { ...shown, references, acceptsDetails, team };
       }),
     /**
      * A visitor leaves a review on a Business or Services card. It is stored unapproved:
@@ -812,27 +815,11 @@ export const appRouter = router({
         await enforceRateLimit("exchange", clientIp(ctx.req), 10, 10 * MINUTE);
         // If honeypot is filled by bot, drop silently
         if (input.website) {
-          return { id: 0, name: input.name, source: "exchange_form" };
+          return { ok: true } as const;
         }
         if (input.cardId === DEMO_CARD_ID) {
           // Simulated exchange on demo card: no DB write, no owner email, no analytics
-          return {
-            id: -999,
-            cardId: DEMO_CARD_ID,
-            ownerUserId: 0,
-            name: input.name,
-            email: input.email ?? null,
-            phone: input.phone ?? null,
-            company: input.company ?? null,
-            title: input.title ?? null,
-            notes: input.notes ?? null,
-            tags: "[]",
-            source: "exchange_form",
-            followedUp: false,
-            seenAt: null,
-            followUpOn: null,
-            createdAt: new Date(),
-          };
+          return { ok: true } as const;
         }
         const card = await getCardById(input.cardId);
         if (!card || !card.published || card.deletedAt || card.teamStatus)
@@ -865,7 +852,8 @@ export const appRouter = router({
           contact,
           siteOrigin(ctx.req)
         );
-        return contact;
+        // The stored contact names the owner, the team and the campaign. The visitor needs none of it.
+        return { ok: true } as const;
       }),
     // Fire-and-forget visitor actions for the owner's Insights. Public, like views, so counts are best-effort.
     track: publicProcedure

@@ -58,7 +58,7 @@ describe("publicCard.exchange", () => {
 
   it("saves the contact and emails the owner once", async () => {
     const saved = await publicCaller().publicCard.exchange(visitor);
-    expect(saved.id).toBe(42);
+    expect(saved).toEqual({ ok: true });
     expect(db.createContact).toHaveBeenCalledTimes(1);
     expect(mail.sendMail).toHaveBeenCalledTimes(1);
     const sent = mail.sendMail.mock.calls[0][0];
@@ -72,20 +72,20 @@ describe("publicCard.exchange", () => {
   it("still saves the contact when sending throws", async () => {
     mail.sendMail.mockRejectedValue(new Error("Resend down"));
     const saved = await publicCaller().publicCard.exchange(visitor);
-    expect(saved.id).toBe(42);
+    expect(saved).toEqual({ ok: true });
     expect(db.createContact).toHaveBeenCalledTimes(1);
   });
 
   it("still saves the contact when the owner lookup fails", async () => {
     db.getUserById.mockRejectedValue(new Error("db hiccup"));
-    await expect(publicCaller().publicCard.exchange(visitor)).resolves.toMatchObject({ id: 42 });
+    await expect(publicCaller().publicCard.exchange(visitor)).resolves.toEqual({ ok: true });
     expect(mail.sendMail).not.toHaveBeenCalled();
   });
 
   it("sends nothing for the honeypot", async () => {
     const result = await publicCaller().publicCard.exchange({ ...visitor, website: "http://spam.example",
     });
-    expect(result.id).toBe(0);
+    expect(result).toEqual({ ok: true });
     expect(db.createContact).not.toHaveBeenCalled();
     expect(mail.sendMail).not.toHaveBeenCalled();
   });
